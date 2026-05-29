@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Package } from 'lucide-react';
+import { DEMO_MODE } from '@/lib/demo';
 
 export default function SetupPage() {
   const router = useRouter();
@@ -25,6 +26,8 @@ export default function SetupPage() {
   });
 
   useEffect(() => {
+    if (DEMO_MODE) { router.replace('/dashboard'); return; }
+
     const getUser = async () => {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
@@ -32,7 +35,6 @@ export default function SetupPage() {
       setUserEmail(user.email || '');
       setUserName(user.email?.split('@')[0] || '');
 
-      // Se já tem perfil, redireciona
       const { data } = await supabase.from('usuarios').select('id').eq('id', user.id).single();
       if (data) router.push('/dashboard');
     };
@@ -71,6 +73,8 @@ export default function SetupPage() {
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
+  if (DEMO_MODE) return null;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
@@ -91,70 +95,20 @@ export default function SetupPage() {
           </p>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">
-              {error}
-            </div>
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">{error}</div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Nome Fantasia *"
-                value={form.empresaNome}
-                onChange={set('empresaNome')}
-                placeholder="Center Auto Peças"
-                required
-              />
-              <Input
-                label="Razão Social *"
-                value={form.empresaRazao}
-                onChange={set('empresaRazao')}
-                placeholder="Center Auto Peças LTDA"
-                required
-              />
-              <Input
-                label="CNPJ *"
-                value={form.empresaCnpj}
-                onChange={set('empresaCnpj')}
-                placeholder="00.000.000/0001-00"
-                required
-                maxLength={18}
-              />
-              <Input
-                label="E-mail da Empresa"
-                type="email"
-                value={form.empresaEmail}
-                onChange={set('empresaEmail')}
-                placeholder={userEmail}
-              />
-              <Input
-                label="Telefone"
-                value={form.empresaTelefone}
-                onChange={set('empresaTelefone')}
-                placeholder="(11) 99999-9999"
-              />
-              <Input
-                label="Cidade"
-                value={form.empresaCidade}
-                onChange={set('empresaCidade')}
-                placeholder="São Paulo"
-              />
-              <Input
-                label="Estado (UF)"
-                value={form.empresaEstado}
-                onChange={set('empresaEstado')}
-                placeholder="SP"
-                maxLength={2}
-              />
-              <Input
-                label="Seu nome *"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                placeholder="Nome do administrador"
-                required
-              />
+              <Input label="Nome Fantasia *" value={form.empresaNome} onChange={set('empresaNome')} placeholder="Center Auto Peças" required />
+              <Input label="Razão Social *" value={form.empresaRazao} onChange={set('empresaRazao')} placeholder="Center Auto Peças LTDA" required />
+              <Input label="CNPJ *" value={form.empresaCnpj} onChange={set('empresaCnpj')} placeholder="00.000.000/0001-00" required maxLength={18} />
+              <Input label="E-mail da Empresa" type="email" value={form.empresaEmail} onChange={set('empresaEmail')} placeholder={userEmail} />
+              <Input label="Telefone" value={form.empresaTelefone} onChange={set('empresaTelefone')} placeholder="(11) 99999-9999" />
+              <Input label="Cidade" value={form.empresaCidade} onChange={set('empresaCidade')} placeholder="São Paulo" />
+              <Input label="Estado (UF)" value={form.empresaEstado} onChange={set('empresaEstado')} placeholder="SP" maxLength={2} />
+              <Input label="Seu nome *" value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="Nome do administrador" required />
             </div>
-
             <Button type="submit" loading={loading} size="lg" className="w-full mt-2">
               Criar minha empresa e entrar
             </Button>

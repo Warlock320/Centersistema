@@ -1,7 +1,22 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { DEMO_COOKIE } from '@/lib/demo';
 
 export default async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // No demo mode, a proteção é baseada no cookie demo_session
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
+    const hasDemo = request.cookies.get(DEMO_COOKIE)?.value === '1';
+    if (!hasDemo && pathname.startsWith('/dashboard')) {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+    if (hasDemo && pathname === '/login') {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+    return NextResponse.next({ request });
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -25,8 +40,6 @@ export default async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  const { pathname } = request.nextUrl;
-  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/setup');
   const isDashboard = pathname.startsWith('/dashboard');
 
   if (!user && isDashboard) {

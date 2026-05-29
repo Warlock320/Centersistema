@@ -3,10 +3,12 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Modal } from '@/components/ui/Modal';
+import { Confirm } from '@/components/ui/Confirm';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Input, Textarea, Select } from '@/components/ui/Input';
-import { Plus, Copy, ChevronRight, ChevronDown, Trash2, AlertTriangle } from 'lucide-react';
+import { OrcamentoPDFButton } from '@/components/OrcamentoPDF';
+import { Plus, Copy, ChevronRight, Trash2, AlertTriangle, Clock, Send } from 'lucide-react';
 import type { Orcamento, OrcamentoStatus, Cliente, Produto, OrcamentoItem, Usuario } from '@/types/database.types';
 
 const STATUS_STEPS: OrcamentoStatus[] = [
@@ -350,7 +352,7 @@ export default function OrcamentosPage() {
         <Modal open={showDetail} onClose={() => setShowDetail(false)} title={`Orçamento #${selected.numero}`} size="xl">
           <div className="space-y-5">
             {/* Cancelado Banner */}
-            {selected.status === 'cancelado' && (
+            {selected.status === 'cancelado' ? (
               <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
                 <AlertTriangle size={20} />
                 <div>
@@ -358,10 +360,8 @@ export default function OrcamentosPage() {
                   {selected.observacoes && <p className="text-sm">{selected.observacoes}</p>}
                 </div>
               </div>
-            )}
-
-            {/* Stepper */}
-            {selected.status !== 'cancelado' && (
+            ) : (
+              /* Stepper visual */
               <div className="flex items-center gap-1 overflow-x-auto pb-2">
                 {STATUS_STEPS.map((step, idx) => {
                   const currentIdx = STATUS_STEPS.indexOf(selected.status as OrcamentoStatus);
@@ -369,25 +369,39 @@ export default function OrcamentosPage() {
                   const isCurrent = idx === currentIdx;
                   return (
                     <div key={step} className="flex items-center gap-1 shrink-0">
-                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
+                      <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium ${
                         isPast ? 'bg-green-100 text-green-700' :
                         isCurrent ? 'bg-blue-600 text-white' :
                         'bg-slate-100 text-slate-400'
                       }`}>
-                        {isPast && '✓'} {STATUS_LABELS[step]}
+                        {isPast ? '✓ ' : ''}{STATUS_LABELS[step]}
                       </div>
-                      {idx < STATUS_STEPS.length - 1 && <ChevronRight size={14} className="text-slate-300 shrink-0" />}
+                      {idx < STATUS_STEPS.length - 1 && <ChevronRight size={12} className="text-slate-300 shrink-0" />}
                     </div>
                   );
                 })}
               </div>
             )}
 
+            {/* Aguardando aprovação — aviso */}
+            {selected.status === 'aguardando_aprovacao' && (
+              <div className="flex items-center gap-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-700 text-sm">
+                <Clock size={16} className="shrink-0" />
+                Este orçamento está na <strong className="ml-1">Fila de Aprovação</strong>. Aguarde a decisão de um aprovador ou administrador.
+              </div>
+            )}
+
             {/* Info */}
-            <div className="grid grid-cols-3 gap-3 text-sm">
-              <div><span className="text-slate-400">Cliente</span><p className="font-medium">{selected.clientes?.nome}</p></div>
-              <div><span className="text-slate-400">Vendedor</span><p className="font-medium">{selected.usuarios?.nome}</p></div>
-              <div><span className="text-slate-400">Validade</span><p className="font-medium">{selected.validade ? new Date(selected.validade).toLocaleDateString('pt-BR') : '—'}</p></div>
+            <div className="grid grid-cols-3 gap-3 text-sm bg-slate-50 rounded-lg p-3">
+              <div><span className="text-xs text-slate-400 block">Cliente</span><p className="font-medium">{selected.clientes?.nome}</p></div>
+              <div><span className="text-xs text-slate-400 block">Vendedor</span><p className="font-medium">{selected.usuarios?.nome}</p></div>
+              <div>
+                <span className="text-xs text-slate-400 block">Validade</span>
+                <p className={`font-medium ${selected.validade && new Date(selected.validade) < new Date() ? 'text-red-600' : ''}`}>
+                  {selected.validade ? new Date(selected.validade).toLocaleDateString('pt-BR') : '—'}
+                  {selected.validade && new Date(selected.validade) < new Date() && ' (vencido)'}
+                </p>
+              </div>
             </div>
 
             {/* Items */}
@@ -395,42 +409,55 @@ export default function OrcamentosPage() {
               <thead className="bg-slate-50">
                 <tr>
                   {['Descrição', 'Qtd', 'Preço Un.', 'Desc%', 'Total'].map((h) => (
-                    <th key={h} className="px-4 py-2 text-xs text-slate-400 text-left">{h}</th>
+                    <th key={h} className="px-4 py-2.5 text-xs text-slate-500 font-semibold text-left">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {(selected.orcamento_itens || []).map((item) => (
-                  <tr key={item.id} className="border-t border-slate-50">
-                    <td className="px-4 py-2">{item.descricao}</td>
-                    <td className="px-4 py-2">{item.quantidade}</td>
-                    <td className="px-4 py-2">{Number(item.preco_unitario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                    <td className="px-4 py-2">{item.desconto}%</td>
-                    <td className="px-4 py-2 font-medium">{Number(item.total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                  <tr key={item.id} className="border-t border-slate-50 hover:bg-slate-50">
+                    <td className="px-4 py-2.5">{item.descricao}</td>
+                    <td className="px-4 py-2.5">{Number(item.quantidade).toFixed(2)}</td>
+                    <td className="px-4 py-2.5">{Number(item.preco_unitario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                    <td className="px-4 py-2.5 text-slate-400">{item.desconto}%</td>
+                    <td className="px-4 py-2.5 font-medium">{Number(item.total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot className="bg-slate-50 border-t border-slate-200">
                 <tr>
-                  <td colSpan={4} className="px-4 py-2 text-right font-semibold text-slate-600">Total:</td>
-                  <td className="px-4 py-2 font-bold text-lg">{Number(selected.total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                  <td colSpan={4} className="px-4 py-2.5 text-right font-semibold text-slate-600">Total:</td>
+                  <td className="px-4 py-2.5 font-bold text-xl text-slate-900">
+                    {Number(selected.total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </td>
                 </tr>
               </tfoot>
             </table>
 
+            {selected.observacoes && (
+              <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg text-sm text-amber-800">
+                <strong>Observações:</strong> {selected.observacoes}
+              </div>
+            )}
+
             {/* Actions */}
-            <div className="flex gap-2 flex-wrap">
-              {NEXT_STATUS[selected.status] && (
+            <div className="flex gap-2 flex-wrap items-center">
+              {/* Botão de avanço de status (bloqueado em aguardando_aprovacao) */}
+              {NEXT_STATUS[selected.status] && selected.status !== 'aguardando_aprovacao' && (
                 <Button onClick={() => handleStatusChange(NEXT_STATUS[selected.status]!)} loading={acting}>
-                  {NEXT_BTN[selected.status]}
+                  <Send size={14} /> {NEXT_BTN[selected.status]}
                 </Button>
               )}
+              {/* PDF */}
+              <OrcamentoPDFButton orcamento={selected} empresaNome={usuario?.empresa_id ? undefined : 'Center Auto Peças'} />
+              {/* Duplicar */}
               <Button variant="secondary" onClick={handleDuplicate} loading={acting}>
                 <Copy size={14} /> Duplicar
               </Button>
-              {selected.status !== 'cancelado' && !['aprovado', 'aguardando_pecas', 'enviado'].includes(selected.status) && (
+              {/* Cancelar — somente status permitidos */}
+              {!['aprovado', 'aguardando_pecas', 'enviado', 'cancelado'].includes(selected.status) && (
                 <Button variant="danger" size="sm" onClick={() => handleStatusChange('cancelado')}>
-                  Cancelar Orçamento
+                  Cancelar
                 </Button>
               )}
             </div>

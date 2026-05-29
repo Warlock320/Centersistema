@@ -6,6 +6,10 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Package } from 'lucide-react';
+import { DEMO_MODE, DEMO_COOKIE } from '@/lib/demo';
+
+const DEMO_EMAIL = 'admin@demo.com';
+const DEMO_PASSWORD = 'admin123';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,6 +25,20 @@ export default function LoginPage() {
     setError('');
     setMessage('');
     setLoading(true);
+
+    // ── Demo mode bypass ──────────────────────────────────────────────
+    if (DEMO_MODE) {
+      if (email === DEMO_EMAIL && password === DEMO_PASSWORD) {
+        document.cookie = `${DEMO_COOKIE}=1; path=/; max-age=86400`;
+        router.push('/dashboard');
+        router.refresh();
+      } else {
+        setError(`Modo Demo: use ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
+        setLoading(false);
+      }
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────
 
     const supabase = createClient();
 
@@ -66,14 +84,29 @@ export default function LoginPage() {
 
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-2xl p-8">
-          <h2 className="text-2xl font-bold text-slate-900 mb-1">
-            {mode === 'login' ? 'Entrar' : 'Criar conta'}
-          </h2>
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-2xl font-bold text-slate-900">
+              {mode === 'login' ? 'Entrar' : 'Criar conta'}
+            </h2>
+            {DEMO_MODE && (
+              <span className="text-xs font-bold px-2 py-1 bg-amber-100 text-amber-700 rounded-full border border-amber-200">
+                MODO DEMO
+              </span>
+            )}
+          </div>
           <p className="text-slate-500 text-sm mb-6">
             {mode === 'login'
               ? 'Acesse o painel de gestão'
               : 'Crie sua conta e configure sua empresa'}
           </p>
+
+          {DEMO_MODE && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+              <strong>Credenciais de teste:</strong><br />
+              E-mail: <code className="font-mono">admin@demo.com</code><br />
+              Senha: <code className="font-mono">admin123</code>
+            </div>
+          )}
 
           {message && (
             <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">

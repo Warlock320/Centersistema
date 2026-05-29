@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { Usuario } from '@/types/database.types';
+import { DEMO_MODE, DEMO_COOKIE } from '@/lib/demo';
 
 interface NavItem {
   href: string;
@@ -104,6 +105,11 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
   }, []);
 
   const handleLogout = async () => {
+    if (DEMO_MODE) {
+      document.cookie = `${DEMO_COOKIE}=; path=/; max-age=0`;
+      router.push('/login');
+      return;
+    }
     await supabase.auth.signOut();
     router.push('/login');
   };
@@ -233,6 +239,11 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
         </div>
 
         <div className="flex items-center gap-3 ml-auto">
+          {DEMO_MODE && (
+            <span className="text-xs font-bold px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full border border-amber-200">
+              DEMO
+            </span>
+          )}
           {alertas > 0 && (
             <Link
               href="/dashboard"
