@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Input, Textarea, Select } from '@/components/ui/Input';
 import { OrcamentoPDFButton } from '@/components/OrcamentoPDF';
 import { Plus, Copy, ChevronRight, Trash2, AlertTriangle, Clock, Send } from 'lucide-react';
-import type { Orcamento, OrcamentoStatus, Cliente, Produto, OrcamentoItem, Usuario } from '@/types/database.types';
+import type { Orcamento, OrcamentoStatus, Cliente, Produto, OrcamentoItem, Usuario, TabelaPreco, PrecoProdutoView } from '@/types/database.types';
 
 const STATUS_STEPS: OrcamentoStatus[] = [
   'criado', 'orcamento_enviado', 'aguardando_aprovacao', 'aprovado', 'aguardando_pecas', 'enviado',
@@ -44,9 +44,14 @@ export default function OrcamentosPage() {
   const [formClienteId, setFormClienteId] = useState('');
   const [formValidade, setFormValidade] = useState('');
   const [formObs, setFormObs] = useState('');
+  const [formTabelaId, setFormTabelaId] = useState('');
   const [itens, setItens] = useState<Partial<OrcamentoItem>[]>([
     { descricao: '', quantidade: 1, preco_unitario: 0, desconto: 0, total: 0 },
   ]);
+
+  const [tabelas, setTabelas] = useState<TabelaPreco[]>([]);
+  // precosMap[tabelaId][produtoId] = preço
+  const [precosMap, setPrecosMap] = useState<Record<string, Record<string, number>>>({});
 
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const supabase = createClient();
@@ -60,15 +65,35 @@ export default function OrcamentosPage() {
       setUsuario(usr as Usuario);
     }
     setLoading(true);
-    const [orcs, clis, prods] = await Promise.all([
+    const [orcs, clis, prods, tabs, precos] = await Promise.all([
       supabase.from('orcamentos').select('*, clientes(nome), usuarios(nome), orcamento_itens(*)').order('numero', { ascending: false }),
       supabase.from('clientes').select('id, nome').eq('ativo', true).order('nome'),
-      supabase.from('produtos').select('id, nome, preco').eq('ativo', true).order('nome'),
+      supabase.from('produtos').select('id, nome, codigo, preco, estoque').eq('ativo', true).order('nome'),
+      supabase.from('tabelas_preco').select('*').eq('ativo', true).order('padrao', { ascending: false }).order('nome'),
+      supabase.from('v_precos_produto').select('produto_id, tabela_preco_id, preco'),
     ]);
     setOrcamentos(orcs.data as Orcamento[] || []);
     setClientes(clis.data as Cliente[] || []);
     setProdutos(prods.data as Produto[] || []);
+
+    const tabList = tabs.data as TabelaPreco[] || [];
+    setTabelas(tabList);
+    const padrao = tabList.find((t) => t.padrao) || tabList[0];
+    if (padrao) setFormTabelaId(padrao.id);
+
+    const map: Record<string, Record<string, number>> = {};
+    (precos.data as PrecoProdutoView[] || []).forEach((p) => {
+      if (!map[p.tabela_preco_id]) map[p.tabela_preco_id] = {};
+      map[p.tabela_preco_id][p.produto_id] = Number(p.preco);
+    });
+    setPrecosMap(map);
+
     setLoading(false);
+  }
+
+  // Preço de um produto na tabela selecionada (fallback: preço base do produto)
+  function precoNaTabela(prodId: string, fallback: number): number {
+    return precosMap[formTabelaId]?.[prodId] ?? fallback;
   }
 
   async function openDetail(orc: Orcamento) {
@@ -93,13 +118,28 @@ export default function OrcamentosPage() {
   function setItemProduto(index: number, prodId: string) {
     const prod = produtos.find((p) => p.id === prodId);
     if (!prod) return;
+    const preco = precoNaTabela(prodId, prod.preco);
     setItens((prev) => {
       const copy = [...prev];
-      copy[index] = { ...copy[index], produto_id: prodId, descricao: prod.nome, preco_unitario: prod.preco };
+      copy[index] = { ...copy[index], produto_id: prodId, descricao: prod.nome, preco_unitario: preco };
       const qty = Number(copy[index].quantidade || 1);
-      copy[index].total = parseFloat((qty * prod.preco).toFixed(2));
+      const disc = Number(copy[index].desconto || 0);
+      copy[index].total = parseFloat((qty * preco * (1 - disc / 100)).toFixed(2));
       return copy;
     });
+  }
+
+  // Ao trocar a tabela de preço, recalcula os itens que têm produto vinculado
+  function trocarTabela(tabelaId: string) {
+    setFormTabelaId(tabelaId);
+    setItens((prev) => prev.map((item) => {
+      if (!item.produto_id) return item;
+      const prod = produtos.find((p) => p.id === item.produto_id);
+      const preco = precosMap[tabelaId]?.[item.produto_id] ?? prod?.preco ?? Number(item.preco_unitario || 0);
+      const qty = Number(item.quantidade || 1);
+      const disc = Number(item.desconto || 0);
+      return { ...item, preco_unitario: preco, total: parseFloat((qty * preco * (1 - disc / 100)).toFixed(2)) };
+    }));
   }
 
   async function handleSave(e: FormEvent) {
@@ -241,7 +281,7 @@ export default function OrcamentosPage() {
       {/* New Orcamento Modal */}
       <Modal open={showForm} onClose={() => setShowForm(false)} title="Novo Orçamento" size="xl">
         <form onSubmit={handleSave} className="space-y-5">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <div className="col-span-2">
               <Select
                 label="Cliente *"
@@ -250,6 +290,17 @@ export default function OrcamentosPage() {
                 options={clientes.map((c) => ({ value: c.id, label: c.nome }))}
                 required
               />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-slate-700 block mb-1">Tabela de Preço</label>
+              <select value={formTabelaId} onChange={(e) => trocarTabela(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500">
+                {tabelas.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nome}{Number(t.ajuste_percentual) !== 0 ? ` (${t.ajuste_percentual > 0 ? '+' : ''}${t.ajuste_percentual}%)` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
             <Input label="Validade" type="date" value={formValidade} onChange={(e) => setFormValidade(e.target.value)} />
           </div>
@@ -285,7 +336,14 @@ export default function OrcamentosPage() {
                           className="text-xs border border-slate-200 rounded px-2 py-1 w-36 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         >
                           <option value="">Selecionar...</option>
-                          {produtos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                          {produtos.map((p) => {
+                            const pr = precoNaTabela(p.id, p.preco);
+                            return (
+                              <option key={p.id} value={p.id}>
+                                {p.codigo ? `[${p.codigo}] ` : ''}{p.nome} — {pr.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (est: {Number(p.estoque).toFixed(0)})
+                              </option>
+                            );
+                          })}
                         </select>
                       </td>
                       <td className="px-2 py-1.5">

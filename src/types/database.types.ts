@@ -24,7 +24,37 @@ export interface Empresa {
   cidade: string | null;
   estado: string | null;
   cep: string | null;
+  permite_estoque_negativo: boolean;
   created_at: string;
+}
+
+export interface TabelaPreco {
+  id: string;
+  empresa_id: string;
+  nome: string;
+  ajuste_percentual: number;
+  padrao: boolean;
+  ativo: boolean;
+  created_at: string;
+}
+
+export interface PrecoProduto {
+  id: string;
+  empresa_id: string;
+  produto_id: string;
+  tabela_preco_id: string;
+  preco: number;
+}
+
+/** Linha da view v_precos_produto */
+export interface PrecoProdutoView {
+  produto_id: string;
+  empresa_id: string;
+  tabela_preco_id: string;
+  tabela_nome: string;
+  tabela_padrao: boolean;
+  preco: number;
+  preco_customizado: boolean;
 }
 
 export interface Usuario {

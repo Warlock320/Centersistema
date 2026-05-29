@@ -35,6 +35,7 @@ export default function PedidosPage() {
 
   const [confirmFaturar, setConfirmFaturar] = useState(false);
   const [confirmCancelar, setConfirmCancelar] = useState(false);
+  const [erro, setErro] = useState('');
 
   const supabase = createClient();
   const { can } = usePermissions();
@@ -54,6 +55,7 @@ export default function PedidosPage() {
   }
 
   async function openDetail(p: Pedido) {
+    setErro('');
     const { data } = await supabase.from('pedidos').select('*, clientes(*), pedido_itens(*)').eq('id', p.id).single();
     setSelected(data as Pedido);
   }
@@ -61,13 +63,17 @@ export default function PedidosPage() {
   async function handleStatusChange(newStatus: PedidoStatus) {
     if (!selected) return;
     setActing(true);
+    setErro('');
 
     if (newStatus === 'faturado') {
-      // Usa RPC que cria movimentações de estoque (saída) atomicamente
+      // RPC cria movimentações de estoque (saída) e conta a receber atomicamente.
+      // Pode falhar se a loja não permite estoque negativo e faltar saldo.
       const { error } = await supabase.rpc('faturar_pedido', { p_pedido_id: selected.id });
       if (error) {
-        // Fallback: atualiza só o status se o RPC não existir ainda (demo mode)
-        await supabase.from('pedidos').update({ status: 'faturado', updated_at: new Date().toISOString() }).eq('id', selected.id);
+        setErro(error.message || 'Não foi possível faturar o pedido.');
+        setActing(false);
+        setConfirmFaturar(false);
+        return;
       }
     } else {
       await supabase.from('pedidos').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', selected.id);
@@ -82,6 +88,7 @@ export default function PedidosPage() {
   async function handleCancelar() {
     if (!selected) return;
     setActing(true);
+    setErro('');
     const { error } = await supabase.rpc('cancelar_pedido', { p_pedido_id: selected.id });
     if (error) {
       await supabase.from('pedidos').update({ status: 'cancelado', updated_at: new Date().toISOString() }).eq('id', selected.id);
@@ -166,6 +173,11 @@ export default function PedidosPage() {
       {selected && (
         <Modal open={!!selected} onClose={() => setSelected(null)} title={`Pedido #${selected.numero}`} size="xl">
           <div className="space-y-5">
+            {erro && (
+              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                <XCircle size={16} className="shrink-0" /> {erro}
+              </div>
+            )}
             {/* Stepper */}
             {selected.status === 'cancelado' ? (
               <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">

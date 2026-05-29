@@ -131,6 +131,7 @@ export default function ConfiguracoesPage() {
       nome: empresa.nome, razao_social: empresa.razao_social, cnpj: empresa.cnpj,
       email: empresa.email, telefone: empresa.telefone, endereco: empresa.endereco,
       cidade: empresa.cidade, estado: empresa.estado, cep: empresa.cep,
+      permite_estoque_negativo: empresa.permite_estoque_negativo,
     }).eq('id', empresa.id!);
     setSaving(false);
     setSavedMsg('Dados salvos com sucesso!');
@@ -251,6 +252,25 @@ export default function ConfiguracoesPage() {
             <Input label="Cidade" value={empresa.cidade || ''} onChange={set('cidade')} disabled={!isAdmin} />
             <Input label="Estado (UF)" value={empresa.estado || ''} onChange={set('estado')} maxLength={2} disabled={!isAdmin} />
           </div>
+
+          {/* Preferência de estoque */}
+          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+            <div>
+              <p className="text-sm font-medium text-slate-700">Permitir estoque negativo</p>
+              <p className="text-xs text-slate-400">
+                Ativado: a venda conclui mesmo sem saldo (estoque pode ficar negativo). Desativado: o faturamento é bloqueado se faltar estoque.
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={!isAdmin}
+              onClick={() => setEmpresa((p) => ({ ...p, permite_estoque_negativo: !p.permite_estoque_negativo }))}
+              className={`w-12 h-6 rounded-full relative transition-colors shrink-0 ${empresa.permite_estoque_negativo ? 'bg-blue-600' : 'bg-slate-300'} ${!isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all ${empresa.permite_estoque_negativo ? 'left-[26px]' : 'left-0.5'}`} />
+            </button>
+          </div>
+
           {savedMsg && <p className="text-green-600 text-sm">{savedMsg}</p>}
           {isAdmin && <Button type="submit" loading={saving}>Salvar Dados</Button>}
         </form>
