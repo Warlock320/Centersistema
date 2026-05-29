@@ -89,9 +89,41 @@ export async function buscarCNPJ(cnpj: string): Promise<DadosCNPJ> {
   };
 }
 
-function formatCEP(v: string): string {
+export function formatCEP(v: string): string {
   const d = somenteDigitos(v).slice(0, 8);
   return d.replace(/^(\d{5})(\d)/, '$1-$2');
+}
+
+/** True se a string (limpa) tem 8 dígitos (CEP). */
+export function isCEP(v: string): boolean {
+  return somenteDigitos(v).length === 8;
+}
+
+export interface DadosCEP {
+  cep: string;
+  logradouro: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
+}
+
+/** Consulta um CEP na BrasilAPI e retorna o endereço (sem o número). */
+export async function buscarCEP(cep: string): Promise<DadosCEP> {
+  const clean = somenteDigitos(cep);
+  if (clean.length !== 8) throw new Error('CEP deve ter 8 dígitos');
+
+  const res = await fetch(`https://brasilapi.com.br/api/cep/v2/${clean}`);
+  if (!res.ok) {
+    throw new Error(res.status === 404 ? 'CEP não encontrado.' : 'Erro ao consultar o CEP.');
+  }
+  const d = await res.json();
+  return {
+    cep: formatCEP(clean),
+    logradouro: d.street || '',
+    bairro: d.neighborhood || '',
+    cidade: d.city || '',
+    uf: d.state || '',
+  };
 }
 
 function formatTelefone(v: string): string {

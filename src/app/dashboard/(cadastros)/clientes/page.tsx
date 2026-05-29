@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Input, Textarea, Select } from '@/components/ui/Input';
 import { Plus, History, Pencil, UserX, Search, Loader2 } from 'lucide-react';
 import type { Cliente, Orcamento, Pedido } from '@/types/database.types';
-import { buscarCNPJ, isCNPJ, formatCpfCnpj, somenteDigitos } from '@/lib/brasilapi';
+import { buscarCNPJ, isCNPJ, formatCpfCnpj, buscarCEP, isCEP, formatCEP } from '@/lib/brasilapi';
 
 const EMPTY: Partial<Cliente> = {
   nome: '', tipo: 'juridica', cpf_cnpj: '', razao_social: '', inscricao_estadual: '',
@@ -47,7 +47,28 @@ export default function ClientesPage() {
   const [buscandoCNPJ, setBuscandoCNPJ] = useState(false);
   const [cnpjMsg, setCnpjMsg] = useState('');
 
+  const [buscandoCEP, setBuscandoCEP] = useState(false);
+  const [cepMsg, setCepMsg] = useState('');
+  const [numero, setNumero] = useState('');
+
   const supabase = createClient();
+
+  async function handleBuscarCEP() {
+    setCepMsg('');
+    if (!isCEP(form.cep || '')) { setCepMsg('Informe um CEP com 8 dígitos.'); return; }
+    setBuscandoCEP(true);
+    try {
+      const d = await buscarCEP(form.cep || '');
+      const endereco = [d.logradouro, d.bairro].filter(Boolean).join(' - ');
+      setForm((p) => ({ ...p, endereco, cidade: d.cidade, estado: d.uf, cep: d.cep }));
+      setNumero('');
+      setCepMsg('Endereço preenchido! Informe o número.');
+    } catch (err) {
+      setCepMsg(err instanceof Error ? err.message : 'Erro ao consultar CEP');
+    } finally {
+      setBuscandoCEP(false);
+    }
+  }
 
   async function handleBuscarCNPJ() {
     setCnpjMsg('');
@@ -114,18 +135,25 @@ export default function ClientesPage() {
     setForm(cliente ? { ...cliente } : EMPTY);
     setSaveMsg('');
     setCnpjMsg('');
+    setCepMsg('');
+    setNumero('');
     setShowForm(true);
   }
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
+    // Se o número foi informado pela busca de CEP, anexa ao endereço
+    const enderecoFinal = numero.trim() && form.endereco
+      ? `${form.endereco}, Nº ${numero.trim()}`
+      : form.endereco;
+    const payload = { ...form, endereco: enderecoFinal };
     if (selected) {
-      await supabase.from('clientes').update({ ...form }).eq('id', selected.id);
+      await supabase.from('clientes').update(payload).eq('id', selected.id);
     } else {
       const { data: { user } } = await supabase.auth.getUser();
       const { data: usr } = await supabase.from('usuarios').select('empresa_id').eq('id', user!.id).single();
-      await supabase.from('clientes').insert({ ...form, empresa_id: (usr as { empresa_id: string })!.empresa_id });
+      await supabase.from('clientes').insert({ ...payload, empresa_id: (usr as { empresa_id: string })!.empresa_id });
     }
     setSaving(false);
     setSaveMsg('Salvo com sucesso!');
@@ -241,10 +269,29 @@ export default function ClientesPage() {
 
             <Input label="E-mail" type="email" value={form.email || ''} onChange={set('email')} />
             <Input label="Telefone / WhatsApp" value={form.telefone || ''} onChange={set('telefone')} placeholder="(11) 99999-9999" />
-            <div className="col-span-2">
-              <Input label="Endereço" value={form.endereco || ''} onChange={set('endereco')} />
+
+            {/* CEP com busca automática de endereço */}
+            <div>
+              <label className="text-sm font-medium text-slate-700 block mb-1">CEP</label>
+              <div className="flex gap-2">
+                <input
+                  value={form.cep || ''}
+                  onChange={(e) => setForm((p) => ({ ...p, cep: formatCEP(e.target.value) }))}
+                  placeholder="00000-000"
+                  className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <Button type="button" variant="secondary" size="sm" onClick={handleBuscarCEP}
+                  disabled={buscandoCEP || !isCEP(form.cep || '')} title="Buscar endereço pelo CEP">
+                  {buscandoCEP ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                </Button>
+              </div>
+              {cepMsg && <p className={`text-xs mt-1 ${cepMsg.includes('Erro') || cepMsg.includes('Informe') || cepMsg.includes('não') ? 'text-red-500' : 'text-green-600'}`}>{cepMsg}</p>}
             </div>
-            <Input label="CEP" value={form.cep || ''} onChange={set('cep')} placeholder="00000-000" />
+            <Input label="Número" value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="Nº (ex: 123)" />
+
+            <div className="col-span-2">
+              <Input label="Endereço (rua / bairro)" value={form.endereco || ''} onChange={set('endereco')} placeholder="Preenchido pela busca de CEP" />
+            </div>
             <Input label="Cidade" value={form.cidade || ''} onChange={set('cidade')} />
             <Input label="Estado (UF)" value={form.estado || ''} onChange={set('estado')} maxLength={2} placeholder="SP" />
           </div>
