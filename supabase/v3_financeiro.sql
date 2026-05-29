@@ -224,14 +224,22 @@ CREATE OR REPLACE VIEW public.v_fluxo_caixa AS
   GROUP BY empresa_id, data_vencimento;
 
 -- Contas vencidas (status pendente + vencimento no passado)
+-- Colunas explícitas: contas_receber e contas_pagar têm nº de colunas diferente,
+-- então o UNION exige a mesma lista nos dois lados.
 CREATE OR REPLACE VIEW public.v_contas_vencidas AS
-  SELECT *, 'receber' AS origem,
-         CURRENT_DATE - data_vencimento AS dias_atraso
+  SELECT
+    id, empresa_id, descricao, valor,
+    data_emissao, data_vencimento, status,
+    'receber'::TEXT                  AS origem,
+    (CURRENT_DATE - data_vencimento) AS dias_atraso
   FROM public.contas_receber
   WHERE status = 'pendente' AND data_vencimento < CURRENT_DATE
   UNION ALL
-  SELECT *, 'pagar',
-         CURRENT_DATE - data_vencimento
+  SELECT
+    id, empresa_id, descricao, valor,
+    data_emissao, data_vencimento, status,
+    'pagar'::TEXT                    AS origem,
+    (CURRENT_DATE - data_vencimento) AS dias_atraso
   FROM public.contas_pagar
   WHERE status IN ('pendente','aprovado') AND data_vencimento < CURRENT_DATE;
 
