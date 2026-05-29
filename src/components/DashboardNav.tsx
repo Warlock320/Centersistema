@@ -6,7 +6,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Users, Package, FileText, CheckSquare,
   ShoppingCart, FileInput, BarChart2, Settings, LogOut,
-  Search, X, ChevronRight, Bell
+  Search, X, ChevronRight, Bell, Truck, Wallet,
+  ArrowDownCircle, ArrowUpCircle, Landmark
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { Usuario } from '@/types/database.types';
@@ -19,17 +20,55 @@ interface NavItem {
   roles?: string[];
 }
 
-const navItems: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/dashboard/clientes', label: 'Clientes', icon: Users },
-  { href: '/dashboard/produtos', label: 'Produtos', icon: Package },
-  { href: '/dashboard/orcamentos', label: 'Orçamentos', icon: FileText },
-  { href: '/dashboard/aprovacoes', label: 'Aprovações', icon: CheckSquare, roles: ['admin', 'aprovador'] },
-  { href: '/dashboard/pedidos', label: 'Pedidos', icon: ShoppingCart },
-  { href: '/dashboard/nfe', label: 'Importar NF-e', icon: FileInput, roles: ['admin', 'vendedor'] },
-  { href: '/dashboard/relatorios', label: 'Relatórios', icon: BarChart2, roles: ['admin'] },
-  { href: '/dashboard/configuracoes', label: 'Configurações', icon: Settings, roles: ['admin'] },
+interface NavSection {
+  label: string;
+  items: NavItem[];
+}
+
+const navSections: NavSection[] = [
+  {
+    label: 'GERAL',
+    items: [
+      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: 'CADASTROS',
+    items: [
+      { href: '/dashboard/clientes', label: 'Clientes', icon: Users },
+      { href: '/dashboard/produtos', label: 'Produtos', icon: Package },
+      { href: '/dashboard/fornecedores', label: 'Fornecedores', icon: Truck },
+    ],
+  },
+  {
+    label: 'COMERCIAL',
+    items: [
+      { href: '/dashboard/orcamentos', label: 'Orçamentos', icon: FileText },
+      { href: '/dashboard/aprovacoes', label: 'Aprovações', icon: CheckSquare, roles: ['admin', 'aprovador'] },
+      { href: '/dashboard/pedidos', label: 'Pedidos', icon: ShoppingCart },
+      { href: '/dashboard/nfe', label: 'Importar NF-e', icon: FileInput, roles: ['admin', 'vendedor'] },
+    ],
+  },
+  {
+    label: 'FINANCEIRO',
+    items: [
+      { href: '/dashboard/financeiro', label: 'Visão Financeira', icon: Wallet, roles: ['admin', 'aprovador'] },
+      { href: '/dashboard/financeiro/receber', label: 'Contas a Receber', icon: ArrowDownCircle, roles: ['admin', 'aprovador'] },
+      { href: '/dashboard/financeiro/pagar', label: 'Contas a Pagar', icon: ArrowUpCircle, roles: ['admin', 'aprovador'] },
+      { href: '/dashboard/financeiro/bancos', label: 'Contas Bancárias', icon: Landmark, roles: ['admin'] },
+    ],
+  },
+  {
+    label: 'GESTÃO',
+    items: [
+      { href: '/dashboard/relatorios', label: 'Relatórios', icon: BarChart2, roles: ['admin'] },
+      { href: '/dashboard/configuracoes', label: 'Configurações', icon: Settings, roles: ['admin'] },
+    ],
+  },
 ];
+
+// Compatibilidade: lista flat para a busca de alertas
+const navItems: NavItem[] = navSections.flatMap((s) => s.items);
 
 interface SearchResult {
   type: 'cliente' | 'produto';
@@ -124,7 +163,7 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
     }
   };
 
-  const visibleItems = navItems.filter(
+  const _visibleItems = navItems.filter(
     (item) => !item.roles || (usuario && item.roles.includes(usuario.role))
   );
 
@@ -146,28 +185,41 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          {visibleItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
-            const Icon = item.icon;
+        <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-4">
+          {navSections.map((section) => {
+            const sectionItems = section.items.filter(
+              (item) => !item.roles || (usuario && item.roles.includes(usuario.role))
+            );
+            if (sectionItems.length === 0) return null;
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors group ${
-                  isActive
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                }`}
-              >
-                <Icon size={18} />
-                {item.label}
-                {item.href === '/dashboard/aprovacoes' && alertas > 0 && (
-                  <span className="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                    {alertas > 9 ? '9+' : alertas}
-                  </span>
-                )}
-              </Link>
+              <div key={section.label}>
+                <p className="px-3 mb-1 text-xs font-bold text-slate-600 tracking-widest">{section.label}</p>
+                <div className="space-y-0.5">
+                  {sectionItems.map((item) => {
+                    const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          isActive
+                            ? 'bg-blue-600 text-white'
+                            : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                        }`}
+                      >
+                        <Icon size={16} className="shrink-0" />
+                        {item.label}
+                        {item.href === '/dashboard/aprovacoes' && alertas > 0 && (
+                          <span className="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                            {alertas > 9 ? '9+' : alertas}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </nav>

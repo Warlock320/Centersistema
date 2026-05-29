@@ -168,3 +168,142 @@ export interface DashboardKpis {
   clientes_ativos: number;
   alertas_estoque: number;
 }
+
+// ── Módulo Financeiro ──────────────────────────────────────────────────────────
+
+export interface Fornecedor {
+  id: string;
+  empresa_id: string;
+  nome: string;
+  razao_social: string | null;
+  cnpj_cpf: string | null;
+  tipo: 'fisica' | 'juridica';
+  email: string | null;
+  telefone: string | null;
+  endereco: string | null;
+  cidade: string | null;
+  estado: string | null;
+  cep: string | null;
+  banco: string | null;
+  agencia: string | null;
+  conta: string | null;
+  tipo_conta: 'corrente' | 'poupanca' | 'pagamento' | null;
+  pix_chave: string | null;
+  pix_tipo: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
+  prazo_padrao: number;
+  observacoes: string | null;
+  ativo: boolean;
+  created_at: string;
+}
+
+export interface PlanoContas {
+  id: string;
+  empresa_id: string;
+  codigo: string;
+  nome: string;
+  tipo: 'receita' | 'despesa';
+  pai_id: string | null;
+  ativo: boolean;
+  created_at: string;
+}
+
+export interface CentroCusto {
+  id: string;
+  empresa_id: string;
+  nome: string;
+  descricao: string | null;
+  ativo: boolean;
+  created_at: string;
+}
+
+export interface ContaBancaria {
+  id: string;
+  empresa_id: string;
+  nome: string;
+  banco: string | null;
+  agencia: string | null;
+  conta: string | null;
+  tipo: 'corrente' | 'poupanca' | 'caixa' | 'investimento' | 'outro';
+  saldo_inicial: number;
+  saldo_atual?: number;
+  ativo: boolean;
+  created_at: string;
+}
+
+export type ContaReceberStatus = 'pendente' | 'pago' | 'cancelado';
+export type ContaPagarStatus = 'pendente' | 'aprovado' | 'pago' | 'cancelado';
+
+export interface ContaReceber {
+  id: string;
+  empresa_id: string;
+  cliente_id: string | null;
+  pedido_id: string | null;
+  plano_contas_id: string | null;
+  centro_custo_id: string | null;
+  conta_bancaria_id: string | null;
+  descricao: string;
+  valor: number;
+  data_emissao: string;
+  data_vencimento: string;
+  data_pagamento: string | null;
+  valor_pago: number | null;
+  juros: number;
+  desconto: number;
+  status: ContaReceberStatus;
+  numero_parcela: number;
+  total_parcelas: number;
+  grupo_parcelas: string | null;
+  observacoes: string | null;
+  created_at: string;
+  updated_at: string;
+  clientes?: Cliente;
+}
+
+export interface ContaPagar {
+  id: string;
+  empresa_id: string;
+  fornecedor_id: string | null;
+  nfe_id: string | null;
+  plano_contas_id: string | null;
+  centro_custo_id: string | null;
+  conta_bancaria_id: string | null;
+  aprovado_por: string | null;
+  descricao: string;
+  valor: number;
+  data_emissao: string;
+  data_vencimento: string;
+  data_pagamento: string | null;
+  valor_pago: number | null;
+  juros: number;
+  desconto: number;
+  status: ContaPagarStatus;
+  comprovante_url: string | null;
+  numero_parcela: number;
+  total_parcelas: number;
+  grupo_parcelas: string | null;
+  observacoes: string | null;
+  created_at: string;
+  updated_at: string;
+  fornecedores?: Fornecedor;
+}
+
+export interface HistoricoCobranca {
+  id: string;
+  empresa_id: string;
+  conta_receber_id: string;
+  usuario_id: string | null;
+  tipo: 'preventiva' | 'vencimento' | 'leve' | 'medio' | 'grave' | 'renegociacao' | 'outro';
+  canal: 'email' | 'whatsapp' | 'telefone' | 'carta' | 'sistema' | null;
+  observacao: string | null;
+  created_at: string;
+}
+
+export interface KpisFinanceiros {
+  receber_mes: number;
+  pagar_mes: number;
+  recebido_mes: number;
+  pago_mes: number;
+  vencidos_rec: number;
+  vencidos_pag: number;
+  saldo_total: number;
+}
