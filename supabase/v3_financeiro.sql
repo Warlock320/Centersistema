@@ -371,7 +371,11 @@ $$;
 
 -- ─────────────────────────────────────────────────────────────────────
 -- 12. ATUALIZA faturar_pedido PARA CRIAR CONTA A RECEBER
+-- (o v2 criou esta função retornando BOOLEAN; aqui muda para UUID,
+--  por isso é preciso dropar antes — CREATE OR REPLACE não altera o tipo de retorno)
 -- ─────────────────────────────────────────────────────────────────────
+DROP FUNCTION IF EXISTS public.faturar_pedido(UUID);
+
 CREATE OR REPLACE FUNCTION public.faturar_pedido(p_pedido_id UUID)
 RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
