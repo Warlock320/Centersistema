@@ -5,42 +5,39 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
-import { Plus, Building2, Users, Mail, ShieldCheck, Copy, Check } from 'lucide-react';
+import { usePermissions } from '@/components/PermissionsProvider';
+import {
+  Plus, Building2, Users, Mail, ShieldCheck, Copy, Check,
+  ChevronDown, UserPlus, KeyRound, RotateCcw,
+} from 'lucide-react';
 import type { Empresa, Usuario, Convite } from '@/types/database.types';
 import {
   ALL_ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_COLORS,
-  can, resolveRoles, type UserRole,
+  PERMISSION_GROUPS, DEFAULT_ROLE_PERMISSIONS, resolveRoles,
+  type UserRole, type Permission,
 } from '@/lib/permissions';
+import { DEMO_MODE } from '@/lib/demo';
 
-// Seletor de papéis (checkboxes) reutilizável
+// ── Seletor de papéis (checkboxes) ─────────────────────────────────────────────
 function RoleSelector({ value, onChange }: { value: UserRole[]; onChange: (roles: UserRole[]) => void }) {
-  const toggle = (role: UserRole) => {
+  const toggle = (role: UserRole) =>
     onChange(value.includes(role) ? value.filter((r) => r !== role) : [...value, role]);
-  };
   return (
     <div className="space-y-2">
       {ALL_ROLES.map((role) => {
         const checked = value.includes(role);
         return (
-          <button
-            key={role}
-            type="button"
-            onClick={() => toggle(role)}
+          <button key={role} type="button" onClick={() => toggle(role)}
             className={`w-full flex items-start gap-3 p-3 rounded-lg border text-left transition-colors ${
               checked ? 'border-blue-400 bg-blue-50' : 'border-slate-200 hover:border-slate-300'
-            }`}
-          >
+            }`}>
             <div className={`w-5 h-5 rounded border flex items-center justify-center shrink-0 mt-0.5 ${
               checked ? 'bg-blue-600 border-blue-600' : 'border-slate-300'
             }`}>
               {checked && <Check size={13} className="text-white" />}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${ROLE_COLORS[role]}`}>
-                  {ROLE_LABELS[role]}
-                </span>
-              </div>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${ROLE_COLORS[role]}`}>{ROLE_LABELS[role]}</span>
               <p className="text-xs text-slate-500 mt-1">{ROLE_DESCRIPTIONS[role]}</p>
             </div>
           </button>
@@ -55,39 +52,33 @@ function RoleBadges({ roles }: { roles: UserRole[] }) {
   return (
     <div className="flex flex-wrap gap-1 justify-end">
       {roles.map((r) => (
-        <span key={r} className={`text-xs font-medium px-2 py-0.5 rounded-full ${ROLE_COLORS[r]}`}>
-          {ROLE_LABELS[r]}
-        </span>
+        <span key={r} className={`text-xs font-medium px-2 py-0.5 rounded-full ${ROLE_COLORS[r]}`}>{ROLE_LABELS[r]}</span>
       ))}
     </div>
   );
 }
 
-// Matriz de permissões para referência visual
-const MATRIZ: { modulo: string; perms: Partial<Record<UserRole, string>> }[] = [
-  { modulo: 'Dashboard', perms: { admin: '✓', gestor: '✓', financeiro: '✓', vendedor: '✓' } },
-  { modulo: 'Clientes', perms: { admin: '✓', gestor: '✓', financeiro: 'ver', vendedor: '✓' } },
-  { modulo: 'Produtos / Fornecedores', perms: { admin: '✓', gestor: '✓', financeiro: 'ver', vendedor: 'ver' } },
-  { modulo: 'Orçamentos', perms: { admin: '✓', gestor: '✓', financeiro: 'ver', vendedor: 'criar' } },
-  { modulo: 'Aprovar Orçamentos', perms: { admin: '✓', gestor: '✓', financeiro: '—', vendedor: '—' } },
-  { modulo: 'Pedidos / NF-e', perms: { admin: '✓', gestor: '✓', financeiro: 'ver', vendedor: '✓' } },
-  { modulo: 'Financeiro', perms: { admin: '✓', gestor: 'ver', financeiro: '✓', vendedor: '—' } },
-  { modulo: 'Aprovar Contas a Pagar', perms: { admin: '✓', gestor: '✓', financeiro: '✓', vendedor: '—' } },
-  { modulo: 'Pagar / Bancos', perms: { admin: '✓', gestor: '—', financeiro: '✓', vendedor: '—' } },
-  { modulo: 'Relatórios', perms: { admin: '✓', gestor: '✓', financeiro: '✓', vendedor: '—' } },
-  { modulo: 'Configurações / Equipe', perms: { admin: '✓', gestor: '—', financeiro: '—', vendedor: '—' } },
-];
-
 export default function ConfiguracoesPage() {
+  const { can, map: permMap, reload: reloadPerms } = usePermissions();
+
   const [empresa, setEmpresa] = useState<Partial<Empresa>>({});
   const [equipe, setEquipe] = useState<Usuario[]>([]);
   const [convites, setConvites] = useState<Convite[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const [empresaId, setEmpresaId] = useState<string>('');
   const [savedMsg, setSavedMsg] = useState('');
 
-  // Convite
+  // Cadastro de usuário com senha
+  const [showCadastro, setShowCadastro] = useState(false);
+  const [novoNome, setNovoNome] = useState('');
+  const [novoEmail, setNovoEmail] = useState('');
+  const [novaSenha, setNovaSenha] = useState('');
+  const [novoRoles, setNovoRoles] = useState<UserRole[]>(['vendedor']);
+  const [cadastroErro, setCadastroErro] = useState('');
+  const [cadastroMsg, setCadastroMsg] = useState('');
+
+  // Convite por link
   const [showConvite, setShowConvite] = useState(false);
   const [conviteEmail, setConviteEmail] = useState('');
   const [conviteRoles, setConviteRoles] = useState<UserRole[]>(['vendedor']);
@@ -99,28 +90,47 @@ export default function ConfiguracoesPage() {
   const [editTarget, setEditTarget] = useState<Usuario | null>(null);
   const [editRoles, setEditRoles] = useState<UserRole[]>([]);
 
+  // Cards de permissões expansíveis
+  const [openRole, setOpenRole] = useState<UserRole | null>(null);
+  const [permEdit, setPermEdit] = useState<Record<UserRole, Set<Permission>>>({
+    admin: new Set(), gestor: new Set(), financeiro: new Set(), vendedor: new Set(),
+  });
+  const [savingPerms, setSavingPerms] = useState<UserRole | null>(null);
+
   const supabase = createClient();
+  const isAdmin = can('manage_config');
 
   useEffect(() => { fetchData(); }, []);
+
+  // Sincroniza o estado editável dos cards com o mapa atual
+  useEffect(() => {
+    setPermEdit({
+      admin: new Set(permMap.admin),
+      gestor: new Set(permMap.gestor),
+      financeiro: new Set(permMap.financeiro),
+      vendedor: new Set(permMap.vendedor),
+    });
+  }, [permMap]);
 
   async function fetchData() {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoading(false); return; }
-
-    const { data: usr } = await supabase.from('usuarios').select('*').eq('id', user.id).single();
-    if (!usr) { setLoading(false); return; }
-    setUsuario(usr as Usuario);
+    let eid = '';
+    if (user) {
+      const { data: usr } = await supabase.from('usuarios').select('empresa_id').eq('id', user.id).single();
+      eid = (usr as { empresa_id: string } | null)?.empresa_id || '';
+    }
+    if (DEMO_MODE) eid = 'demo-empresa-id';
+    setEmpresaId(eid);
 
     const [emp, equi, conv] = await Promise.all([
-      supabase.from('empresas').select('*').eq('id', usr.empresa_id).single(),
+      eid ? supabase.from('empresas').select('*').eq('id', eid).single() : Promise.resolve({ data: null }),
       supabase.from('usuarios').select('*').order('nome'),
       supabase.from('convites').select('*').eq('usado', false).order('created_at', { ascending: false }),
     ]);
-
-    setEmpresa(emp.data as Empresa || {});
-    setEquipe(equi.data as Usuario[] || []);
-    setConvites(conv.data as Convite[] || []);
+    setEmpresa((emp.data as Empresa) || {});
+    setEquipe((equi.data as Usuario[]) || []);
+    setConvites((conv.data as Convite[]) || []);
     setLoading(false);
   }
 
@@ -137,22 +147,49 @@ export default function ConfiguracoesPage() {
     setTimeout(() => setSavedMsg(''), 3000);
   }
 
+  // ── Cadastro direto de usuário (email + senha + papéis) ───────────────────────
+  async function handleCadastro(e: FormEvent) {
+    e.preventDefault();
+    setCadastroErro('');
+    setCadastroMsg('');
+    if (novoRoles.length === 0) { setCadastroErro('Selecione ao menos um papel.'); return; }
+    setSaving(true);
+
+    if (DEMO_MODE) {
+      setCadastroMsg(`(Demo) Usuário ${novoEmail} criado com papéis: ${novoRoles.map((r) => ROLE_LABELS[r]).join(', ')}.`);
+      setSaving(false);
+      setNovoNome(''); setNovoEmail(''); setNovaSenha(''); setNovoRoles(['vendedor']);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/usuarios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome: novoNome, email: novoEmail, password: novaSenha, roles: novoRoles }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Erro ao criar usuário');
+      setCadastroMsg('Usuário criado com sucesso!');
+      setNovoNome(''); setNovoEmail(''); setNovaSenha(''); setNovoRoles(['vendedor']);
+      fetchData();
+      setTimeout(() => { setCadastroMsg(''); setShowCadastro(false); }, 1200);
+    } catch (err) {
+      setCadastroErro(err instanceof Error ? err.message : 'Erro ao criar usuário');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleConvite(e: FormEvent) {
     e.preventDefault();
     if (conviteRoles.length === 0) { alert('Selecione ao menos um papel.'); return; }
     const { data } = await supabase.from('convites').insert({
-      empresa_id: usuario?.empresa_id,
-      email: conviteEmail,
-      roles: conviteRoles,
+      empresa_id: empresaId, email: conviteEmail, roles: conviteRoles,
     }).select().single();
-
-    // Monta link de convite
     const token = (data as Convite | null)?.token;
-    if (token) {
-      setConviteLink(`${window.location.origin}/login?convite=${token}`);
-    }
-    setConviteEmail('');
-    setConviteRoles(['vendedor']);
+    if (token) setConviteLink(`${window.location.origin}/login?convite=${token}`);
+    setConviteEmail(''); setConviteRoles(['vendedor']);
     fetchData();
   }
 
@@ -177,6 +214,29 @@ export default function ConfiguracoesPage() {
     fetchData();
   }
 
+  // ── Permissões por papel (cards expansíveis) ──────────────────────────────────
+  function togglePerm(role: UserRole, perm: Permission) {
+    setPermEdit((prev) => {
+      const next = new Set(prev[role]);
+      if (next.has(perm)) next.delete(perm); else next.add(perm);
+      return { ...prev, [role]: next };
+    });
+  }
+
+  function resetRolePerms(role: UserRole) {
+    setPermEdit((prev) => ({ ...prev, [role]: new Set(DEFAULT_ROLE_PERMISSIONS[role]) }));
+  }
+
+  async function saveRolePerms(role: UserRole) {
+    setSavingPerms(role);
+    const perms = Array.from(permEdit[role]);
+    if (!DEMO_MODE && empresaId) {
+      await supabase.rpc('salvar_permissoes_papel', { p_papel: role, p_permissoes: perms });
+      reloadPerms();
+    }
+    setTimeout(() => setSavingPerms(null), 500);
+  }
+
   function copyLink() {
     navigator.clipboard?.writeText(conviteLink);
     setCopiado(true);
@@ -185,8 +245,6 @@ export default function ConfiguracoesPage() {
 
   const set = (key: keyof Empresa) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setEmpresa((p) => ({ ...p, [key]: e.target.value }));
-
-  const isAdmin = can(resolveRoles(usuario || {}), 'manage_config');
 
   if (loading) return <div className="py-16 text-center text-slate-400">Carregando...</div>;
 
@@ -234,9 +292,14 @@ export default function ConfiguracoesPage() {
             <h2 className="font-semibold text-slate-900">Equipe ({equipe.length})</h2>
           </div>
           {isAdmin && (
-            <Button size="sm" onClick={() => { setShowConvite(true); setConviteLink(''); }}>
-              <Plus size={14} /> Convidar
-            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="secondary" onClick={() => { setShowConvite(true); setConviteLink(''); }}>
+                <Mail size={14} /> Convidar por link
+              </Button>
+              <Button size="sm" onClick={() => { setShowCadastro(true); setCadastroErro(''); setCadastroMsg(''); }}>
+                <UserPlus size={14} /> Cadastrar usuário
+              </Button>
+            </div>
           )}
         </div>
         <div className="divide-y divide-slate-50">
@@ -249,9 +312,7 @@ export default function ConfiguracoesPage() {
                     {u.nome.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <p className="font-medium text-slate-800 truncate">
-                      {u.nome} {u.id === usuario?.id && <span className="text-xs text-slate-400">(você)</span>}
-                    </p>
+                    <p className="font-medium text-slate-800 truncate">{u.nome}</p>
                     <p className="text-xs text-slate-400 truncate">{u.email}</p>
                   </div>
                 </div>
@@ -263,7 +324,7 @@ export default function ConfiguracoesPage() {
                       <ShieldCheck size={14} /> Papéis
                     </Button>
                   )}
-                  {isAdmin && u.id !== usuario?.id && (
+                  {isAdmin && (
                     <Button variant={u.ativo ? 'danger' : 'success'} size="sm" onClick={() => handleToggleAtivo(u.id, u.ativo)}>
                       {u.ativo ? 'Desativar' : 'Ativar'}
                     </Button>
@@ -272,6 +333,11 @@ export default function ConfiguracoesPage() {
               </div>
             );
           })}
+          {equipe.length === 0 && (
+            <div className="px-6 py-10 text-center text-slate-400 text-sm">
+              Nenhum membro ainda. Cadastre um usuário ou envie um convite.
+            </div>
+          )}
         </div>
       </div>
 
@@ -296,55 +362,126 @@ export default function ConfiguracoesPage() {
         </div>
       )}
 
-      {/* Matriz de permissões (referência) */}
+      {/* Permissões por papel — cards expansíveis */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-100">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
           <ShieldCheck size={18} className="text-blue-500" />
-          <h2 className="font-semibold text-slate-900">Matriz de Permissões por Papel</h2>
+          <h2 className="font-semibold text-slate-900">Permissões por Papel</h2>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100">
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Módulo</th>
-                {ALL_ROLES.map((r) => (
-                  <th key={r} className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    {ROLE_LABELS[r]}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {MATRIZ.map((row) => (
-                <tr key={row.modulo} className="border-b border-slate-50">
-                  <td className="px-6 py-2.5 text-slate-700">{row.modulo}</td>
-                  {ALL_ROLES.map((r) => {
-                    const v = row.perms[r] || '—';
-                    const color = v === '✓' ? 'text-green-600 font-bold'
-                      : v === '—' ? 'text-slate-300'
-                      : 'text-slate-500 text-xs';
-                    return <td key={r} className={`px-4 py-2.5 text-center ${color}`}>{v}</td>;
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="divide-y divide-slate-50">
+          {ALL_ROLES.map((role) => {
+            const isOpen = openRole === role;
+            const isAdminRole = role === 'admin';
+            const count = permEdit[role].size;
+            return (
+              <div key={role}>
+                {/* Cabeçalho do card */}
+                <button
+                  onClick={() => setOpenRole(isOpen ? null : role)}
+                  className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${ROLE_COLORS[role]}`}>{ROLE_LABELS[role]}</span>
+                    <span className="text-sm text-slate-500">{ROLE_DESCRIPTIONS[role]}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-slate-400">{count} permissões</span>
+                    <ChevronDown size={16} className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                  </div>
+                </button>
+
+                {/* Corpo expansível */}
+                {isOpen && (
+                  <div className="px-6 pb-5 bg-slate-50/50">
+                    {isAdminRole && (
+                      <div className="mb-3 p-2.5 bg-purple-50 border border-purple-200 rounded-lg text-xs text-purple-700">
+                        O papel Administrador sempre tem acesso total — não é editável.
+                      </div>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1">
+                      {PERMISSION_GROUPS.map((group) => (
+                        <div key={group.modulo} className="py-2">
+                          <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1.5">{group.modulo}</p>
+                          <div className="space-y-1">
+                            {group.permissions.map((p) => {
+                              const checked = permEdit[role].has(p.key);
+                              return (
+                                <label key={p.key}
+                                  className={`flex items-center gap-2 text-sm ${isAdminRole ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
+                                  <button
+                                    type="button"
+                                    disabled={isAdminRole || !isAdmin}
+                                    onClick={() => togglePerm(role, p.key)}
+                                    className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${
+                                      checked ? 'bg-blue-600' : 'bg-slate-300'
+                                    } ${isAdminRole ? 'cursor-not-allowed' : ''}`}
+                                  >
+                                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${checked ? 'left-[18px]' : 'left-0.5'}`} />
+                                  </button>
+                                  <span className="text-slate-700">{p.label}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {!isAdminRole && isAdmin && (
+                      <div className="flex gap-2 mt-4 pt-3 border-t border-slate-200">
+                        <Button size="sm" loading={savingPerms === role} onClick={() => saveRolePerms(role)}>
+                          {savingPerms === role ? 'Salvando...' : 'Salvar permissões'}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => resetRolePerms(role)}>
+                          <RotateCcw size={13} /> Restaurar padrão
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
-        <p className="px-6 py-3 text-xs text-slate-400 border-t border-slate-50">
-          ✓ = acesso completo · ver = somente visualização · criar = pode criar mas não aprovar · — = sem acesso
-        </p>
+        {DEMO_MODE && (
+          <p className="px-6 py-3 text-xs text-amber-600 border-t border-slate-50">
+            Modo demo: as alterações de permissão não são persistidas.
+          </p>
+        )}
       </div>
 
+      {/* Cadastro de Usuário Modal */}
+      <Modal open={showCadastro} onClose={() => setShowCadastro(false)} title="Cadastrar Usuário" size="md">
+        <form onSubmit={handleCadastro} className="space-y-4">
+          {cadastroErro && <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">{cadastroErro}</div>}
+          {cadastroMsg && <div className="p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">{cadastroMsg}</div>}
+          <Input label="Nome *" value={novoNome} onChange={(e) => setNovoNome(e.target.value)} required placeholder="Nome do colaborador" />
+          <Input label="E-mail *" type="email" value={novoEmail} onChange={(e) => setNovoEmail(e.target.value)} required placeholder="colaborador@empresa.com" />
+          <Input label="Senha *" type="password" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)} required minLength={6}
+            placeholder="Mínimo 6 caracteres" />
+          <div>
+            <label className="text-sm font-medium text-slate-700 block mb-2 flex items-center gap-1">
+              <KeyRound size={14} /> Papéis * (pode marcar mais de um)
+            </label>
+            <RoleSelector value={novoRoles} onChange={setNovoRoles} />
+          </div>
+          <div className="flex gap-3">
+            <Button type="submit" loading={saving} className="flex-1">Criar Usuário</Button>
+            <Button type="button" variant="secondary" onClick={() => setShowCadastro(false)}>Cancelar</Button>
+          </div>
+        </form>
+      </Modal>
+
       {/* Convite Modal */}
-      <Modal open={showConvite} onClose={() => setShowConvite(false)} title="Convidar Membro da Equipe" size="md">
+      <Modal open={showConvite} onClose={() => setShowConvite(false)} title="Convidar por Link" size="md">
         {conviteLink ? (
           <div className="space-y-4">
             <div className="p-4 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">
-              Convite gerado! Compartilhe o link abaixo com o colaborador.
+              Convite gerado! Compartilhe o link com o colaborador — ele define a própria senha ao acessar.
             </div>
             <div className="flex gap-2">
               <input readOnly value={conviteLink}
-                className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 font-mono text-xs" />
+                className="flex-1 px-3 py-2 text-xs border border-slate-200 rounded-lg bg-slate-50 font-mono" />
               <Button type="button" variant="secondary" onClick={copyLink}>
                 {copiado ? <Check size={14} /> : <Copy size={14} />} {copiado ? 'Copiado' : 'Copiar'}
               </Button>
@@ -360,7 +497,7 @@ export default function ConfiguracoesPage() {
               <RoleSelector value={conviteRoles} onChange={setConviteRoles} />
             </div>
             <div className="flex gap-3">
-              <Button type="submit" className="flex-1">Gerar Convite</Button>
+              <Button type="submit" className="flex-1">Gerar Link de Convite</Button>
               <Button type="button" variant="secondary" onClick={() => setShowConvite(false)}>Cancelar</Button>
             </div>
           </form>
@@ -370,17 +507,11 @@ export default function ConfiguracoesPage() {
       {/* Editar Papéis Modal */}
       <Modal open={showRoles} onClose={() => setShowRoles(false)} title={`Papéis — ${editTarget?.nome}`} size="md">
         <div className="space-y-4">
-          <p className="text-sm text-slate-500">
-            Marque um ou mais papéis. As permissões são a união de todos os papéis selecionados.
-          </p>
+          <p className="text-sm text-slate-500">Marque um ou mais papéis. As permissões são a união de todos os papéis.</p>
           <RoleSelector value={editRoles} onChange={setEditRoles} />
-          {editRoles.length === 0 && (
-            <p className="text-xs text-red-500">Selecione ao menos um papel.</p>
-          )}
+          {editRoles.length === 0 && <p className="text-xs text-red-500">Selecione ao menos um papel.</p>}
           <div className="flex gap-3">
-            <Button onClick={handleSaveRoles} loading={saving} disabled={editRoles.length === 0} className="flex-1">
-              Salvar Papéis
-            </Button>
+            <Button onClick={handleSaveRoles} loading={saving} disabled={editRoles.length === 0} className="flex-1">Salvar Papéis</Button>
             <Button variant="secondary" onClick={() => setShowRoles(false)}>Cancelar</Button>
           </div>
         </div>

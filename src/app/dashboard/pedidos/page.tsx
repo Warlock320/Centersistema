@@ -7,8 +7,8 @@ import { Confirm } from '@/components/ui/Confirm';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ChevronRight, XCircle } from 'lucide-react';
-import type { Pedido, PedidoStatus, Usuario } from '@/types/database.types';
-import { can, resolveRoles } from '@/lib/permissions';
+import type { Pedido, PedidoStatus } from '@/types/database.types';
+import { usePermissions } from '@/components/PermissionsProvider';
 
 const STEPS: { status: PedidoStatus; label: string }[] = [
   { status: 'aberto', label: 'Aberto' },
@@ -32,23 +32,18 @@ export default function PedidosPage() {
   const [acting, setActing] = useState(false);
   const [filterStatus, setFilterStatus] = useState('');
   const [search, setSearch] = useState('');
-  const [usuario, setUsuario] = useState<Usuario | null>(null);
 
   const [confirmFaturar, setConfirmFaturar] = useState(false);
   const [confirmCancelar, setConfirmCancelar] = useState(false);
 
   const supabase = createClient();
+  const { can } = usePermissions();
 
   useEffect(() => {
     fetchData();
   }, []);
 
   async function fetchData() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: usr } = await supabase.from('usuarios').select('*').eq('id', user.id).single();
-      setUsuario(usr as Usuario);
-    }
     setLoading(true);
     const { data } = await supabase
       .from('pedidos')
@@ -104,8 +99,8 @@ export default function PedidosPage() {
     return matchQ && matchS;
   });
 
-  // Cancelar pedido em separação é ação gerencial (admin/gestor)
-  const podeCancelarAndamento = can(resolveRoles(usuario || {}), 'approve_orcamentos');
+  // Cancelar pedido em separação é ação gerencial (depende de approve_orcamentos)
+  const podeCancelarAndamento = can('approve_orcamentos');
 
   return (
     <div className="space-y-4">

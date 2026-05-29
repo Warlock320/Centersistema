@@ -9,9 +9,9 @@ import { Input, Textarea, Select } from '@/components/ui/Input';
 import { Plus, CheckCircle, ThumbsUp, XCircle } from 'lucide-react';
 import type {
   ContaPagar, ContaPagarStatus, Fornecedor,
-  PlanoContas, CentroCusto, ContaBancaria, Usuario
+  PlanoContas, CentroCusto, ContaBancaria,
 } from '@/types/database.types';
-import { can, resolveRoles } from '@/lib/permissions';
+import { usePermissions } from '@/components/PermissionsProvider';
 
 function formatBRL(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 
@@ -34,7 +34,6 @@ export default function ContasPagarPage() {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('pendente');
   const [search, setSearch] = useState('');
-  const [usuario, setUsuario] = useState<Usuario | null>(null);
 
   const [showForm, setShowForm] = useState(false);
   const [showBaixa, setShowBaixa] = useState(false);
@@ -60,15 +59,11 @@ export default function ContasPagarPage() {
   const [baixaBanco, setBaixaBanco] = useState('');
 
   const supabase = createClient();
+  const { can } = usePermissions();
 
   useEffect(() => { fetchAll(); }, []);
 
   async function fetchAll() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: usr } = await supabase.from('usuarios').select('*').eq('id', user.id).single();
-      setUsuario(usr as Usuario);
-    }
     setLoading(true);
     const [contsData, fornsData, planosData, centrosData, bancosData] = await Promise.all([
       supabase.from('contas_pagar').select('*, fornecedores(nome)').order('data_vencimento'),
@@ -179,9 +174,8 @@ export default function ContasPagarPage() {
     return matchS && matchQ;
   });
 
-  const roles = resolveRoles(usuario || {});
-  const podeAprovar = can(roles, 'approve_contas_pagar'); // admin, gestor, financeiro
-  const podePagar = can(roles, 'edit_financeiro');        // admin, financeiro
+  const podeAprovar = can('approve_contas_pagar'); // admin, gestor, financeiro
+  const podePagar = can('edit_financeiro');        // admin, financeiro
   const totais = filtered.reduce((acc, c) => {
     if (c.status === 'pendente' || c.status === 'aprovado') acc.pendente += c.valor;
     if (c.status === 'pago') acc.pago += Number(c.valor_pago || c.valor);

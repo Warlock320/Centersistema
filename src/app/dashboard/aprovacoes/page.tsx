@@ -5,9 +5,9 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { CheckCircle, XCircle, Clock, DollarSign } from 'lucide-react';
-import type { Orcamento, Usuario } from '@/types/database.types';
+import type { Orcamento } from '@/types/database.types';
 import { createPedidoFromOrcamento, updateOrcamentoStatus } from '@/lib/supabase/queries';
-import { can, resolveRoles } from '@/lib/permissions';
+import { usePermissions } from '@/components/PermissionsProvider';
 
 export default function AprovacoesPage() {
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
@@ -15,9 +15,9 @@ export default function AprovacoesPage() {
   const [selected, setSelected] = useState<Orcamento | null>(null);
   const [obs, setObs] = useState('');
   const [acting, setActing] = useState(false);
-  const [usuario, setUsuario] = useState<Usuario | null>(null);
 
   const supabase = createClient();
+  const { can } = usePermissions();
 
   useEffect(() => {
     fetchData();
@@ -30,12 +30,6 @@ export default function AprovacoesPage() {
   }, []);
 
   async function fetchData() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: usr } = await supabase.from('usuarios').select('*').eq('id', user.id).single();
-      setUsuario(usr as Usuario);
-    }
-
     setLoading(true);
     const { data } = await supabase
       .from('orcamentos')
@@ -71,7 +65,7 @@ export default function AprovacoesPage() {
     fetchData();
   }
 
-  const canAccess = can(resolveRoles(usuario || {}), 'approve_orcamentos');
+  const canAccess = can('approve_orcamentos');
 
   if (!canAccess) {
     return (

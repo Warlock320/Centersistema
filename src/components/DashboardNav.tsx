@@ -12,7 +12,8 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import type { Usuario } from '@/types/database.types';
 import { DEMO_MODE, DEMO_COOKIE } from '@/lib/demo';
-import { can, resolveRoles, ROLE_LABELS, type Permission } from '@/lib/permissions';
+import { resolveRoles, ROLE_LABELS, type Permission } from '@/lib/permissions';
+import { usePermissions } from '@/components/PermissionsProvider';
 
 interface NavItem {
   href: string;
@@ -80,6 +81,7 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
   const router = useRouter();
   const supabase = createClient();
   const userRoles = resolveRoles(usuario || {});
+  const { can } = usePermissions();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -182,7 +184,7 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
         {/* Navigation */}
         <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-4">
           {navSections.map((section) => {
-            const sectionItems = section.items.filter((item) => can(userRoles, item.permission));
+            const sectionItems = section.items.filter((item) => can(item.permission));
             if (sectionItems.length === 0) return null;
             return (
               <div key={section.label}>

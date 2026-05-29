@@ -54,7 +54,7 @@ const ALL_PERMISSIONS: Permission[] = [
 ];
 
 // Matriz de permissões por papel (FIXA)
-const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
+export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   admin: ALL_PERMISSIONS,
 
   gestor: [
@@ -93,10 +93,18 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   ],
 };
 
-/** Verdadeiro se ALGUM dos papéis concede a permissão. */
+/** Mapa de permissões usado pelos helpers standalone. Pode ser customizado por empresa. */
+export type RolePermissionMap = Record<UserRole, Permission[]>;
+
+/** Verdadeiro se ALGUM dos papéis concede a permissão (usa o mapa default). */
 export function can(roles: UserRole[] | null | undefined, perm: Permission): boolean {
+  return canWith(DEFAULT_ROLE_PERMISSIONS, roles, perm);
+}
+
+/** Igual a can(), mas com um mapa de permissões específico (ex: customizado por empresa). */
+export function canWith(map: RolePermissionMap, roles: UserRole[] | null | undefined, perm: Permission): boolean {
   if (!roles || roles.length === 0) return false;
-  return roles.some((r) => ROLE_PERMISSIONS[r]?.includes(perm));
+  return roles.some((r) => map[r]?.includes(perm));
 }
 
 /** Verdadeiro se concede QUALQUER uma das permissões. */
@@ -107,7 +115,7 @@ export function canAny(roles: UserRole[] | null | undefined, perms: Permission[]
 /** Conjunto unificado de permissões dos papéis. */
 export function permissionsOf(roles: UserRole[] | null | undefined): Set<Permission> {
   const set = new Set<Permission>();
-  (roles || []).forEach((r) => ROLE_PERMISSIONS[r]?.forEach((p) => set.add(p)));
+  (roles || []).forEach((r) => DEFAULT_ROLE_PERMISSIONS[r]?.forEach((p) => set.add(p)));
   return set;
 }
 
@@ -121,4 +129,35 @@ export function resolveRoles(input: { roles?: string[] | null; role?: string | n
     if (ALL_ROLES.includes(legacy as UserRole)) return [legacy as UserRole];
   }
   return ['vendedor'];
+}
+
+// Metadata dos módulos/permissões para a UI de configuração (cards expansíveis)
+export const PERMISSION_GROUPS: { modulo: string; permissions: { key: Permission; label: string }[] }[] = [
+  { modulo: 'Dashboard', permissions: [{ key: 'view_dashboard', label: 'Acessar o dashboard' }] },
+  { modulo: 'Clientes', permissions: [{ key: 'view_clientes', label: 'Visualizar' }, { key: 'edit_clientes', label: 'Criar / Editar' }] },
+  { modulo: 'Produtos', permissions: [{ key: 'view_produtos', label: 'Visualizar' }, { key: 'edit_produtos', label: 'Criar / Editar' }] },
+  { modulo: 'Fornecedores', permissions: [{ key: 'view_fornecedores', label: 'Visualizar' }, { key: 'edit_fornecedores', label: 'Criar / Editar' }] },
+  { modulo: 'Orçamentos', permissions: [{ key: 'view_orcamentos', label: 'Visualizar' }, { key: 'edit_orcamentos', label: 'Criar / Editar' }, { key: 'approve_orcamentos', label: 'Aprovar orçamentos' }] },
+  { modulo: 'Pedidos', permissions: [{ key: 'view_pedidos', label: 'Visualizar' }, { key: 'edit_pedidos', label: 'Criar / Editar' }] },
+  { modulo: 'Notas Fiscais', permissions: [{ key: 'view_nfe', label: 'Importar NF-e' }] },
+  { modulo: 'Financeiro', permissions: [{ key: 'view_financeiro', label: 'Visualizar' }, { key: 'edit_financeiro', label: 'Pagar / Gerenciar bancos' }, { key: 'approve_contas_pagar', label: 'Aprovar contas a pagar' }] },
+  { modulo: 'Relatórios', permissions: [{ key: 'view_relatorios', label: 'Visualizar relatórios' }] },
+  { modulo: 'Configurações', permissions: [{ key: 'manage_config', label: 'Gerenciar empresa e equipe' }] },
+];
+
+/** Constrói um mapa a partir de linhas {papel, permissao} (vindas do banco). Default para papéis sem linhas. */
+export function buildPermissionMap(rows: { papel: string; permissao: string }[]): RolePermissionMap {
+  const map: RolePermissionMap = { admin: [], gestor: [], financeiro: [], vendedor: [] };
+  const seen = new Set<UserRole>();
+  rows.forEach(({ papel, permissao }) => {
+    if (ALL_ROLES.includes(papel as UserRole)) {
+      seen.add(papel as UserRole);
+      map[papel as UserRole].push(permissao as Permission);
+    }
+  });
+  // Papéis sem nenhuma linha caem no default
+  ALL_ROLES.forEach((r) => { if (!seen.has(r)) map[r] = [...DEFAULT_ROLE_PERMISSIONS[r]]; });
+  // Admin sempre tem tudo (proteção)
+  map.admin = [...DEFAULT_ROLE_PERMISSIONS.admin];
+  return map;
 }
