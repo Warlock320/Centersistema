@@ -304,9 +304,6 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
           )}
         </div>
       </header>
-
-      {/* Spacer for fixed header */}
-      <div className="h-16" />
     </>
   );
 }
