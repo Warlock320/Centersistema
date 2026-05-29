@@ -7,12 +7,13 @@ import { Modal } from '@/components/ui/Modal';
 import { Confirm } from '@/components/ui/Confirm';
 import { Button } from '@/components/ui/Button';
 import { Input, Textarea, Select } from '@/components/ui/Input';
-import { Plus, History, Pencil, UserX } from 'lucide-react';
+import { Plus, History, Pencil, UserX, Search, Loader2 } from 'lucide-react';
 import type { Cliente, Orcamento, Pedido } from '@/types/database.types';
+import { buscarCNPJ, isCNPJ, formatCpfCnpj, somenteDigitos } from '@/lib/brasilapi';
 
 const EMPTY: Partial<Cliente> = {
-  nome: '', tipo: 'juridica', cpf_cnpj: '', email: '',
-  telefone: '', endereco: '', cidade: '', estado: '', cep: '', observacoes: '',
+  nome: '', tipo: 'juridica', cpf_cnpj: '', razao_social: '', inscricao_estadual: '',
+  email: '', telefone: '', endereco: '', cidade: '', estado: '', cep: '', observacoes: '',
 };
 
 const statusOrc: Record<string, string> = {
@@ -43,7 +44,35 @@ export default function ClientesPage() {
   const [ficha, setFicha] = useState<{ ltv: number; orcamentos: Orcamento[]; pedidos: Pedido[] } | null>(null);
   const [saveMsg, setSaveMsg] = useState('');
 
+  const [buscandoCNPJ, setBuscandoCNPJ] = useState(false);
+  const [cnpjMsg, setCnpjMsg] = useState('');
+
   const supabase = createClient();
+
+  async function handleBuscarCNPJ() {
+    setCnpjMsg('');
+    if (!isCNPJ(form.cpf_cnpj || '')) { setCnpjMsg('Informe um CNPJ com 14 dígitos.'); return; }
+    setBuscandoCNPJ(true);
+    try {
+      const d = await buscarCNPJ(form.cpf_cnpj || '');
+      setForm((p) => ({
+        ...p,
+        nome: p.nome || d.nomeFantasia,
+        razao_social: d.razaoSocial,
+        email: p.email || d.email,
+        telefone: p.telefone || d.telefone,
+        endereco: d.enderecoCompleto,
+        cidade: d.municipio,
+        estado: d.uf,
+        cep: d.cep,
+      }));
+      setCnpjMsg(d.situacao ? `Encontrado · situação: ${d.situacao}` : 'Dados preenchidos!');
+    } catch (err) {
+      setCnpjMsg(err instanceof Error ? err.message : 'Erro ao consultar CNPJ');
+    } finally {
+      setBuscandoCNPJ(false);
+    }
+  }
 
   useEffect(() => { fetchClientes(); }, []);
   useEffect(() => {
@@ -84,6 +113,7 @@ export default function ClientesPage() {
     setSelected(cliente || null);
     setForm(cliente ? { ...cliente } : EMPTY);
     setSaveMsg('');
+    setCnpjMsg('');
     setShowForm(true);
   }
 
@@ -172,13 +202,43 @@ export default function ClientesPage() {
       <Modal open={showForm} onClose={() => setShowForm(false)} title={selected ? 'Editar Cliente' : 'Novo Cliente'} size="lg">
         <form onSubmit={handleSave} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <Input label="Nome *" value={form.nome || ''} onChange={set('nome')} required placeholder="Nome completo ou razão social" />
-            </div>
-            <Select label="Tipo de Pessoa" value={form.tipo || 'juridica'} onChange={set('tipo')}
+            <Select label="Tipo de Pessoa" value={form.tipo || 'juridica'} onChange={(e) => { set('tipo')(e); setCnpjMsg(''); }}
               options={[{ value: 'juridica', label: 'Pessoa Jurídica (PJ)' }, { value: 'fisica', label: 'Pessoa Física (PF)' }]} />
-            <Input label={form.tipo === 'fisica' ? 'CPF' : 'CNPJ'} value={form.cpf_cnpj || ''} onChange={set('cpf_cnpj')}
-              placeholder={form.tipo === 'fisica' ? '000.000.000-00' : '00.000.000/0001-00'} />
+
+            {/* CPF/CNPJ com busca BrasilAPI quando PJ */}
+            <div>
+              <label className="text-sm font-medium text-slate-700 block mb-1">{form.tipo === 'fisica' ? 'CPF' : 'CNPJ'}</label>
+              <div className="flex gap-2">
+                <input
+                  value={form.cpf_cnpj || ''}
+                  onChange={(e) => setForm((p) => ({ ...p, cpf_cnpj: formatCpfCnpj(e.target.value) }))}
+                  placeholder={form.tipo === 'fisica' ? '000.000.000-00' : '00.000.000/0001-00'}
+                  className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                {form.tipo === 'juridica' && (
+                  <Button type="button" variant="secondary" size="sm" onClick={handleBuscarCNPJ}
+                    disabled={buscandoCNPJ || !isCNPJ(form.cpf_cnpj || '')} title="Buscar dados na Receita (BrasilAPI)">
+                    {buscandoCNPJ ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                  </Button>
+                )}
+              </div>
+              {cnpjMsg && <p className={`text-xs mt-1 ${cnpjMsg.includes('Erro') || cnpjMsg.includes('Informe') || cnpjMsg.includes('não') ? 'text-red-500' : 'text-green-600'}`}>{cnpjMsg}</p>}
+            </div>
+
+            <div className="col-span-2">
+              <Input label={form.tipo === 'juridica' ? 'Nome Fantasia *' : 'Nome *'} value={form.nome || ''} onChange={set('nome')} required
+                placeholder={form.tipo === 'juridica' ? 'Nome fantasia' : 'Nome completo'} />
+            </div>
+
+            {form.tipo === 'juridica' && (
+              <>
+                <div className="col-span-2">
+                  <Input label="Razão Social" value={form.razao_social || ''} onChange={set('razao_social')} placeholder="Preenchido pela consulta do CNPJ" />
+                </div>
+                <Input label="Inscrição Estadual (IE)" value={form.inscricao_estadual || ''} onChange={set('inscricao_estadual')} placeholder="Isento ou número da IE" />
+              </>
+            )}
+
             <Input label="E-mail" type="email" value={form.email || ''} onChange={set('email')} />
             <Input label="Telefone / WhatsApp" value={form.telefone || ''} onChange={set('telefone')} placeholder="(11) 99999-9999" />
             <div className="col-span-2">

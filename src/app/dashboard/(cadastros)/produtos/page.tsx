@@ -7,14 +7,18 @@ import { Modal } from '@/components/ui/Modal';
 import { Confirm } from '@/components/ui/Confirm';
 import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
-import { Plus, Pencil, AlertTriangle, Tag, PackageX, TrendingDown, TrendingUp } from 'lucide-react';
-import type { Produto, Categoria } from '@/types/database.types';
+import { Plus, Pencil, AlertTriangle, Tag, PackageX, X, MapPin } from 'lucide-react';
+import type { Produto, Categoria, Fornecedor } from '@/types/database.types';
 
-const EMPTY: Partial<Produto> = { codigo: '', nome: '', categoria: null, preco: 0, custo: 0, estoque: 0, estoque_minimo: 0 };
+const EMPTY: Partial<Produto> = {
+  codigo: '', ref: '', nome: '', categoria: null, fornecedor_id: null,
+  localizacao: '', codigos_auxiliares: [], preco: 0, custo: 0, estoque: 0, estoque_minimo: 0,
+};
 
 export default function ProdutosPage() {
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
   const [filtered, setFiltered] = useState<Produto[]>([]);
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState('');
@@ -29,9 +33,9 @@ export default function ProdutosPage() {
 
   const [selected, setSelected] = useState<Produto | null>(null);
   const [form, setForm] = useState<Partial<Produto>>(EMPTY);
+  const [codigosAux, setCodigosAux] = useState<string[]>([]);
   const [saveMsg, setSaveMsg] = useState('');
 
-  // Estado para gerenciar categorias
   const [novaCategoria, setNovaCategoria] = useState('');
   const [savingCat, setSavingCat] = useState(false);
 
@@ -41,27 +45,34 @@ export default function ProdutosPage() {
 
   useEffect(() => {
     const q = search.toLowerCase();
-    setFiltered(produtos.filter((p) =>
-      (p.nome.toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q)) &&
-      (!filterCat || p.categoria === filterCat)
-    ));
+    setFiltered(produtos.filter((p) => {
+      const matchQ = !q ||
+        p.nome.toLowerCase().includes(q) ||
+        (p.codigo || '').toLowerCase().includes(q) ||
+        (p.ref || '').toLowerCase().includes(q) ||
+        (p.codigos_auxiliares || []).some((c) => c.toLowerCase().includes(q));
+      return matchQ && (!filterCat || p.categoria === filterCat);
+    }));
   }, [search, filterCat, produtos]);
 
   async function fetchData() {
     setLoading(true);
-    const [prods, cats] = await Promise.all([
-      supabase.from('produtos').select('*').eq('ativo', true).order('nome'),
+    const [prods, cats, forns] = await Promise.all([
+      supabase.from('produtos').select('*, fornecedores(nome)').eq('ativo', true).order('nome'),
       supabase.from('categorias').select('*').order('nome'),
+      supabase.from('fornecedores').select('id, nome').eq('ativo', true).order('nome'),
     ]);
     setProdutos(prods.data as Produto[] || []);
     setFiltered(prods.data as Produto[] || []);
     setCategorias(cats.data as Categoria[] || []);
+    setFornecedores(forns.data as Fornecedor[] || []);
     setLoading(false);
   }
 
   function openForm(produto?: Produto) {
     setSelected(produto || null);
     setForm(produto ? { ...produto } : EMPTY);
+    setCodigosAux(produto?.codigos_auxiliares || []);
     setSaveMsg('');
     setShowForm(true);
   }
@@ -70,12 +81,17 @@ export default function ProdutosPage() {
     e.preventDefault();
     setSaving(true);
     const payload = {
-      ...form,
+      codigo: form.codigo || null,
+      ref: form.ref || null,
+      nome: form.nome,
+      categoria: form.categoria || null,
+      fornecedor_id: form.fornecedor_id || null,
+      localizacao: form.localizacao || null,
+      codigos_auxiliares: codigosAux.map((c) => c.trim()).filter(Boolean),
       preco: Number(form.preco),
       custo: Number(form.custo),
       estoque: Number(form.estoque),
       estoque_minimo: Number(form.estoque_minimo),
-      categoria: form.categoria || null,
     };
 
     if (selected) {
@@ -89,7 +105,7 @@ export default function ProdutosPage() {
     setSaving(false);
     setSaveMsg('Produto salvo!');
     fetchData();
-    setTimeout(() => { setSaveMsg(''); setShowForm(false); }, 1000);
+    setTimeout(() => { setSaveMsg(''); setShowForm(false); }, 900);
   }
 
   async function handleDelete() {
@@ -125,41 +141,47 @@ export default function ProdutosPage() {
   const set = (key: keyof Produto) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((p) => ({ ...p, [key]: e.target.value }));
 
+  // Códigos auxiliares dinâmicos
+  const addCodAux = () => setCodigosAux((p) => [...p, '']);
+  const setCodAux = (i: number, v: string) => setCodigosAux((p) => p.map((c, j) => (j === i ? v : c)));
+  const removeCodAux = (i: number) => setCodigosAux((p) => p.filter((_, j) => j !== i));
+
   const catOptions = categorias.map((c) => ({ value: c.id, label: c.nome }));
+  const fornOptions = fornecedores.map((f) => ({ value: f.id, label: f.nome }));
   const abaixoMinimo = produtos.filter((p) => p.estoque_minimo > 0 && p.estoque < p.estoque_minimo).length;
 
   const columns: Column<Produto>[] = [
-    { key: 'codigo', label: 'SKU', render: (r) => r.codigo
+    { key: 'codigo', label: 'Código', render: (r) => r.codigo
       ? <span className="font-mono text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-600">{r.codigo}</span>
       : <span className="text-slate-300">—</span> },
     { key: 'nome', label: 'Produto', render: (r) => (
-      <div className="flex items-center gap-2">
-        {r.estoque_minimo > 0 && r.estoque < r.estoque_minimo && (
-          <AlertTriangle size={14} className="text-red-500 shrink-0" />
-        )}
-        <span className="font-medium text-slate-900">{r.nome}</span>
+      <div>
+        <div className="flex items-center gap-2">
+          {r.estoque_minimo > 0 && r.estoque < r.estoque_minimo && (
+            <AlertTriangle size={14} className="text-red-500 shrink-0" />
+          )}
+          <span className="font-medium text-slate-900">{r.nome}</span>
+        </div>
+        <div className="flex items-center gap-2 mt-0.5">
+          {r.ref && <span className="text-xs text-slate-400">Ref: {r.ref}</span>}
+          {r.localizacao && (
+            <span className="text-xs text-slate-400 flex items-center gap-0.5">
+              <MapPin size={10} /> {r.localizacao}
+            </span>
+          )}
+        </div>
       </div>
     )},
-    { key: 'preco', label: 'Preço Venda', render: (r) => (
+    { key: 'fornecedor', label: 'Fornecedor', render: (r) => r.fornecedores?.nome || <span className="text-slate-300">—</span> },
+    { key: 'preco', label: 'Preço', render: (r) => (
       <span className="font-medium text-green-700">
         {Number(r.preco).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
       </span>
     )},
-    { key: 'custo', label: 'Custo', render: (r) => Number(r.custo).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) },
     { key: 'estoque', label: 'Estoque', render: (r) => {
       const low = r.estoque_minimo > 0 && r.estoque < r.estoque_minimo;
-      return (
-        <div className="flex items-center gap-1.5">
-          {low
-            ? <TrendingDown size={14} className="text-red-500" />
-            : <TrendingUp size={14} className="text-green-500" />}
-          <span className={`font-bold ${low ? 'text-red-600' : 'text-slate-800'}`}>
-            {Number(r.estoque).toFixed(2)}
-          </span>
-        </div>
-      );
+      return <span className={`font-bold ${low ? 'text-red-600' : 'text-slate-800'}`}>{Number(r.estoque).toFixed(0)}</span>;
     }},
-    { key: 'estoque_minimo', label: 'Mín.', render: (r) => <span className="text-slate-400">{Number(r.estoque_minimo).toFixed(2)}</span> },
     { key: 'acoes', label: '', render: (r) => (
       <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); openForm(r); }}>
         <Pencil size={14} />
@@ -174,35 +196,22 @@ export default function ProdutosPage() {
           <h1 className="text-2xl font-bold text-slate-900">Produtos</h1>
           <p className="text-slate-500 text-sm">
             {produtos.length} item(s)
-            {abaixoMinimo > 0 && (
-              <span className="ml-2 text-red-500 font-medium">· {abaixoMinimo} abaixo do estoque mínimo</span>
-            )}
+            {abaixoMinimo > 0 && <span className="ml-2 text-red-500 font-medium">· {abaixoMinimo} abaixo do mínimo</span>}
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => setShowCategorias(true)}>
-            <Tag size={16} /> Categorias
-          </Button>
-          <Button onClick={() => openForm()}>
-            <Plus size={16} /> Novo Produto
-          </Button>
+          <Button variant="secondary" onClick={() => setShowCategorias(true)}><Tag size={16} /> Categorias</Button>
+          <Button onClick={() => openForm()}><Plus size={16} /> Novo Produto</Button>
         </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-100">
         <div className="px-6 py-4 border-b border-slate-100 flex gap-3 flex-wrap">
-          <input
-            type="text"
-            placeholder="Buscar por nome ou SKU..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 min-w-48 max-w-xs px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-          <select
-            value={filterCat}
-            onChange={(e) => setFilterCat(e.target.value)}
-            className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-          >
+          <input type="text" placeholder="Buscar por nome, código, ref ou código auxiliar..."
+            value={search} onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 min-w-48 max-w-sm px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" />
+          <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)}
+            className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500">
             <option value="">Todas as categorias</option>
             {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
           </select>
@@ -213,46 +222,81 @@ export default function ProdutosPage() {
 
       {/* Form Modal */}
       <Modal open={showForm} onClose={() => setShowForm(false)} title={selected ? 'Editar Produto' : 'Novo Produto'} size="lg">
-        <form onSubmit={handleSave} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Código / SKU" value={form.codigo || ''} onChange={set('codigo')} placeholder="ABC-001" />
-            <div className="flex gap-2 items-end">
-              <div className="flex-1">
-                <Select label="Categoria" value={form.categoria || ''} onChange={set('categoria')} options={catOptions} />
+        <form onSubmit={handleSave} className="space-y-5">
+          {/* Identificação */}
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Identificação</p>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Código" value={form.codigo || ''} onChange={set('codigo')} placeholder="SKU interno" />
+              <Input label="Referência (ref)" value={form.ref || ''} onChange={set('ref')} placeholder="Ref. do fabricante" />
+              <div className="col-span-2">
+                <Input label="Nome do Produto *" value={form.nome || ''} onChange={set('nome')} required placeholder="Ex: Filtro de Óleo Toyota Corolla" />
               </div>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setShowCategorias(true)}
-                className="mb-0.5 shrink-0" title="Gerenciar categorias">
-                <Tag size={14} />
-              </Button>
+              <Input label="Localização" value={form.localizacao || ''} onChange={set('localizacao')} placeholder="Ex: Prateleira A-12" />
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <Select label="Categoria" value={form.categoria || ''} onChange={set('categoria')} options={catOptions} />
+                </div>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setShowCategorias(true)} className="mb-0.5 shrink-0">
+                  <Tag size={14} />
+                </Button>
+              </div>
             </div>
-            <div className="col-span-2">
-              <Input label="Nome do Produto *" value={form.nome || ''} onChange={set('nome')} required placeholder="Ex: Filtro de Óleo Toyota" />
-            </div>
-            <Input label="Preço de Venda (R$) *" type="number" step="0.01" min="0"
-              value={form.preco || 0} onChange={set('preco')} required />
-            <Input label="Custo Unitário (R$)" type="number" step="0.0001" min="0"
-              value={form.custo || 0} onChange={set('custo')} />
-            <Input label="Estoque Atual" type="number" step="0.001" min="0"
-              value={form.estoque || 0} onChange={set('estoque')} />
-            <Input label="Estoque Mínimo (alerta)" type="number" step="0.001" min="0"
-              value={form.estoque_minimo || 0} onChange={set('estoque_minimo')} />
           </div>
 
-          {form.preco && form.custo && Number(form.custo) > 0 && (
-            <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
-              Margem: {(((Number(form.preco) - Number(form.custo)) / Number(form.custo)) * 100).toFixed(1)}%
-              · Lucro unitário: {(Number(form.preco) - Number(form.custo)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          {/* Códigos auxiliares */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Códigos Auxiliares</p>
+              <Button type="button" variant="ghost" size="sm" onClick={addCodAux}>
+                <Plus size={13} /> Adicionar código
+              </Button>
             </div>
-          )}
+            {codigosAux.length === 0 ? (
+              <p className="text-sm text-slate-400">Nenhum código auxiliar. Use para EAN, código de barras, equivalências, etc.</p>
+            ) : (
+              <div className="space-y-2">
+                {codigosAux.map((cod, i) => (
+                  <div key={i} className="flex gap-2">
+                    <input value={cod} onChange={(e) => setCodAux(i, e.target.value)}
+                      placeholder={`Código auxiliar ${i + 1}`}
+                      className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    <button type="button" onClick={() => removeCodAux(i)}
+                      className="px-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Comercial */}
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Preço e Fornecedor</p>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Preço de Venda (R$) *" type="number" step="0.01" min="0" value={form.preco || 0} onChange={set('preco')} required />
+              <Select label="Fornecedor" value={form.fornecedor_id || ''} onChange={set('fornecedor_id')} options={fornOptions} />
+              <Input label="Custo Unitário (R$)" type="number" step="0.0001" min="0" value={form.custo || 0} onChange={set('custo')} />
+            </div>
+          </div>
+
+          {/* Estoque */}
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Estoque</p>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Estoque Atual" type="number" step="0.001" min="0" value={form.estoque || 0} onChange={set('estoque')} />
+              <Input label="Estoque Mínimo (alerta)" type="number" step="0.001" min="0" value={form.estoque_minimo || 0} onChange={set('estoque_minimo')} />
+            </div>
+          </div>
 
           {saveMsg && <p className="text-sm text-green-600 font-medium">{saveMsg}</p>}
 
-          <div className="flex gap-3 pt-2">
+          <div className="flex gap-3 pt-1">
             <Button type="submit" loading={saving} className="flex-1">Salvar</Button>
             <Button type="button" variant="secondary" onClick={() => setShowForm(false)}>Cancelar</Button>
             {selected && (
-              <Button type="button" variant="danger" size="sm"
-                onClick={() => { setProdToDelete(selected.id); setShowConfirm(true); }}>
+              <Button type="button" variant="danger" size="sm" onClick={() => { setProdToDelete(selected.id); setShowConfirm(true); }}>
                 <PackageX size={14} /> Desativar
               </Button>
             )}
@@ -264,31 +308,19 @@ export default function ProdutosPage() {
       <Modal open={showCategorias} onClose={() => setShowCategorias(false)} title="Gerenciar Categorias" size="sm">
         <div className="space-y-4">
           <form onSubmit={handleSaveCategoria} className="flex gap-2">
-            <input
-              type="text"
-              value={novaCategoria}
-              onChange={(e) => setNovaCategoria(e.target.value)}
+            <input type="text" value={novaCategoria} onChange={(e) => setNovaCategoria(e.target.value)}
               placeholder="Nome da categoria..."
-              className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-            <Button type="submit" loading={savingCat} size="sm">
-              <Plus size={14} /> Criar
-            </Button>
+              className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            <Button type="submit" loading={savingCat} size="sm"><Plus size={14} /> Criar</Button>
           </form>
-
           <div className="divide-y divide-slate-50 max-h-64 overflow-y-auto">
             {categorias.length === 0 ? (
               <p className="py-6 text-center text-sm text-slate-400">Nenhuma categoria criada</p>
             ) : categorias.map((cat) => (
               <div key={cat.id} className="flex items-center justify-between py-2.5">
-                <span className="text-sm text-slate-800 flex items-center gap-2">
-                  <Tag size={14} className="text-slate-400" /> {cat.nome}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteCategoria(cat.id)}
-                  className="text-red-400 hover:text-red-600 text-xs px-2 py-0.5 rounded hover:bg-red-50 transition-colors"
-                >
+                <span className="text-sm text-slate-800 flex items-center gap-2"><Tag size={14} className="text-slate-400" /> {cat.nome}</span>
+                <button type="button" onClick={() => handleDeleteCategoria(cat.id)}
+                  className="text-red-400 hover:text-red-600 text-xs px-2 py-0.5 rounded hover:bg-red-50 transition-colors">
                   Remover
                 </button>
               </div>
@@ -297,15 +329,10 @@ export default function ProdutosPage() {
         </div>
       </Modal>
 
-      <Confirm
-        open={showConfirm}
-        title="Desativar produto"
+      <Confirm open={showConfirm} title="Desativar produto"
         message="O produto será desativado. Histórico de movimentações e itens em orçamentos/pedidos são preservados."
-        confirmLabel="Sim, desativar"
-        loading={deleting}
-        onConfirm={handleDelete}
-        onCancel={() => { setShowConfirm(false); setProdToDelete(null); }}
-      />
+        confirmLabel="Sim, desativar" loading={deleting}
+        onConfirm={handleDelete} onCancel={() => { setShowConfirm(false); setProdToDelete(null); }} />
     </div>
   );
 }

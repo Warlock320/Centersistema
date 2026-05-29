@@ -7,8 +7,9 @@ import { Modal } from '@/components/ui/Modal';
 import { Confirm } from '@/components/ui/Confirm';
 import { Button } from '@/components/ui/Button';
 import { Input, Textarea, Select } from '@/components/ui/Input';
-import { Plus, Pencil, Truck, Copy } from 'lucide-react';
+import { Plus, Pencil, Truck, Copy, Search, Loader2 } from 'lucide-react';
 import type { Fornecedor } from '@/types/database.types';
+import { buscarCNPJ, isCNPJ, formatCpfCnpj } from '@/lib/brasilapi';
 
 const EMPTY: Partial<Fornecedor> = {
   nome: '', razao_social: '', cnpj_cpf: '', tipo: 'juridica',
@@ -37,7 +38,36 @@ export default function FornecedoresPage() {
   const [form, setForm] = useState<Partial<Fornecedor>>(EMPTY);
   const [saveMsg, setSaveMsg] = useState('');
 
+  const [buscandoCNPJ, setBuscandoCNPJ] = useState(false);
+  const [cnpjMsg, setCnpjMsg] = useState('');
+
   const supabase = createClient();
+
+  async function handleBuscarCNPJ() {
+    setCnpjMsg('');
+    if (!isCNPJ(form.cnpj_cpf || '')) { setCnpjMsg('Informe um CNPJ com 14 dígitos.'); return; }
+    setBuscandoCNPJ(true);
+    try {
+      const d = await buscarCNPJ(form.cnpj_cpf || '');
+      setForm((p) => ({
+        ...p,
+        tipo: 'juridica',
+        nome: p.nome || d.nomeFantasia,
+        razao_social: d.razaoSocial,
+        email: p.email || d.email,
+        telefone: p.telefone || d.telefone,
+        endereco: d.enderecoCompleto,
+        cidade: d.municipio,
+        estado: d.uf,
+        cep: d.cep,
+      }));
+      setCnpjMsg(d.situacao ? `Encontrado · situação: ${d.situacao}` : 'Dados preenchidos!');
+    } catch (err) {
+      setCnpjMsg(err instanceof Error ? err.message : 'Erro ao consultar CNPJ');
+    } finally {
+      setBuscandoCNPJ(false);
+    }
+  }
 
   useEffect(() => { fetchData(); }, []);
   useEffect(() => {
@@ -61,6 +91,7 @@ export default function FornecedoresPage() {
     setSelected(f || null);
     setForm(f ? { ...f } : EMPTY);
     setSaveMsg('');
+    setCnpjMsg('');
     setShowForm(true);
   }
 
@@ -148,14 +179,30 @@ export default function FornecedoresPage() {
           {/* Dados básicos */}
           <div>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-2"><Truck size={12} /> Identificação</p>
+            {/* CNPJ com busca BrasilAPI no topo */}
+            <div className="mb-4">
+              <label className="text-sm font-medium text-slate-700 block mb-1">CNPJ / CPF</label>
+              <div className="flex gap-2">
+                <input
+                  value={form.cnpj_cpf || ''}
+                  onChange={(e) => setForm((p) => ({ ...p, cnpj_cpf: formatCpfCnpj(e.target.value) }))}
+                  placeholder="00.000.000/0001-00"
+                  className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <Button type="button" variant="secondary" size="sm" onClick={handleBuscarCNPJ}
+                  disabled={buscandoCNPJ || !isCNPJ(form.cnpj_cpf || '')} title="Buscar dados na Receita (BrasilAPI)">
+                  {buscandoCNPJ ? <Loader2 size={14} className="animate-spin" /> : <><Search size={14} /> Buscar</>}
+                </Button>
+              </div>
+              {cnpjMsg && <p className={`text-xs mt-1 ${cnpjMsg.includes('Erro') || cnpjMsg.includes('Informe') || cnpjMsg.includes('não') ? 'text-red-500' : 'text-green-600'}`}>{cnpjMsg}</p>}
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Nome Fantasia *" value={form.nome || ''} onChange={set('nome')} required />
               <Input label="Razão Social" value={form.razao_social || ''} onChange={set('razao_social')} />
-              <Select label="Tipo" value={form.tipo || 'juridica'} onChange={set('tipo')}
-                options={[{ value: 'juridica', label: 'Pessoa Jurídica' }, { value: 'fisica', label: 'Pessoa Física' }]} />
-              <Input label="CNPJ / CPF" value={form.cnpj_cpf || ''} onChange={set('cnpj_cpf')} />
               <Input label="E-mail" type="email" value={form.email || ''} onChange={set('email')} />
               <Input label="Telefone" value={form.telefone || ''} onChange={set('telefone')} />
+              <Select label="Tipo" value={form.tipo || 'juridica'} onChange={set('tipo')}
+                options={[{ value: 'juridica', label: 'Pessoa Jurídica' }, { value: 'fisica', label: 'Pessoa Física' }]} />
               <Input label="Prazo Padrão (dias)" type="number" min={1} value={form.prazo_padrao || 30} onChange={set('prazo_padrao')} />
             </div>
           </div>

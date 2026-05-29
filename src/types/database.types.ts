@@ -50,8 +50,12 @@ export interface Produto {
   id: string;
   empresa_id: string;
   codigo: string | null;
+  ref: string | null;
   nome: string;
   categoria: string | null;
+  fornecedor_id: string | null;
+  localizacao: string | null;
+  codigos_auxiliares: string[];
   preco: number;
   custo: number;
   estoque: number;
@@ -59,6 +63,7 @@ export interface Produto {
   ativo: boolean;
   created_at: string;
   updated_at: string;
+  fornecedores?: { nome: string };
 }
 
 export interface MovimentacaoEstoque {
@@ -80,6 +85,8 @@ export interface Cliente {
   nome: string;
   tipo: 'fisica' | 'juridica';
   cpf_cnpj: string | null;
+  razao_social: string | null;
+  inscricao_estadual: string | null;
   email: string | null;
   telefone: string | null;
   endereco: string | null;
