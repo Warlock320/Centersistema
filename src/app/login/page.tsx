@@ -41,17 +41,31 @@ export default function LoginPage() {
     // ─────────────────────────────────────────────────────────────────
 
     const supabase = createClient();
+    const conviteToken = new URLSearchParams(window.location.search).get('convite');
 
     try {
       if (mode === 'login') {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        // Aceita convite, se houver — define os papéis do novo membro
+        if (conviteToken) {
+          await supabase.rpc('aceitar_convite', { p_token: conviteToken });
+        }
         router.push('/dashboard');
         router.refresh();
       } else {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        setMessage('Conta criada! Verifique seu e-mail para confirmar e depois configure sua empresa.');
+        // Se já houver sessão (confirmação de e-mail desativada) e convite, aceita já
+        if (data.session && conviteToken) {
+          await supabase.rpc('aceitar_convite', { p_token: conviteToken });
+          router.push('/dashboard');
+          router.refresh();
+          return;
+        }
+        setMessage(conviteToken
+          ? 'Conta criada! Confirme seu e-mail e faça login para entrar na equipe.'
+          : 'Conta criada! Verifique seu e-mail para confirmar e depois configure sua empresa.');
         setMode('login');
       }
     } catch (err: unknown) {

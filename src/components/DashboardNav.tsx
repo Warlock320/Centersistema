@@ -12,12 +12,13 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import type { Usuario } from '@/types/database.types';
 import { DEMO_MODE, DEMO_COOKIE } from '@/lib/demo';
+import { can, resolveRoles, ROLE_LABELS, type Permission } from '@/lib/permissions';
 
 interface NavItem {
   href: string;
   label: string;
   icon: React.ElementType;
-  roles?: string[];
+  permission: Permission;
 }
 
 interface NavSection {
@@ -29,46 +30,43 @@ const navSections: NavSection[] = [
   {
     label: 'GERAL',
     items: [
-      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'view_dashboard' },
     ],
   },
   {
     label: 'CADASTROS',
     items: [
-      { href: '/dashboard/clientes', label: 'Clientes', icon: Users },
-      { href: '/dashboard/produtos', label: 'Produtos', icon: Package },
-      { href: '/dashboard/fornecedores', label: 'Fornecedores', icon: Truck },
+      { href: '/dashboard/clientes', label: 'Clientes', icon: Users, permission: 'view_clientes' },
+      { href: '/dashboard/produtos', label: 'Produtos', icon: Package, permission: 'view_produtos' },
+      { href: '/dashboard/fornecedores', label: 'Fornecedores', icon: Truck, permission: 'view_fornecedores' },
     ],
   },
   {
     label: 'COMERCIAL',
     items: [
-      { href: '/dashboard/orcamentos', label: 'Orçamentos', icon: FileText },
-      { href: '/dashboard/aprovacoes', label: 'Aprovações', icon: CheckSquare, roles: ['admin', 'aprovador'] },
-      { href: '/dashboard/pedidos', label: 'Pedidos', icon: ShoppingCart },
-      { href: '/dashboard/nfe', label: 'Importar NF-e', icon: FileInput, roles: ['admin', 'vendedor'] },
+      { href: '/dashboard/orcamentos', label: 'Orçamentos', icon: FileText, permission: 'view_orcamentos' },
+      { href: '/dashboard/aprovacoes', label: 'Aprovações', icon: CheckSquare, permission: 'approve_orcamentos' },
+      { href: '/dashboard/pedidos', label: 'Pedidos', icon: ShoppingCart, permission: 'view_pedidos' },
+      { href: '/dashboard/nfe', label: 'Importar NF-e', icon: FileInput, permission: 'view_nfe' },
     ],
   },
   {
     label: 'FINANCEIRO',
     items: [
-      { href: '/dashboard/financeiro', label: 'Visão Financeira', icon: Wallet, roles: ['admin', 'aprovador'] },
-      { href: '/dashboard/financeiro/receber', label: 'Contas a Receber', icon: ArrowDownCircle, roles: ['admin', 'aprovador'] },
-      { href: '/dashboard/financeiro/pagar', label: 'Contas a Pagar', icon: ArrowUpCircle, roles: ['admin', 'aprovador'] },
-      { href: '/dashboard/financeiro/bancos', label: 'Contas Bancárias', icon: Landmark, roles: ['admin'] },
+      { href: '/dashboard/financeiro', label: 'Visão Financeira', icon: Wallet, permission: 'view_financeiro' },
+      { href: '/dashboard/financeiro/receber', label: 'Contas a Receber', icon: ArrowDownCircle, permission: 'view_financeiro' },
+      { href: '/dashboard/financeiro/pagar', label: 'Contas a Pagar', icon: ArrowUpCircle, permission: 'view_financeiro' },
+      { href: '/dashboard/financeiro/bancos', label: 'Contas Bancárias', icon: Landmark, permission: 'edit_financeiro' },
     ],
   },
   {
     label: 'GESTÃO',
     items: [
-      { href: '/dashboard/relatorios', label: 'Relatórios', icon: BarChart2, roles: ['admin'] },
-      { href: '/dashboard/configuracoes', label: 'Configurações', icon: Settings, roles: ['admin'] },
+      { href: '/dashboard/relatorios', label: 'Relatórios', icon: BarChart2, permission: 'view_relatorios' },
+      { href: '/dashboard/configuracoes', label: 'Configurações', icon: Settings, permission: 'manage_config' },
     ],
   },
 ];
-
-// Compatibilidade: lista flat para a busca de alertas
-const navItems: NavItem[] = navSections.flatMap((s) => s.items);
 
 interface SearchResult {
   type: 'cliente' | 'produto';
@@ -81,6 +79,7 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const userRoles = resolveRoles(usuario || {});
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -163,10 +162,6 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
     }
   };
 
-  const _visibleItems = navItems.filter(
-    (item) => !item.roles || (usuario && item.roles.includes(usuario.role))
-  );
-
   return (
     <>
       {/* Sidebar */}
@@ -187,9 +182,7 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
         {/* Navigation */}
         <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-4">
           {navSections.map((section) => {
-            const sectionItems = section.items.filter(
-              (item) => !item.roles || (usuario && item.roles.includes(usuario.role))
-            );
+            const sectionItems = section.items.filter((item) => can(userRoles, item.permission));
             if (sectionItems.length === 0) return null;
             return (
               <div key={section.label}>
@@ -232,7 +225,7 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white text-sm font-medium truncate">{usuario?.nome || 'Usuário'}</p>
-              <p className="text-slate-400 text-xs capitalize">{usuario?.role || ''}</p>
+              <p className="text-slate-400 text-xs truncate">{userRoles.map((r) => ROLE_LABELS[r]).join(' · ')}</p>
             </div>
           </div>
           <button

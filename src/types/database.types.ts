@@ -8,7 +8,10 @@ export type OrcamentoStatus =
   | 'cancelado';
 
 export type PedidoStatus = 'aberto' | 'em_andamento' | 'faturado' | 'cancelado';
-export type UserRole = 'admin' | 'vendedor' | 'aprovador';
+
+// Papéis do sistema — ver src/lib/permissions.ts para a matriz de permissões
+export type { UserRole } from '@/lib/permissions';
+import type { UserRole } from '@/lib/permissions';
 
 export interface Empresa {
   id: string;
@@ -29,7 +32,9 @@ export interface Usuario {
   empresa_id: string;
   nome: string;
   email: string;
-  role: UserRole;
+  roles: UserRole[];
+  /** @deprecated mantido para compatibilidade com dados legados */
+  role?: UserRole | null;
   ativo: boolean;
   created_at: string;
 }
@@ -145,7 +150,7 @@ export interface Convite {
   id: string;
   empresa_id: string;
   email: string;
-  role: UserRole;
+  roles: UserRole[];
   token: string;
   usado: boolean;
   created_at: string;

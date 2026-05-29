@@ -11,6 +11,7 @@ import type {
   ContaPagar, ContaPagarStatus, Fornecedor,
   PlanoContas, CentroCusto, ContaBancaria, Usuario
 } from '@/types/database.types';
+import { can, resolveRoles } from '@/lib/permissions';
 
 function formatBRL(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 
@@ -178,7 +179,9 @@ export default function ContasPagarPage() {
     return matchS && matchQ;
   });
 
-  const isAdmin = usuario?.role === 'admin';
+  const roles = resolveRoles(usuario || {});
+  const podeAprovar = can(roles, 'approve_contas_pagar'); // admin, gestor, financeiro
+  const podePagar = can(roles, 'edit_financeiro');        // admin, financeiro
   const totais = filtered.reduce((acc, c) => {
     if (c.status === 'pendente' || c.status === 'aprovado') acc.pendente += c.valor;
     if (c.status === 'pago') acc.pago += Number(c.valor_pago || c.valor);
@@ -197,9 +200,14 @@ export default function ContasPagarPage() {
         <Button onClick={() => setShowForm(true)}><Plus size={16} /> Novo Lançamento</Button>
       </div>
 
-      {!isAdmin && (
+      {!podeAprovar && (
         <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700">
-          Apenas administradores podem aprovar pagamentos. Você pode visualizar e registrar lançamentos.
+          Você pode visualizar e registrar lançamentos. A aprovação e o pagamento são feitos pelo financeiro ou gestor.
+        </div>
+      )}
+      {podeAprovar && !podePagar && (
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
+          Você pode aprovar lançamentos, mas o pagamento (baixa) é feito pelo financeiro.
         </div>
       )}
 
@@ -254,17 +262,17 @@ export default function ContasPagarPage() {
                       </td>
                       <td className="px-6 py-3">
                         <div className="flex gap-1 justify-end">
-                          {c.status === 'pendente' && isAdmin && (
+                          {c.status === 'pendente' && podeAprovar && (
                             <Button variant="secondary" size="sm" onClick={() => handleAprovar(c)} loading={acting}>
                               <ThumbsUp size={13} /> Aprovar
                             </Button>
                           )}
-                          {c.status === 'aprovado' && isAdmin && (
+                          {c.status === 'aprovado' && podePagar && (
                             <Button variant="success" size="sm" onClick={() => openBaixa(c)}>
                               <CheckCircle size={13} /> Pagar
                             </Button>
                           )}
-                          {(c.status === 'pendente' || c.status === 'aprovado') && isAdmin && (
+                          {(c.status === 'pendente' || c.status === 'aprovado') && podePagar && (
                             <Button variant="ghost" size="sm" onClick={() => { setSelected(c); setShowCancel(true); }}>
                               <XCircle size={13} />
                             </Button>

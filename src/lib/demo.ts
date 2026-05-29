@@ -8,7 +8,7 @@ export const DEMO_USER: Usuario = {
   empresa_id: 'demo-empresa-id',
   nome: 'Admin Demo',
   email: 'admin@demo.com',
-  role: 'admin',
+  roles: ['admin'],
   ativo: true,
   created_at: new Date().toISOString(),
 };

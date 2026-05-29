@@ -7,6 +7,7 @@ import { Modal } from '@/components/ui/Modal';
 import { CheckCircle, XCircle, Clock, DollarSign } from 'lucide-react';
 import type { Orcamento, Usuario } from '@/types/database.types';
 import { createPedidoFromOrcamento, updateOrcamentoStatus } from '@/lib/supabase/queries';
+import { can, resolveRoles } from '@/lib/permissions';
 
 export default function AprovacoesPage() {
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
@@ -70,14 +71,14 @@ export default function AprovacoesPage() {
     fetchData();
   }
 
-  const canAccess = usuario?.role === 'admin' || usuario?.role === 'aprovador';
+  const canAccess = can(resolveRoles(usuario || {}), 'approve_orcamentos');
 
   if (!canAccess) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-slate-400">
         <XCircle size={40} className="mb-3" />
         <p className="text-lg font-medium">Acesso Restrito</p>
-        <p className="text-sm">Apenas admins e aprovadores têm acesso a esta área.</p>
+        <p className="text-sm">Apenas gestores e administradores têm acesso a esta área.</p>
       </div>
     );
   }

@@ -387,7 +387,7 @@ export default function OrcamentosPage() {
             {selected.status === 'aguardando_aprovacao' && (
               <div className="flex items-center gap-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-700 text-sm">
                 <Clock size={16} className="shrink-0" />
-                Este orçamento está na <strong className="ml-1">Fila de Aprovação</strong>. Aguarde a decisão de um aprovador ou administrador.
+                Este orçamento está na <strong className="ml-1">Fila de Aprovação</strong>. Aguarde a decisão de um gestor ou administrador.
               </div>
             )}
 

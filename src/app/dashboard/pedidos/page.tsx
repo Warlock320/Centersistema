@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ChevronRight, XCircle } from 'lucide-react';
 import type { Pedido, PedidoStatus, Usuario } from '@/types/database.types';
+import { can, resolveRoles } from '@/lib/permissions';
 
 const STEPS: { status: PedidoStatus; label: string }[] = [
   { status: 'aberto', label: 'Aberto' },
@@ -103,7 +104,8 @@ export default function PedidosPage() {
     return matchQ && matchS;
   });
 
-  const isAdmin = usuario?.role === 'admin';
+  // Cancelar pedido em separação é ação gerencial (admin/gestor)
+  const podeCancelarAndamento = can(resolveRoles(usuario || {}), 'approve_orcamentos');
 
   return (
     <div className="space-y-4">
@@ -248,7 +250,7 @@ export default function PedidosPage() {
                   Faturar Pedido
                 </Button>
               )}
-              {(selected.status === 'aberto' || (selected.status === 'em_andamento' && isAdmin)) && (
+              {(selected.status === 'aberto' || (selected.status === 'em_andamento' && podeCancelarAndamento)) && (
                 <Button variant="danger" size="sm" onClick={() => setConfirmCancelar(true)}>
                   <XCircle size={14} /> Cancelar Pedido
                 </Button>

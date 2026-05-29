@@ -53,8 +53,9 @@ export function Badge({ type, value, label }: Props) {
   } else if (type === 'role') {
     const roleColors: Record<string, string> = {
       admin: 'bg-purple-100 text-purple-700',
-      vendedor: 'bg-blue-100 text-blue-700',
-      aprovador: 'bg-orange-100 text-orange-700',
+      gestor: 'bg-blue-100 text-blue-700',
+      financeiro: 'bg-emerald-100 text-emerald-700',
+      vendedor: 'bg-amber-100 text-amber-700',
     };
     className += ' ' + (roleColors[value] || 'bg-slate-100 text-slate-700');
     text = value.charAt(0).toUpperCase() + value.slice(1);
