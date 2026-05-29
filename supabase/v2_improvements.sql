@@ -68,11 +68,11 @@ END;
 $$;
 
 -- View: Histórico de movimentações por produto (para tela de detalhes do produto)
+-- Obs: m.* já inclui empresa_id; não repetir p.empresa_id (causa erro de coluna duplicada)
 CREATE OR REPLACE VIEW public.v_movimentacoes_produto AS
   SELECT
     m.*,
-    p.nome AS produto_nome,
-    p.empresa_id
+    p.nome AS produto_nome
   FROM public.movimentacoes_estoque m
   JOIN public.produtos p ON p.id = m.produto_id;
 
