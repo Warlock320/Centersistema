@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Input, Textarea, Select } from '@/components/ui/Input';
 import { OrcamentoPDFButton } from '@/components/OrcamentoPDF';
-import { Plus, Copy, ChevronRight, Trash2, AlertTriangle, Clock, Send } from 'lucide-react';
+import { Plus, Copy, ChevronRight, Trash2, AlertTriangle, Clock, Send, Pencil } from 'lucide-react';
 import type { Orcamento, OrcamentoStatus, Cliente, Produto, OrcamentoItem, Usuario, TabelaPreco, PrecoProdutoView } from '@/types/database.types';
 
 const STATUS_STEPS: OrcamentoStatus[] = [
@@ -40,6 +40,9 @@ export default function OrcamentosPage() {
   const [selected, setSelected] = useState<Orcamento | null>(null);
   const [saving, setSaving] = useState(false);
   const [acting, setActing] = useState(false);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+
+  const [showDelete, setShowDelete] = useState(false);
 
   const [formClienteId, setFormClienteId] = useState('');
   const [formValidade, setFormValidade] = useState('');
@@ -142,27 +145,75 @@ export default function OrcamentosPage() {
     }));
   }
 
+  function resetForm() {
+    setEditandoId(null);
+    setFormClienteId('');
+    setFormValidade('');
+    setFormObs('');
+    const padrao = tabelas.find((t) => t.padrao) || tabelas[0];
+    if (padrao) setFormTabelaId(padrao.id);
+    setItens([{ descricao: '', quantidade: 1, preco_unitario: 0, desconto: 0, total: 0 }]);
+  }
+
+  function openNovo() {
+    resetForm();
+    setShowForm(true);
+  }
+
+  async function openEditar(orc: Orcamento) {
+    const { data } = await supabase
+      .from('orcamentos')
+      .select('*, orcamento_itens(*)')
+      .eq('id', orc.id)
+      .single();
+    const full = data as Orcamento;
+    setEditandoId(full.id);
+    setFormClienteId(full.cliente_id);
+    setFormValidade(full.validade || '');
+    setFormObs(full.observacoes || '');
+    const itensOrd = (full.orcamento_itens || []).sort((a, b) => a.ordem - b.ordem);
+    setItens(itensOrd.length ? itensOrd.map((it) => ({ ...it })) : [{ descricao: '', quantidade: 1, preco_unitario: 0, desconto: 0, total: 0 }]);
+    setShowDetail(false);
+    setShowForm(true);
+  }
+
   async function handleSave(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
     const total = itens.reduce((s, i) => s + Number(i.total || 0), 0);
 
-    const { data: orcData, error } = await supabase
-      .from('orcamentos')
-      .insert({
-        empresa_id: usuario?.empresa_id,
+    let orcId = editandoId;
+
+    if (editandoId) {
+      // Edição: atualiza cabeçalho e regrava os itens
+      await supabase.from('orcamentos').update({
         cliente_id: formClienteId,
-        usuario_id: usuario?.id,
         validade: formValidade || null,
         observacoes: formObs || null,
         total,
-      })
-      .select()
-      .single();
+        updated_at: new Date().toISOString(),
+      }).eq('id', editandoId);
+      await supabase.from('orcamento_itens').delete().eq('orcamento_id', editandoId);
+    } else {
+      const { data: orcData, error } = await supabase
+        .from('orcamentos')
+        .insert({
+          empresa_id: usuario?.empresa_id,
+          cliente_id: formClienteId,
+          usuario_id: usuario?.id,
+          validade: formValidade || null,
+          observacoes: formObs || null,
+          total,
+        })
+        .select()
+        .single();
+      if (error || !orcData) { setSaving(false); return; }
+      orcId = orcData.id;
+    }
 
-    if (!error && orcData) {
+    if (orcId) {
       const itemsToInsert = itens.map((it, i) => ({
-        orcamento_id: orcData.id,
+        orcamento_id: orcId,
         produto_id: it.produto_id || null,
         descricao: it.descricao || '',
         quantidade: Number(it.quantidade || 1),
@@ -176,8 +227,18 @@ export default function OrcamentosPage() {
 
     setSaving(false);
     setShowForm(false);
-    setItens([{ descricao: '', quantidade: 1, preco_unitario: 0, desconto: 0, total: 0 }]);
-    setFormClienteId('');
+    resetForm();
+    fetchData();
+  }
+
+  async function handleDelete() {
+    if (!selected) return;
+    setActing(true);
+    await supabase.from('orcamentos').delete().eq('id', selected.id);
+    setActing(false);
+    setShowDelete(false);
+    setShowDetail(false);
+    setSelected(null);
     fetchData();
   }
 
@@ -223,7 +284,7 @@ export default function OrcamentosPage() {
           <h1 className="text-2xl font-bold text-slate-900">Orçamentos</h1>
           <p className="text-slate-500 text-sm">{orcamentos.length} orçamento(s)</p>
         </div>
-        <Button onClick={() => setShowForm(true)}>
+        <Button onClick={openNovo}>
           <Plus size={16} /> Novo Orçamento
         </Button>
       </div>
@@ -279,7 +340,7 @@ export default function OrcamentosPage() {
       </div>
 
       {/* New Orcamento Modal */}
-      <Modal open={showForm} onClose={() => setShowForm(false)} title="Novo Orçamento" size="xl">
+      <Modal open={showForm} onClose={() => { setShowForm(false); resetForm(); }} title={editandoId ? 'Editar Orçamento' : 'Novo Orçamento'} size="xl">
         <form onSubmit={handleSave} className="space-y-5">
           <div className="grid grid-cols-4 gap-4">
             <div className="col-span-2">
@@ -399,8 +460,8 @@ export default function OrcamentosPage() {
           <Textarea label="Observações" value={formObs} onChange={(e) => setFormObs(e.target.value)} />
 
           <div className="flex gap-3">
-            <Button type="submit" loading={saving} className="flex-1">Salvar Orçamento</Button>
-            <Button type="button" variant="secondary" onClick={() => setShowForm(false)}>Cancelar</Button>
+            <Button type="submit" loading={saving} className="flex-1">{editandoId ? 'Salvar Alterações' : 'Salvar Orçamento'}</Button>
+            <Button type="button" variant="secondary" onClick={() => { setShowForm(false); resetForm(); }}>Cancelar</Button>
           </div>
         </form>
       </Modal>
@@ -506,6 +567,12 @@ export default function OrcamentosPage() {
                   <Send size={14} /> {NEXT_BTN[selected.status]}
                 </Button>
               )}
+              {/* Editar — só em rascunho/enviado */}
+              {['criado', 'orcamento_enviado'].includes(selected.status) && (
+                <Button variant="secondary" onClick={() => openEditar(selected)}>
+                  <Pencil size={14} /> Editar
+                </Button>
+              )}
               {/* PDF */}
               <OrcamentoPDFButton orcamento={selected} empresaNome={usuario?.empresa_id ? undefined : 'Center Auto Peças'} />
               {/* Duplicar */}
@@ -518,10 +585,27 @@ export default function OrcamentosPage() {
                   Cancelar
                 </Button>
               )}
+              {/* Excluir — só rascunho ou cancelado (não vira histórico) */}
+              {['criado', 'cancelado'].includes(selected.status) && (
+                <Button variant="ghost" size="sm" onClick={() => setShowDelete(true)}
+                  className="text-red-500 hover:bg-red-50 ml-auto">
+                  <Trash2 size={14} /> Excluir
+                </Button>
+              )}
             </div>
           </div>
         </Modal>
       )}
+
+      <Confirm
+        open={showDelete}
+        title="Excluir orçamento"
+        message={`O orçamento #${selected?.numero} e seus itens serão removidos permanentemente. Esta ação não pode ser desfeita.`}
+        confirmLabel="Excluir definitivamente"
+        loading={acting}
+        onConfirm={handleDelete}
+        onCancel={() => setShowDelete(false)}
+      />
     </div>
   );
 }

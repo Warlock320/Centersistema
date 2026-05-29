@@ -125,6 +125,29 @@ export default function AprovacoesPage() {
                 </div>
               </div>
 
+              {/* Etapas percorridas até a aprovação */}
+              <div className="px-6 py-3 border-b border-slate-50">
+                <div className="flex items-center gap-1.5 text-xs">
+                  {[
+                    { label: 'Criado', done: true },
+                    { label: 'Enviado ao cliente', done: true },
+                    { label: 'Aguardando aprovação', current: true },
+                    { label: 'Decisão', pending: true },
+                  ].map((etapa, idx, arr) => (
+                    <div key={etapa.label} className="flex items-center gap-1.5">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium ${
+                        etapa.current ? 'bg-yellow-100 text-yellow-700'
+                          : etapa.pending ? 'bg-slate-100 text-slate-400'
+                          : 'bg-green-100 text-green-700'
+                      }`}>
+                        {etapa.done && '✓ '}{etapa.label}
+                      </span>
+                      {idx < arr.length - 1 && <span className="text-slate-300">→</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {/* Itens */}
               <div className="px-6 py-3">
                 <table className="w-full text-sm">
