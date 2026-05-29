@@ -7,10 +7,10 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { usePermissions } from '@/components/PermissionsProvider';
 import {
-  Plus, Building2, Users, Mail, ShieldCheck, Copy, Check,
+  Plus, Building2, Users, ShieldCheck, Check,
   ChevronDown, UserPlus, KeyRound, RotateCcw,
 } from 'lucide-react';
-import type { Empresa, Usuario, Convite } from '@/types/database.types';
+import type { Empresa, Usuario } from '@/types/database.types';
 import {
   ALL_ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_COLORS,
   PERMISSION_GROUPS, DEFAULT_ROLE_PERMISSIONS, resolveRoles,
@@ -63,7 +63,6 @@ export default function ConfiguracoesPage() {
 
   const [empresa, setEmpresa] = useState<Partial<Empresa>>({});
   const [equipe, setEquipe] = useState<Usuario[]>([]);
-  const [convites, setConvites] = useState<Convite[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [empresaId, setEmpresaId] = useState<string>('');
@@ -77,13 +76,6 @@ export default function ConfiguracoesPage() {
   const [novoRoles, setNovoRoles] = useState<UserRole[]>(['vendedor']);
   const [cadastroErro, setCadastroErro] = useState('');
   const [cadastroMsg, setCadastroMsg] = useState('');
-
-  // Convite por link
-  const [showConvite, setShowConvite] = useState(false);
-  const [conviteEmail, setConviteEmail] = useState('');
-  const [conviteRoles, setConviteRoles] = useState<UserRole[]>(['vendedor']);
-  const [conviteLink, setConviteLink] = useState('');
-  const [copiado, setCopiado] = useState(false);
 
   // Editar papéis
   const [showRoles, setShowRoles] = useState(false);
@@ -123,14 +115,12 @@ export default function ConfiguracoesPage() {
     if (DEMO_MODE) eid = 'demo-empresa-id';
     setEmpresaId(eid);
 
-    const [emp, equi, conv] = await Promise.all([
+    const [emp, equi] = await Promise.all([
       eid ? supabase.from('empresas').select('*').eq('id', eid).single() : Promise.resolve({ data: null }),
       supabase.from('usuarios').select('*').order('nome'),
-      supabase.from('convites').select('*').eq('usado', false).order('created_at', { ascending: false }),
     ]);
     setEmpresa((emp.data as Empresa) || {});
     setEquipe((equi.data as Usuario[]) || []);
-    setConvites((conv.data as Convite[]) || []);
     setLoading(false);
   }
 
@@ -181,18 +171,6 @@ export default function ConfiguracoesPage() {
     }
   }
 
-  async function handleConvite(e: FormEvent) {
-    e.preventDefault();
-    if (conviteRoles.length === 0) { alert('Selecione ao menos um papel.'); return; }
-    const { data } = await supabase.from('convites').insert({
-      empresa_id: empresaId, email: conviteEmail, roles: conviteRoles,
-    }).select().single();
-    const token = (data as Convite | null)?.token;
-    if (token) setConviteLink(`${window.location.origin}/login?convite=${token}`);
-    setConviteEmail(''); setConviteRoles(['vendedor']);
-    fetchData();
-  }
-
   function openEditRoles(u: Usuario) {
     setEditTarget(u);
     setEditRoles(resolveRoles(u));
@@ -235,12 +213,6 @@ export default function ConfiguracoesPage() {
       reloadPerms();
     }
     setTimeout(() => setSavingPerms(null), 500);
-  }
-
-  function copyLink() {
-    navigator.clipboard?.writeText(conviteLink);
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 2000);
   }
 
   const set = (key: keyof Empresa) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -292,14 +264,9 @@ export default function ConfiguracoesPage() {
             <h2 className="font-semibold text-slate-900">Equipe ({equipe.length})</h2>
           </div>
           {isAdmin && (
-            <div className="flex gap-2">
-              <Button size="sm" variant="secondary" onClick={() => { setShowConvite(true); setConviteLink(''); }}>
-                <Mail size={14} /> Convidar por link
-              </Button>
-              <Button size="sm" onClick={() => { setShowCadastro(true); setCadastroErro(''); setCadastroMsg(''); }}>
-                <UserPlus size={14} /> Cadastrar usuário
-              </Button>
-            </div>
+            <Button size="sm" onClick={() => { setShowCadastro(true); setCadastroErro(''); setCadastroMsg(''); }}>
+              <UserPlus size={14} /> Cadastrar usuário
+            </Button>
           )}
         </div>
         <div className="divide-y divide-slate-50">
@@ -335,32 +302,11 @@ export default function ConfiguracoesPage() {
           })}
           {equipe.length === 0 && (
             <div className="px-6 py-10 text-center text-slate-400 text-sm">
-              Nenhum membro ainda. Cadastre um usuário ou envie um convite.
+              Nenhum membro ainda. Clique em &quot;Cadastrar usuário&quot; para adicionar.
             </div>
           )}
         </div>
       </div>
-
-      {/* Convites pendentes */}
-      {isAdmin && convites.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-100">
-          <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
-            <Mail size={18} className="text-blue-500" />
-            <h2 className="font-semibold text-slate-900">Convites Pendentes ({convites.length})</h2>
-          </div>
-          <div className="divide-y divide-slate-50">
-            {convites.map((c) => (
-              <div key={c.id} className="px-6 py-3 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-800">{c.email}</p>
-                  <p className="text-xs text-slate-400">{new Date(c.created_at).toLocaleDateString('pt-BR')}</p>
-                </div>
-                <RoleBadges roles={resolveRoles(c)} />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Permissões por papel — cards expansíveis */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-100">
@@ -470,38 +416,6 @@ export default function ConfiguracoesPage() {
             <Button type="button" variant="secondary" onClick={() => setShowCadastro(false)}>Cancelar</Button>
           </div>
         </form>
-      </Modal>
-
-      {/* Convite Modal */}
-      <Modal open={showConvite} onClose={() => setShowConvite(false)} title="Convidar por Link" size="md">
-        {conviteLink ? (
-          <div className="space-y-4">
-            <div className="p-4 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">
-              Convite gerado! Compartilhe o link com o colaborador — ele define a própria senha ao acessar.
-            </div>
-            <div className="flex gap-2">
-              <input readOnly value={conviteLink}
-                className="flex-1 px-3 py-2 text-xs border border-slate-200 rounded-lg bg-slate-50 font-mono" />
-              <Button type="button" variant="secondary" onClick={copyLink}>
-                {copiado ? <Check size={14} /> : <Copy size={14} />} {copiado ? 'Copiado' : 'Copiar'}
-              </Button>
-            </div>
-            <Button onClick={() => { setShowConvite(false); setConviteLink(''); }} className="w-full">Fechar</Button>
-          </div>
-        ) : (
-          <form onSubmit={handleConvite} className="space-y-4">
-            <Input label="E-mail *" type="email" value={conviteEmail}
-              onChange={(e) => setConviteEmail(e.target.value)} placeholder="colaborador@empresa.com" required />
-            <div>
-              <label className="text-sm font-medium text-slate-700 block mb-2">Papéis * (pode marcar mais de um)</label>
-              <RoleSelector value={conviteRoles} onChange={setConviteRoles} />
-            </div>
-            <div className="flex gap-3">
-              <Button type="submit" className="flex-1">Gerar Link de Convite</Button>
-              <Button type="button" variant="secondary" onClick={() => setShowConvite(false)}>Cancelar</Button>
-            </div>
-          </form>
-        )}
       </Modal>
 
       {/* Editar Papéis Modal */}

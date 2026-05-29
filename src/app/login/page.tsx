@@ -13,17 +13,14 @@ const DEMO_PASSWORD = 'admin123';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
-    setMessage('');
     setLoading(true);
 
     // ── Demo mode bypass ──────────────────────────────────────────────
@@ -41,42 +38,15 @@ export default function LoginPage() {
     // ─────────────────────────────────────────────────────────────────
 
     const supabase = createClient();
-    const conviteToken = new URLSearchParams(window.location.search).get('convite');
 
     try {
-      if (mode === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        // Aceita convite, se houver — define os papéis do novo membro
-        if (conviteToken) {
-          await supabase.rpc('aceitar_convite', { p_token: conviteToken });
-        }
-        router.push('/dashboard');
-        router.refresh();
-      } else {
-        const { data, error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
-        // Se já houver sessão (confirmação de e-mail desativada) e convite, aceita já
-        if (data.session && conviteToken) {
-          await supabase.rpc('aceitar_convite', { p_token: conviteToken });
-          router.push('/dashboard');
-          router.refresh();
-          return;
-        }
-        setMessage(conviteToken
-          ? 'Conta criada! Confirme seu e-mail e faça login para entrar na equipe.'
-          : 'Conta criada! Verifique seu e-mail para confirmar e depois configure sua empresa.');
-        setMode('login');
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      router.push('/dashboard');
+      router.refresh();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao autenticar';
-      if (msg.includes('Invalid login credentials')) {
-        setError('E-mail ou senha incorretos');
-      } else if (msg.includes('User already registered')) {
-        setError('Este e-mail já está cadastrado');
-      } else {
-        setError(msg);
-      }
+      setError(msg.includes('Invalid login credentials') ? 'E-mail ou senha incorretos' : msg);
     } finally {
       setLoading(false);
     }
@@ -94,32 +64,20 @@ export default function LoginPage() {
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           <div className="flex items-center justify-between mb-1">
-            <h2 className="text-2xl font-bold text-slate-900">
-              {mode === 'login' ? 'Entrar' : 'Criar conta'}
-            </h2>
+            <h2 className="text-2xl font-bold text-slate-900">Entrar</h2>
             {DEMO_MODE && (
               <span className="text-xs font-bold px-2 py-1 bg-amber-100 text-amber-700 rounded-full border border-amber-200">
                 MODO DEMO
               </span>
             )}
           </div>
-          <p className="text-slate-500 text-sm mb-6">
-            {mode === 'login'
-              ? 'Acesse o painel de gestão'
-              : 'Crie sua conta e configure sua empresa'}
-          </p>
+          <p className="text-slate-500 text-sm mb-6">Acesse o painel de gestão</p>
 
           {DEMO_MODE && (
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
               <strong>Credenciais de teste:</strong><br />
               E-mail: <code className="font-mono">admin@demo.com</code><br />
               Senha: <code className="font-mono">admin123</code>
-            </div>
-          )}
-
-          {message && (
-            <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">
-              {message}
             </div>
           )}
 
@@ -144,24 +102,16 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder={mode === 'signup' ? 'Mínimo 6 caracteres' : '••••••••'}
+              placeholder="••••••••"
               required
-              minLength={6}
-              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              autoComplete="current-password"
             />
-            <Button type="submit" loading={loading} className="w-full">
-              {mode === 'login' ? 'Entrar' : 'Criar conta'}
-            </Button>
+            <Button type="submit" loading={loading} className="w-full">Entrar</Button>
           </form>
 
-          <div className="mt-6 text-center">
-            <button
-              onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); setMessage(''); }}
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-            >
-              {mode === 'login' ? 'Não tem conta? Cadastre-se' : 'Já tem conta? Entrar'}
-            </button>
-          </div>
+          <p className="mt-6 text-center text-xs text-slate-400">
+            Novos acessos são criados pelo administrador nas configurações do sistema.
+          </p>
         </div>
 
         <p className="text-center text-slate-500 text-xs mt-6">
