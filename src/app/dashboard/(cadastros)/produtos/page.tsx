@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
 import { Plus, Pencil, AlertTriangle, Tag, PackageX, X, MapPin, DollarSign, Trash2 } from 'lucide-react';
 import type { Produto, Categoria, Fornecedor, TabelaPreco, PrecoProduto } from '@/types/database.types';
+import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
 
 const EMPTY: Partial<Produto> = {
   codigo: '', ref: '', nome: '', categoria: null, fornecedor_id: null,
@@ -342,9 +343,15 @@ export default function ProdutosPage() {
           <div>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Preço e Fornecedor</p>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Preço Base de Venda (R$) *" type="number" step="0.01" min="0" value={form.preco || 0} onChange={set('preco')} required />
+              <Input label="Preço Base de Venda (R$) *" inputMode="numeric"
+                value={formatMoedaInput(Number(form.preco) || 0)}
+                onChange={(e) => setForm((p) => ({ ...p, preco: parseMoedaInput(e.target.value) }))}
+                placeholder="0,00" required />
               <Select label="Fornecedor" value={form.fornecedor_id || ''} onChange={set('fornecedor_id')} options={fornOptions} />
-              <Input label="Custo Unitário (R$)" type="number" step="0.0001" min="0" value={form.custo || 0} onChange={set('custo')} />
+              <Input label="Custo de Compra (R$)" inputMode="numeric"
+                value={formatMoedaInput(Number(form.custo) || 0)}
+                onChange={(e) => setForm((p) => ({ ...p, custo: parseMoedaInput(e.target.value) }))}
+                placeholder="0,00" />
             </div>
           </div>
 
@@ -372,9 +379,12 @@ export default function ProdutosPage() {
                       </div>
                       <div className="w-40">
                         <input
-                          type="number" step="0.01" min="0"
-                          value={overrides[t.id] ?? ''}
-                          onChange={(e) => setOverrides((p) => ({ ...p, [t.id]: e.target.value }))}
+                          type="text" inputMode="numeric"
+                          value={overrides[t.id] ? formatMoedaInput(Number(overrides[t.id])) : ''}
+                          onChange={(e) => {
+                            const n = parseMoedaInput(e.target.value);
+                            setOverrides((p) => ({ ...p, [t.id]: n ? String(n) : '' }));
+                          }}
                           placeholder={sugerido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           className="w-full px-2 py-1.5 text-sm text-right border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
