@@ -4,6 +4,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Center Auto Peças Gestão',
   description: 'Sistema ERP para gestão de auto peças',
+  icons: { icon: '/logo.png', apple: '/logo.png' },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

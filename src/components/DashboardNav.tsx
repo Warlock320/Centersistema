@@ -10,6 +10,7 @@ import {
   ArrowDownCircle, ArrowUpCircle, Landmark
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { Logo } from '@/components/ui/Logo';
 import type { Usuario } from '@/types/database.types';
 import { DEMO_MODE, DEMO_COOKIE } from '@/lib/demo';
 import { resolveRoles, ROLE_LABELS, type Permission } from '@/lib/permissions';
@@ -170,10 +171,8 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
       <aside className="fixed left-0 top-0 h-full w-64 bg-slate-900 flex flex-col z-40">
         {/* Brand */}
         <div className="px-6 py-5 border-b border-slate-700/50">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Package size={16} className="text-white" />
-            </div>
+          <div className="flex items-center gap-3">
+            <Logo size={40} className="ring-2 ring-white/10" />
             <div>
               <p className="text-white font-bold text-sm leading-tight">Center Auto</p>
               <p className="text-slate-400 text-xs">Gestão de Peças</p>

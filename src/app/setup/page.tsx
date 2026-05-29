@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Package } from 'lucide-react';
+import { Logo } from '@/components/ui/Logo';
 import { DEMO_MODE } from '@/lib/demo';
 
 export default function SetupPage() {
@@ -78,14 +78,9 @@ export default function SetupPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-            <Package size={24} className="text-white" />
-          </div>
-          <div>
-            <h1 className="text-white font-bold text-xl">Center Auto Peças</h1>
-            <p className="text-slate-400 text-sm">Configuração inicial da empresa</p>
-          </div>
+        <div className="flex flex-col items-center justify-center mb-8">
+          <Logo size={96} className="shadow-xl ring-4 ring-white/10 mb-3" />
+          <p className="text-slate-400 text-sm">Configuração inicial da empresa</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">
