@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, Package, FileText, CheckSquare,
   ShoppingCart, FileInput, BarChart2, Settings, LogOut,
   Search, X, ChevronRight, Bell, Truck, Wallet,
-  ArrowDownCircle, ArrowUpCircle, Landmark, Building2, Tags
+  ArrowDownCircle, ArrowUpCircle, Landmark, Building2, Tags, Warehouse
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Logo } from '@/components/ui/Logo';
@@ -40,6 +40,7 @@ const navSections: NavSection[] = [
     items: [
       { href: '/dashboard/clientes', label: 'Clientes', icon: Users, permission: 'view_clientes' },
       { href: '/dashboard/produtos', label: 'Produtos', icon: Package, permission: 'view_produtos' },
+      { href: '/dashboard/estoque', label: 'Estoque', icon: Warehouse, permission: 'view_produtos' },
       { href: '/dashboard/fornecedores', label: 'Fornecedores', icon: Truck, permission: 'view_fornecedores' },
       { href: '/dashboard/empresas', label: 'Empresas (CNPJs)', icon: Building2, permission: 'manage_config' },
     ],
