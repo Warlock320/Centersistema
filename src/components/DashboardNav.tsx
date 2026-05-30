@@ -59,6 +59,7 @@ const navSections: NavSection[] = [
       { href: '/dashboard/financeiro', label: 'Visão Financeira', icon: Wallet, permission: 'view_financeiro' },
       { href: '/dashboard/financeiro/receber', label: 'Contas a Receber', icon: ArrowDownCircle, permission: 'view_financeiro' },
       { href: '/dashboard/financeiro/pagar', label: 'Contas a Pagar', icon: ArrowUpCircle, permission: 'view_financeiro' },
+      { href: '/dashboard/financeiro/caixa', label: 'Caixa Diário', icon: Wallet, permission: 'view_financeiro' },
       { href: '/dashboard/financeiro/bancos', label: 'Contas Bancárias', icon: Landmark, permission: 'edit_financeiro' },
       { href: '/dashboard/financeiro/categorias', label: 'Categorias', icon: Tags, permission: 'edit_financeiro' },
     ],

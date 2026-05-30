@@ -362,6 +362,31 @@ export interface HistoricoCobranca {
   created_at: string;
 }
 
+export interface Caixa {
+  id: string;
+  empresa_id: string;
+  unidade_id: string | null;
+  usuario_id: string | null;
+  saldo_inicial: number;
+  status: 'aberto' | 'fechado';
+  aberto_em: string;
+  fechado_em: string | null;
+  saldo_informado: number | null;
+  saldo_calculado: number | null;
+  observacao: string | null;
+}
+
+export interface MovimentoCaixa {
+  id: string;
+  empresa_id: string;
+  caixa_id: string;
+  tipo: 'entrada' | 'saida';
+  forma_pagamento: string | null;
+  valor: number;
+  descricao: string | null;
+  created_at: string;
+}
+
 export interface KpisFinanceiros {
   receber_mes: number;
   pagar_mes: number;
