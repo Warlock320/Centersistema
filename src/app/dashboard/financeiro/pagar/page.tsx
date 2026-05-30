@@ -5,15 +5,25 @@ import { createClient } from '@/lib/supabase/client';
 import { Modal } from '@/components/ui/Modal';
 import { Confirm } from '@/components/ui/Confirm';
 import { Button } from '@/components/ui/Button';
-import { Input, Textarea, Select } from '@/components/ui/Input';
-import { Plus, CheckCircle, ThumbsUp, XCircle } from 'lucide-react';
+import { Input, Select, Textarea } from '@/components/ui/Input';
+import { usePermissions } from '@/components/PermissionsProvider';
+import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
+import { Plus, CheckCircle, XCircle, Zap, FileClock, Layers, Repeat } from 'lucide-react';
 import type {
   ContaPagar, ContaPagarStatus, Fornecedor,
-  PlanoContas, CentroCusto, ContaBancaria,
+  PlanoContas, ContaBancaria, Unidade,
 } from '@/types/database.types';
-import { usePermissions } from '@/components/PermissionsProvider';
 
 function formatBRL(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+
+type TipoLancamento = 'avista' | 'prazo' | 'parcelado' | 'recorrente';
+
+const TIPOS: { value: TipoLancamento; label: string; desc: string; icon: React.ElementType }[] = [
+  { value: 'avista', label: 'À vista', desc: 'Pagamento imediato (ex: conta de água paga)', icon: Zap },
+  { value: 'prazo', label: 'A prazo / Boleto', desc: 'Vence depois — fica pendente até pagar', icon: FileClock },
+  { value: 'parcelado', label: 'Parcelado', desc: 'Gera N parcelas mensais', icon: Layers },
+  { value: 'recorrente', label: 'Recorrente', desc: 'Gera os lançamentos dos próximos meses', icon: Repeat },
+];
 
 const STATUS_COLORS: Record<ContaPagarStatus, string> = {
   pendente: 'bg-yellow-100 text-yellow-700',
@@ -28,11 +38,13 @@ const STATUS_LABELS: Record<ContaPagarStatus, string> = {
 export default function ContasPagarPage() {
   const [contas, setContas] = useState<ContaPagar[]>([]);
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
-  const [planos, setPlanos] = useState<PlanoContas[]>([]);
-  const [centros, setCentros] = useState<CentroCusto[]>([]);
+  const [unidades, setUnidades] = useState<Unidade[]>([]);
+  const [categorias, setCategorias] = useState<PlanoContas[]>([]);
   const [bancos, setBancos] = useState<ContaBancaria[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterStatus, setFilterStatus] = useState('pendente');
+
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterUnidade, setFilterUnidade] = useState('');
   const [search, setSearch] = useState('');
 
   const [showForm, setShowForm] = useState(false);
@@ -42,87 +54,124 @@ export default function ContasPagarPage() {
   const [saving, setSaving] = useState(false);
   const [acting, setActing] = useState(false);
 
-  const [formFornId, setFormFornId] = useState('');
-  const [formDescricao, setFormDescricao] = useState('');
-  const [formValor, setFormValor] = useState('');
-  const [formEmissao, setFormEmissao] = useState(new Date().toISOString().split('T')[0]);
-  const [formVencimento, setFormVencimento] = useState('');
-  const [formPlano, setFormPlano] = useState('');
-  const [formCentro, setFormCentro] = useState('');
-  const [formObs, setFormObs] = useState('');
-  const [formParcelas, setFormParcelas] = useState('1');
+  // Form
+  const [tipo, setTipo] = useState<TipoLancamento>('prazo');
+  const [fUnidade, setFUnidade] = useState('');
+  const [fFornecedor, setFFornecedor] = useState('');
+  const [fCategoria, setFCategoria] = useState('');
+  const [fDescricao, setFDescricao] = useState('');
+  const [fValor, setFValor] = useState(0);
+  const [fVencimento, setFVencimento] = useState('');
+  const [fPagamento, setFPagamento] = useState(new Date().toISOString().split('T')[0]);
+  const [fParcelas, setFParcelas] = useState('2');
+  const [fDiaVenc, setFDiaVenc] = useState('10');
+  const [fMeses, setFMeses] = useState('12');
 
+  // Baixa
   const [baixaData, setBaixaData] = useState(new Date().toISOString().split('T')[0]);
-  const [baixaValor, setBaixaValor] = useState('');
-  const [baixaJuros, setBaixaJuros] = useState('0');
-  const [baixaDesconto, setBaixaDesconto] = useState('0');
   const [baixaBanco, setBaixaBanco] = useState('');
 
   const supabase = createClient();
   const { can } = usePermissions();
+  const podePagar = can('edit_financeiro');
 
   useEffect(() => { fetchAll(); }, []);
 
   async function fetchAll() {
     setLoading(true);
-    const [contsData, fornsData, planosData, centrosData, bancosData] = await Promise.all([
+    const [conts, forns, unis, cats, bks] = await Promise.all([
       supabase.from('contas_pagar').select('*, fornecedores(nome)').order('data_vencimento'),
       supabase.from('fornecedores').select('id, nome').eq('ativo', true).order('nome'),
+      supabase.from('unidades').select('*').eq('ativo', true).order('padrao', { ascending: false }),
       supabase.from('plano_contas').select('*').eq('tipo', 'despesa').eq('ativo', true).order('codigo'),
-      supabase.from('centros_custo').select('*').eq('ativo', true).order('nome'),
       supabase.from('v_saldo_bancario').select('*').eq('ativo', true).order('nome'),
     ]);
-    setContas(contsData.data as ContaPagar[] || []);
-    setFornecedores(fornsData.data as Fornecedor[] || []);
-    setPlanos(planosData.data as PlanoContas[] || []);
-    setCentros(centrosData.data as CentroCusto[] || []);
-    setBancos(bancosData.data as ContaBancaria[] || []);
+    setContas(conts.data as ContaPagar[] || []);
+    setFornecedores(forns.data as Fornecedor[] || []);
+    setUnidades(unis.data as Unidade[] || []);
+    setCategorias(cats.data as PlanoContas[] || []);
+    setBancos(bks.data as ContaBancaria[] || []);
     setLoading(false);
+  }
+
+  function openForm() {
+    setTipo('prazo');
+    const padrao = unidades.find((u) => u.padrao) || unidades[0];
+    setFUnidade(padrao?.id || '');
+    setFFornecedor(''); setFCategoria(''); setFDescricao(''); setFValor(0);
+    setFVencimento(''); setFPagamento(new Date().toISOString().split('T')[0]);
+    setFParcelas('2'); setFDiaVenc('10'); setFMeses('12');
+    setShowForm(true);
   }
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
+    if (fValor <= 0) { alert('Informe o valor.'); return; }
     setSaving(true);
+
     const { data: { user } } = await supabase.auth.getUser();
     const { data: usr } = await supabase.from('usuarios').select('empresa_id').eq('id', user!.id).single();
     const empresaId = (usr as { empresa_id: string })!.empresa_id;
 
-    const parcelas = Math.max(1, parseInt(formParcelas) || 1);
-    const valorParcela = parseFloat(formValor) / parcelas;
-    const grupoId = parcelas > 1 ? crypto.randomUUID() : null;
-    const baseDate = new Date(formVencimento);
+    const comum = {
+      empresa_id: empresaId,
+      unidade_id: fUnidade || null,
+      fornecedor_id: fFornecedor || null,
+      plano_contas_id: fCategoria || null,
+      descricao: fDescricao || 'Despesa',
+    };
 
-    const rows = Array.from({ length: parcelas }, (_, i) => {
-      const venc = new Date(baseDate);
-      venc.setMonth(venc.getMonth() + i);
-      return {
-        empresa_id: empresaId,
-        fornecedor_id: formFornId || null,
-        plano_contas_id: formPlano || null,
-        centro_custo_id: formCentro || null,
-        descricao: parcelas > 1 ? `${formDescricao} (${i + 1}/${parcelas})` : formDescricao,
-        valor: parseFloat(valorParcela.toFixed(2)),
-        data_emissao: formEmissao,
-        data_vencimento: venc.toISOString().split('T')[0],
-        numero_parcela: i + 1,
-        total_parcelas: parcelas,
-        grupo_parcelas: grupoId,
-        observacoes: formObs || null,
-      };
-    });
+    if (tipo === 'avista') {
+      await supabase.from('contas_pagar').insert({
+        ...comum, valor: fValor, data_vencimento: fPagamento,
+        data_pagamento: fPagamento, valor_pago: fValor, status: 'pago',
+      });
+    } else if (tipo === 'prazo') {
+      await supabase.from('contas_pagar').insert({
+        ...comum, valor: fValor, data_vencimento: fVencimento || fPagamento, status: 'pendente',
+      });
+    } else if (tipo === 'parcelado') {
+      const parcelas = Math.max(2, parseInt(fParcelas) || 2);
+      const grupo = crypto.randomUUID();
+      const valorParcela = parseFloat((fValor / parcelas).toFixed(2));
+      const base = new Date(fVencimento || new Date().toISOString().split('T')[0]);
+      const rows = Array.from({ length: parcelas }, (_, i) => {
+        const venc = new Date(base);
+        venc.setMonth(venc.getMonth() + i);
+        return {
+          ...comum, descricao: `${comum.descricao} (${i + 1}/${parcelas})`,
+          valor: valorParcela, data_vencimento: venc.toISOString().split('T')[0],
+          status: 'pendente' as const, numero_parcela: i + 1, total_parcelas: parcelas, grupo_parcelas: grupo,
+        };
+      });
+      await supabase.from('contas_pagar').insert(rows);
+    } else {
+      // recorrente: gera N meses no dia de vencimento
+      const meses = Math.max(1, parseInt(fMeses) || 12);
+      const dia = Math.min(28, Math.max(1, parseInt(fDiaVenc) || 10));
+      const grupo = crypto.randomUUID();
+      const hoje = new Date();
+      const rows = Array.from({ length: meses }, (_, i) => {
+        const venc = new Date(hoje.getFullYear(), hoje.getMonth() + i, dia);
+        return {
+          ...comum, descricao: `${comum.descricao} (recorrente)`,
+          valor: fValor, data_vencimento: venc.toISOString().split('T')[0],
+          status: 'pendente' as const, grupo_parcelas: grupo,
+        };
+      });
+      await supabase.from('contas_pagar').insert(rows);
+    }
 
-    await supabase.from('contas_pagar').insert(rows);
     setSaving(false);
     setShowForm(false);
-    resetForm();
     fetchAll();
   }
 
-  async function handleAprovar(c: ContaPagar) {
-    setActing(true);
-    await supabase.rpc('aprovar_conta_pagar', { p_id: c.id });
-    setActing(false);
-    fetchAll();
+  function openBaixa(c: ContaPagar) {
+    setSelected(c);
+    setBaixaData(new Date().toISOString().split('T')[0]);
+    setBaixaBanco('');
+    setShowBaixa(true);
   }
 
   async function handleBaixa(e: FormEvent) {
@@ -130,12 +179,8 @@ export default function ContasPagarPage() {
     if (!selected) return;
     setActing(true);
     await supabase.rpc('baixar_conta_pagar', {
-      p_id: selected.id,
-      p_data_pagamento: baixaData,
-      p_valor_pago: parseFloat(baixaValor),
-      p_juros: parseFloat(baixaJuros) || 0,
-      p_desconto: parseFloat(baixaDesconto) || 0,
-      p_conta_bancaria: baixaBanco || null,
+      p_id: selected.id, p_data_pagamento: baixaData, p_valor_pago: selected.valor,
+      p_juros: 0, p_desconto: 0, p_conta_bancaria: baixaBanco || null,
     });
     setActing(false);
     setShowBaixa(false);
@@ -153,34 +198,20 @@ export default function ContasPagarPage() {
     fetchAll();
   }
 
-  function resetForm() {
-    setFormFornId(''); setFormDescricao(''); setFormValor('');
-    setFormVencimento(''); setFormPlano(''); setFormCentro('');
-    setFormObs(''); setFormParcelas('1');
-  }
-
-  function openBaixa(c: ContaPagar) {
-    setSelected(c);
-    setBaixaValor(String(c.valor));
-    setBaixaData(new Date().toISOString().split('T')[0]);
-    setBaixaJuros('0'); setBaixaDesconto('0'); setBaixaBanco('');
-    setShowBaixa(true);
-  }
-
   const filtered = contas.filter((c) => {
     const matchS = !filterStatus || c.status === filterStatus;
+    const matchU = !filterUnidade || c.unidade_id === filterUnidade;
     const q = search.toLowerCase();
-    const matchQ = !q || c.descricao.toLowerCase().includes(q) || ((c as ContaPagar & { fornecedores?: { nome: string } }).fornecedores?.nome || '').toLowerCase().includes(q);
-    return matchS && matchQ;
+    const forn = (c as ContaPagar & { fornecedores?: { nome: string } }).fornecedores?.nome || '';
+    const matchQ = !q || c.descricao.toLowerCase().includes(q) || forn.toLowerCase().includes(q);
+    return matchS && matchU && matchQ;
   });
 
-  const podeAprovar = can('approve_contas_pagar'); // admin, gestor, financeiro
-  const podePagar = can('edit_financeiro');        // admin, financeiro
   const totais = filtered.reduce((acc, c) => {
-    if (c.status === 'pendente' || c.status === 'aprovado') acc.pendente += c.valor;
     if (c.status === 'pago') acc.pago += Number(c.valor_pago || c.valor);
+    else if (c.status !== 'cancelado') acc.aPagar += c.valor;
     return acc;
-  }, { pendente: 0, pago: 0 });
+  }, { pago: 0, aPagar: 0 });
 
   return (
     <div className="space-y-4">
@@ -188,36 +219,31 @@ export default function ContasPagarPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Contas a Pagar</h1>
           <p className="text-slate-500 text-sm">
-            {filtered.length} lançamento(s) · A pagar: {formatBRL(totais.pendente)} · Pago: {formatBRL(totais.pago)}
+            A pagar: <strong className="text-red-600">{formatBRL(totais.aPagar)}</strong> · Pago: <strong className="text-green-600">{formatBRL(totais.pago)}</strong>
           </p>
         </div>
-        <Button onClick={() => setShowForm(true)}><Plus size={16} /> Novo Lançamento</Button>
+        <Button onClick={openForm}><Plus size={16} /> Nova Despesa</Button>
       </div>
-
-      {!podeAprovar && (
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700">
-          Você pode visualizar e registrar lançamentos. A aprovação e o pagamento são feitos pelo financeiro ou gestor.
-        </div>
-      )}
-      {podeAprovar && !podePagar && (
-        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
-          Você pode aprovar lançamentos, mas o pagamento (baixa) é feito pelo financeiro.
-        </div>
-      )}
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-100">
         <div className="px-6 py-4 border-b border-slate-100 flex gap-3 flex-wrap">
           <input type="text" placeholder="Buscar por descrição ou fornecedor..."
             value={search} onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 min-w-48 max-w-xs px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            className="flex-1 min-w-44 max-w-xs px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" />
           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
             className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500">
-            <option value="">Todos</option>
+            <option value="">Todos os status</option>
             <option value="pendente">Pendente</option>
-            <option value="aprovado">Aprovado</option>
             <option value="pago">Pago</option>
             <option value="cancelado">Cancelado</option>
           </select>
+          {unidades.length > 1 && (
+            <select value={filterUnidade} onChange={(e) => setFilterUnidade(e.target.value)}
+              className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500">
+              <option value="">Todas as empresas</option>
+              {unidades.map((u) => <option key={u.id} value={u.id}>{u.nome_fantasia || u.razao_social}</option>)}
+            </select>
+          )}
         </div>
 
         {loading ? (
@@ -240,13 +266,11 @@ export default function ContasPagarPage() {
                     <tr key={c.id} className="border-b border-slate-50 hover:bg-slate-50">
                       <td className="px-6 py-3">
                         <p className="font-medium text-slate-900">{forn?.nome || '—'}</p>
-                        <p className="text-xs text-slate-400">{c.descricao}
-                          {c.total_parcelas > 1 && ` (${c.numero_parcela}/${c.total_parcelas})`}
-                        </p>
+                        <p className="text-xs text-slate-400">{c.descricao}</p>
                       </td>
                       <td className={`px-6 py-3 ${isVencido ? 'text-red-600 font-medium' : 'text-slate-600'}`}>
                         {new Date(c.data_vencimento).toLocaleDateString('pt-BR')}
-                        {isVencido && <span className="ml-1 text-xs text-red-500">vencido</span>}
+                        {isVencido && <span className="ml-1 text-xs">vencido</span>}
                       </td>
                       <td className="px-6 py-3 font-bold text-slate-900">{formatBRL(c.valor)}</td>
                       <td className="px-6 py-3">
@@ -255,34 +279,25 @@ export default function ContasPagarPage() {
                         </span>
                       </td>
                       <td className="px-6 py-3">
-                        <div className="flex gap-1 justify-end">
-                          {c.status === 'pendente' && podeAprovar && (
-                            <Button variant="secondary" size="sm" onClick={() => handleAprovar(c)} loading={acting}>
-                              <ThumbsUp size={13} /> Aprovar
-                            </Button>
-                          )}
-                          {c.status === 'aprovado' && podePagar && (
+                        {(c.status === 'pendente' || c.status === 'aprovado') && podePagar && (
+                          <div className="flex gap-1 justify-end">
                             <Button variant="success" size="sm" onClick={() => openBaixa(c)}>
                               <CheckCircle size={13} /> Pagar
                             </Button>
-                          )}
-                          {(c.status === 'pendente' || c.status === 'aprovado') && podePagar && (
                             <Button variant="ghost" size="sm" onClick={() => { setSelected(c); setShowCancel(true); }}>
                               <XCircle size={13} />
                             </Button>
-                          )}
-                          {c.status === 'pago' && (
-                            <span className="text-xs text-slate-400">
-                              {c.data_pagamento && new Date(c.data_pagamento).toLocaleDateString('pt-BR')}
-                            </span>
-                          )}
-                        </div>
+                          </div>
+                        )}
+                        {c.status === 'pago' && c.data_pagamento && (
+                          <span className="text-xs text-slate-400">{new Date(c.data_pagamento).toLocaleDateString('pt-BR')}</span>
+                        )}
                       </td>
                     </tr>
                   );
                 })}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={5} className="py-12 text-center text-slate-400">Nenhum lançamento encontrado</td></tr>
+                  <tr><td colSpan={5} className="py-12 text-center text-slate-400">Nenhum lançamento. Clique em &quot;Nova Despesa&quot;.</td></tr>
                 )}
               </tbody>
             </table>
@@ -290,58 +305,87 @@ export default function ContasPagarPage() {
         )}
       </div>
 
-      {/* Novo Lançamento Modal */}
-      <Modal open={showForm} onClose={() => { setShowForm(false); resetForm(); }} title="Nova Conta a Pagar" size="lg">
+      {/* Nova Despesa Modal */}
+      <Modal open={showForm} onClose={() => setShowForm(false)} title="Nova Despesa" size="lg">
         <form onSubmit={handleSave} className="space-y-4">
-          <Select label="Fornecedor" value={formFornId} onChange={(e) => setFormFornId(e.target.value)}
-            options={fornecedores.map((f) => ({ value: f.id, label: f.nome }))} />
-          <Input label="Descrição *" value={formDescricao} onChange={(e) => setFormDescricao(e.target.value)} required
-            placeholder="Ex: Fatura de energia elétrica" />
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Valor Total (R$) *" type="number" step="0.01" min="0.01"
-              value={formValor} onChange={(e) => setFormValor(e.target.value)} required />
-            <Input label="Nº de Parcelas" type="number" min="1" max="60"
-              value={formParcelas} onChange={(e) => setFormParcelas(e.target.value)} />
-            <Input label="Data de Emissão" type="date" value={formEmissao} onChange={(e) => setFormEmissao(e.target.value)} />
-            <Input label="1ª Data de Vencimento *" type="date" value={formVencimento}
-              onChange={(e) => setFormVencimento(e.target.value)} required />
+          {/* Tipo */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {TIPOS.map((t) => {
+              const Icon = t.icon;
+              const active = tipo === t.value;
+              return (
+                <button key={t.value} type="button" onClick={() => setTipo(t.value)}
+                  className={`p-3 rounded-lg border text-left transition-colors ${active ? 'border-blue-400 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                  <Icon size={16} className={active ? 'text-blue-600' : 'text-slate-400'} />
+                  <p className="text-sm font-medium text-slate-800 mt-1">{t.label}</p>
+                </button>
+              );
+            })}
           </div>
+          <p className="text-xs text-slate-400 -mt-2">{TIPOS.find((t) => t.value === tipo)?.desc}</p>
+
           <div className="grid grid-cols-2 gap-4">
-            <Select label="Plano de Contas" value={formPlano} onChange={(e) => setFormPlano(e.target.value)}
-              options={planos.map((p) => ({ value: p.id, label: `${p.codigo} - ${p.nome}` }))} />
-            <Select label="Centro de Custo" value={formCentro} onChange={(e) => setFormCentro(e.target.value)}
-              options={centros.map((c) => ({ value: c.id, label: c.nome }))} />
+            {unidades.length > 1 && (
+              <Select label="Empresa (CNPJ) *" value={fUnidade} onChange={(e) => setFUnidade(e.target.value)}
+                options={unidades.map((u) => ({ value: u.id, label: u.nome_fantasia || u.razao_social }))} required />
+            )}
+            <Select label="Fornecedor" value={fFornecedor} onChange={(e) => setFFornecedor(e.target.value)}
+              options={fornecedores.map((f) => ({ value: f.id, label: f.nome }))} />
+            <Select label="Categoria (despesa)" value={fCategoria} onChange={(e) => setFCategoria(e.target.value)}
+              options={categorias.map((c) => ({ value: c.id, label: c.nome }))} />
           </div>
-          <Textarea label="Observações" value={formObs} onChange={(e) => setFormObs(e.target.value)} />
-          {parseInt(formParcelas) > 1 && formValor && (
-            <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-700">
-              {formParcelas}x de {formatBRL(parseFloat(formValor) / parseInt(formParcelas))}
+
+          <Input label="Descrição *" value={fDescricao} onChange={(e) => setFDescricao(e.target.value)}
+            placeholder="Ex: Conta de água / Boleto fornecedor X" required />
+
+          <div className="grid grid-cols-2 gap-4">
+            <Input label={tipo === 'parcelado' ? 'Valor Total (R$) *' : 'Valor (R$) *'} inputMode="numeric"
+              value={formatMoedaInput(fValor)} onChange={(e) => setFValor(parseMoedaInput(e.target.value))}
+              placeholder="0,00" required />
+
+            {tipo === 'avista' && (
+              <Input label="Data do Pagamento *" type="date" value={fPagamento} onChange={(e) => setFPagamento(e.target.value)} required />
+            )}
+            {tipo === 'prazo' && (
+              <Input label="Data de Vencimento *" type="date" value={fVencimento} onChange={(e) => setFVencimento(e.target.value)} required />
+            )}
+            {tipo === 'parcelado' && (
+              <Input label="1º Vencimento *" type="date" value={fVencimento} onChange={(e) => setFVencimento(e.target.value)} required />
+            )}
+          </div>
+
+          {tipo === 'parcelado' && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
+              <Input label="Número de Parcelas" type="number" min="2" max="36" value={fParcelas} onChange={(e) => setFParcelas(e.target.value)} />
+              {fValor > 0 && <p className="text-sm text-blue-700">{fParcelas}x de {formatBRL(fValor / (parseInt(fParcelas) || 2))} (mensais)</p>}
             </div>
           )}
-          <p className="text-xs text-slate-400">* Lançamento criado como "Pendente". Um admin deve aprovar antes do pagamento.</p>
+          {tipo === 'recorrente' && (
+            <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg grid grid-cols-2 gap-3">
+              <Input label="Dia do vencimento" type="number" min="1" max="28" value={fDiaVenc} onChange={(e) => setFDiaVenc(e.target.value)} />
+              <Input label="Gerar quantos meses" type="number" min="1" max="36" value={fMeses} onChange={(e) => setFMeses(e.target.value)} />
+              <p className="col-span-2 text-sm text-purple-700">
+                {fValor > 0 && `${fMeses} lançamentos de ${formatBRL(fValor)}, todo dia ${fDiaVenc}`}
+              </p>
+            </div>
+          )}
+
           <div className="flex gap-3">
-            <Button type="submit" loading={saving} className="flex-1">Salvar</Button>
-            <Button type="button" variant="secondary" onClick={() => { setShowForm(false); resetForm(); }}>Cancelar</Button>
+            <Button type="submit" loading={saving} className="flex-1">
+              {tipo === 'avista' ? 'Registrar pagamento' : 'Lançar'}
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setShowForm(false)}>Cancelar</Button>
           </div>
         </form>
       </Modal>
 
       {/* Baixa Modal */}
-      <Modal open={showBaixa} onClose={() => setShowBaixa(false)}
-        title={`Registrar Pagamento — ${(selected as ContaPagar & { fornecedores?: { nome: string } })?.fornecedores?.nome || selected?.descricao}`} size="md">
+      <Modal open={showBaixa} onClose={() => setShowBaixa(false)} title="Registrar Pagamento" size="sm">
         <form onSubmit={handleBaixa} className="space-y-4">
           <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm">
-            Valor original: <strong>{formatBRL(selected?.valor || 0)}</strong>
-            {selected?.data_vencimento && (
-              <span className="ml-2 text-slate-500">Vencimento: {new Date(selected.data_vencimento).toLocaleDateString('pt-BR')}</span>
-            )}
+            {selected?.descricao}<br />Valor: <strong>{formatBRL(selected?.valor || 0)}</strong>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Data do Pagamento *" type="date" value={baixaData} onChange={(e) => setBaixaData(e.target.value)} required />
-            <Input label="Valor Pago (R$) *" type="number" step="0.01" min="0.01" value={baixaValor} onChange={(e) => setBaixaValor(e.target.value)} required />
-            <Input label="Juros / Multa (R$)" type="number" step="0.01" min="0" value={baixaJuros} onChange={(e) => setBaixaJuros(e.target.value)} />
-            <Input label="Desconto (R$)" type="number" step="0.01" min="0" value={baixaDesconto} onChange={(e) => setBaixaDesconto(e.target.value)} />
-          </div>
+          <Input label="Data do Pagamento *" type="date" value={baixaData} onChange={(e) => setBaixaData(e.target.value)} required />
           <Select label="Conta de Débito" value={baixaBanco} onChange={(e) => setBaixaBanco(e.target.value)}
             options={bancos.map((b) => ({ value: b.id, label: `${b.nome}${b.saldo_atual !== undefined ? ` — ${formatBRL(b.saldo_atual)}` : ''}` }))} />
           <div className="flex gap-3">
@@ -352,8 +396,8 @@ export default function ContasPagarPage() {
       </Modal>
 
       <Confirm open={showCancel} title="Cancelar lançamento"
-        message="Esta conta a pagar será cancelada e não será mais processada."
-        confirmLabel="Sim, cancelar" loading={acting}
+        message="Este lançamento será cancelado."
+        confirmLabel="Confirmar" loading={acting}
         onConfirm={handleCancel} onCancel={() => setShowCancel(false)} />
     </div>
   );
