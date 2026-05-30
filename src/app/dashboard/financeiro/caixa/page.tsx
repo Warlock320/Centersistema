@@ -132,6 +132,15 @@ export default function CaixaPage() {
     setShowMov(true);
   }
 
+  // Entrada direta por forma de pagamento (botão de cada forma)
+  function openEntrada(forma: string) {
+    setMTipo('entrada');
+    setMForma(forma);
+    setMValor(0);
+    setMDescricao('');
+    setShowMov(true);
+  }
+
   // Totais do caixa aberto
   const totaisPorForma: Record<string, { entrada: number; saida: number }> = {};
   FORMAS.forEach((f) => { totaisPorForma[f.value] = { entrada: 0, saida: 0 }; });
@@ -139,6 +148,14 @@ export default function CaixaPage() {
     const k = m.forma_pagamento || 'dinheiro';
     if (!totaisPorForma[k]) totaisPorForma[k] = { entrada: 0, saida: 0 };
     totaisPorForma[k][m.tipo] += Number(m.valor);
+  });
+
+  // Último cupom (entrada) de cada forma — movimentos já vêm em ordem decrescente
+  const ultimoPorForma: Record<string, number> = {};
+  movimentos.forEach((m) => {
+    if (m.tipo === 'entrada' && m.forma_pagamento && ultimoPorForma[m.forma_pagamento] === undefined) {
+      ultimoPorForma[m.forma_pagamento] = Number(m.valor);
+    }
   });
   const totalEntradas = movimentos.filter((m) => m.tipo === 'entrada').reduce((s, m) => s + Number(m.valor), 0);
   const totalSaidas = movimentos.filter((m) => m.tipo === 'saida').reduce((s, m) => s + Number(m.valor), 0);
@@ -165,7 +182,6 @@ export default function CaixaPage() {
           </Button>
         ) : (
           <div className="flex gap-2">
-            <Button variant="success" size="sm" onClick={() => openMov('entrada')}><Plus size={14} /> Entrada</Button>
             <Button variant="danger" size="sm" onClick={() => openMov('saida')}><Minus size={14} /> Saída</Button>
             <Button variant="secondary" size="sm" onClick={() => { setFSaldoInformado(saldoDinheiro); setShowFechar(true); }}>
               <Lock size={14} /> Fechar
@@ -201,18 +217,33 @@ export default function CaixaPage() {
             </div>
           </div>
 
-          {/* Entradas por forma */}
+          {/* Entradas por forma — cada forma é um botão de lançamento */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5">
-            <p className="text-sm font-semibold text-slate-700 mb-3">Entradas por forma de pagamento</p>
+            <p className="text-sm font-semibold text-slate-700 mb-1">Registrar entrada</p>
+            <p className="text-xs text-slate-400 mb-3">Clique na forma de pagamento para lançar o cupom</p>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               {FORMAS.map((f) => {
                 const Icon = f.icon;
+                const ultimo = ultimoPorForma[f.value];
                 return (
-                  <div key={f.value} className="text-center p-3 bg-slate-50 rounded-lg">
-                    <Icon size={18} className="mx-auto text-slate-400 mb-1" />
-                    <p className="text-xs text-slate-500">{f.label}</p>
-                    <p className="text-sm font-bold text-slate-800">{formatBRL(totaisPorForma[f.value]?.entrada || 0)}</p>
-                  </div>
+                  <button
+                    key={f.value}
+                    type="button"
+                    onClick={() => openEntrada(f.value)}
+                    className="text-center p-4 rounded-xl border-2 border-slate-100 hover:border-green-400 hover:bg-green-50 transition-colors group"
+                  >
+                    <div className="w-10 h-10 mx-auto rounded-full bg-slate-100 group-hover:bg-green-100 flex items-center justify-center mb-2 transition-colors">
+                      <Icon size={18} className="text-slate-500 group-hover:text-green-600" />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-700">{f.label}</p>
+                    <p className="text-base font-bold text-slate-900 mt-1">{formatBRL(totaisPorForma[f.value]?.entrada || 0)}</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      último: {ultimo !== undefined ? formatBRL(ultimo) : '—'}
+                    </p>
+                    <span className="inline-flex items-center gap-1 mt-2 text-[11px] font-medium text-green-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Plus size={11} /> lançar
+                    </span>
+                  </button>
                 );
               })}
             </div>
@@ -304,14 +335,22 @@ export default function CaixaPage() {
       </Modal>
 
       {/* Movimento */}
-      <Modal open={showMov} onClose={() => setShowMov(false)} title={mTipo === 'entrada' ? 'Nova Entrada' : 'Nova Saída'} size="sm">
+      <Modal open={showMov} onClose={() => setShowMov(false)}
+        title={mTipo === 'entrada' ? `Entrada — ${FORMAS.find((f) => f.value === mForma)?.label || ''}` : 'Nova Saída'} size="sm">
         <form onSubmit={handleMovimento} className="space-y-4">
-          <Select label="Forma" value={mForma} onChange={(e) => setMForma(e.target.value)}
-            options={FORMAS.map((f) => ({ value: f.value, label: f.label }))} />
-          <Input label="Valor (R$) *" inputMode="numeric"
+          {mTipo === 'entrada' ? (
+            <div className="flex items-center gap-2 p-2.5 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+              {(() => { const F = FORMAS.find((f) => f.value === mForma); const I = F?.icon; return I ? <I size={16} /> : null; })()}
+              Forma: <strong>{FORMAS.find((f) => f.value === mForma)?.label}</strong>
+            </div>
+          ) : (
+            <Select label="Forma" value={mForma} onChange={(e) => setMForma(e.target.value)}
+              options={FORMAS.map((f) => ({ value: f.value, label: f.label }))} />
+          )}
+          <Input label="Valor do cupom (R$) *" inputMode="numeric" autoFocus
             value={formatMoedaInput(mValor)} onChange={(e) => setMValor(parseMoedaInput(e.target.value))} placeholder="0,00" required />
-          <Input label="Descrição" value={mDescricao} onChange={(e) => setMDescricao(e.target.value)}
-            placeholder={mTipo === 'entrada' ? 'Ex: Venda balcão' : 'Ex: Compra material / troco retirado'} />
+          <Input label="Descrição (opcional)" value={mDescricao} onChange={(e) => setMDescricao(e.target.value)}
+            placeholder={mTipo === 'entrada' ? 'Ex: Venda balcão / nº cupom' : 'Ex: Compra material / troco retirado'} />
           <div className="flex gap-3">
             <Button type="submit" variant={mTipo === 'entrada' ? 'success' : 'danger'} loading={saving} className="flex-1">
               {mTipo === 'entrada' ? 'Registrar Entrada' : 'Registrar Saída'}
