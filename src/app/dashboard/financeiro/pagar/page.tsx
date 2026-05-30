@@ -46,6 +46,7 @@ export default function ContasPagarPage() {
 
   const [filterStatus, setFilterStatus] = useState('');
   const [filterUnidade, setFilterUnidade] = useState('');
+  const [filterPeriodo, setFilterPeriodo] = useState('mes');
   const [search, setSearch] = useState('');
 
   const [showForm, setShowForm] = useState(false);
@@ -230,13 +231,32 @@ export default function ContasPagarPage() {
     fetchAll();
   }
 
+  // Intervalo [inicio, fim] (YYYY-MM-DD) do período selecionado
+  function periodoRange(p: string): [string, string] | null {
+    if (p === 'todos') return null;
+    const hoje = new Date();
+    const y = hoje.getFullYear(), m = hoje.getMonth(), d = hoje.getDate();
+    const fmt = (dt: Date) => dt.toLocaleDateString('en-CA');
+    if (p === 'dia') { const s = new Date(y, m, d); return [fmt(s), fmt(s)]; }
+    if (p === 'semana') {
+      const ini = new Date(y, m, d - hoje.getDay());        // domingo
+      const fim = new Date(y, m, d - hoje.getDay() + 6);    // sábado
+      return [fmt(ini), fmt(fim)];
+    }
+    if (p === 'mes') return [fmt(new Date(y, m, 1)), fmt(new Date(y, m + 1, 0))];
+    if (p === 'ano') return [fmt(new Date(y, 0, 1)), fmt(new Date(y, 11, 31))];
+    return null;
+  }
+  const range = periodoRange(filterPeriodo);
+
   const filtered = contas.filter((c) => {
     const matchS = !filterStatus || c.status === filterStatus;
     const matchU = !filterUnidade || c.unidade_id === filterUnidade;
+    const matchP = !range || (c.data_vencimento >= range[0] && c.data_vencimento <= range[1]);
     const q = search.toLowerCase();
     const forn = (c as ContaPagar & { fornecedores?: { nome: string } }).fornecedores?.nome || '';
     const matchQ = !q || c.descricao.toLowerCase().includes(q) || forn.toLowerCase().includes(q);
-    return matchS && matchU && matchQ;
+    return matchS && matchU && matchP && matchQ;
   });
 
   const totais = filtered.reduce((acc, c) => {
@@ -262,6 +282,14 @@ export default function ContasPagarPage() {
           <input type="text" placeholder="Buscar por descrição ou fornecedor..."
             value={search} onChange={(e) => setSearch(e.target.value)}
             className="flex-1 min-w-44 max-w-xs px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" />
+          <select value={filterPeriodo} onChange={(e) => setFilterPeriodo(e.target.value)}
+            className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500">
+            <option value="dia">Hoje</option>
+            <option value="semana">Esta semana</option>
+            <option value="mes">Este mês</option>
+            <option value="ano">Este ano</option>
+            <option value="todos">Todo período</option>
+          </select>
           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
             className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500">
             <option value="">Todos os status</option>
