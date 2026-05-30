@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, Package, FileText, CheckSquare,
   ShoppingCart, FileInput, BarChart2, Settings, LogOut,
   Search, X, ChevronRight, Bell, Truck, Wallet,
-  ArrowDownCircle, ArrowUpCircle, Landmark
+  ArrowDownCircle, ArrowUpCircle, Landmark, Building2, Tags
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Logo } from '@/components/ui/Logo';
@@ -41,6 +41,7 @@ const navSections: NavSection[] = [
       { href: '/dashboard/clientes', label: 'Clientes', icon: Users, permission: 'view_clientes' },
       { href: '/dashboard/produtos', label: 'Produtos', icon: Package, permission: 'view_produtos' },
       { href: '/dashboard/fornecedores', label: 'Fornecedores', icon: Truck, permission: 'view_fornecedores' },
+      { href: '/dashboard/empresas', label: 'Empresas (CNPJs)', icon: Building2, permission: 'manage_config' },
     ],
   },
   {
@@ -59,6 +60,7 @@ const navSections: NavSection[] = [
       { href: '/dashboard/financeiro/receber', label: 'Contas a Receber', icon: ArrowDownCircle, permission: 'view_financeiro' },
       { href: '/dashboard/financeiro/pagar', label: 'Contas a Pagar', icon: ArrowUpCircle, permission: 'view_financeiro' },
       { href: '/dashboard/financeiro/bancos', label: 'Contas Bancárias', icon: Landmark, permission: 'edit_financeiro' },
+      { href: '/dashboard/financeiro/categorias', label: 'Categorias', icon: Tags, permission: 'edit_financeiro' },
     ],
   },
   {

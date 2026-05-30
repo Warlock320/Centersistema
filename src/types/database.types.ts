@@ -28,6 +28,23 @@ export interface Empresa {
   created_at: string;
 }
 
+export interface Unidade {
+  id: string;
+  empresa_id: string;
+  razao_social: string;
+  nome_fantasia: string | null;
+  cnpj: string | null;
+  endereco: string | null;
+  telefone: string | null;
+  ativo: boolean;
+  padrao: boolean;
+  created_at: string;
+}
+
+export type FormaPagamento =
+  | 'pix' | 'dinheiro' | 'debito' | 'credito_vista'
+  | 'credito_parcelado' | 'boleto' | 'transferencia' | 'outro';
+
 export interface TabelaPreco {
   id: string;
   empresa_id: string;
@@ -269,6 +286,7 @@ export interface ContaBancaria {
   tipo: 'corrente' | 'poupanca' | 'caixa' | 'investimento' | 'outro';
   saldo_inicial: number;
   saldo_atual?: number;
+  unidade_id: string | null;
   ativo: boolean;
   created_at: string;
 }
@@ -281,9 +299,11 @@ export interface ContaReceber {
   empresa_id: string;
   cliente_id: string | null;
   pedido_id: string | null;
+  unidade_id: string | null;
   plano_contas_id: string | null;
   centro_custo_id: string | null;
   conta_bancaria_id: string | null;
+  forma_pagamento: FormaPagamento | null;
   descricao: string;
   valor: number;
   data_emissao: string;
@@ -307,6 +327,7 @@ export interface ContaPagar {
   empresa_id: string;
   fornecedor_id: string | null;
   nfe_id: string | null;
+  unidade_id: string | null;
   plano_contas_id: string | null;
   centro_custo_id: string | null;
   conta_bancaria_id: string | null;
