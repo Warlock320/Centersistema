@@ -48,9 +48,14 @@ export default function ProdutosPage() {
   const [novaTabelaAjuste, setNovaTabelaAjuste] = useState('0');
   const [savingTab, setSavingTab] = useState(false);
 
+  const [soBaixoEstoque, setSoBaixoEstoque] = useState(false);
+
   const supabase = createClient();
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('estoque') === 'baixo') setSoBaixoEstoque(true);
+    fetchData();
+  }, []);
 
   useEffect(() => {
     const q = search.toLowerCase();
@@ -60,9 +65,10 @@ export default function ProdutosPage() {
         (p.codigo || '').toLowerCase().includes(q) ||
         (p.ref || '').toLowerCase().includes(q) ||
         (p.codigos_auxiliares || []).some((c) => c.toLowerCase().includes(q));
-      return matchQ && (!filterCat || p.categoria === filterCat);
+      const matchBaixo = !soBaixoEstoque || (p.estoque_minimo > 0 && p.estoque < p.estoque_minimo);
+      return matchQ && matchBaixo && (!filterCat || p.categoria === filterCat);
     }));
-  }, [search, filterCat, produtos]);
+  }, [search, filterCat, produtos, soBaixoEstoque]);
 
   async function fetchData() {
     setLoading(true);
@@ -283,6 +289,12 @@ export default function ProdutosPage() {
             <option value="">Todas as categorias</option>
             {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
           </select>
+          <button type="button" onClick={() => setSoBaixoEstoque((v) => !v)}
+            className={`px-3 py-2 text-sm rounded-lg border flex items-center gap-1.5 transition-colors ${
+              soBaixoEstoque ? 'bg-red-50 border-red-300 text-red-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'
+            }`}>
+            <AlertTriangle size={14} /> Estoque baixo
+          </button>
         </div>
         <DataTable columns={columns} data={filtered} keyField="id" loading={loading}
           emptyMessage="Nenhum produto cadastrado. Clique em 'Novo Produto' para começar." />

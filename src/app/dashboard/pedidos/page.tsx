@@ -41,6 +41,9 @@ export default function PedidosPage() {
   const { can } = usePermissions();
 
   useEffect(() => {
+    // Filtro inicial via query param (?status=aberto) vindo do dashboard
+    const sp = new URLSearchParams(window.location.search).get('status');
+    if (sp) setFilterStatus(sp);
     fetchData();
   }, []);
 

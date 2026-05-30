@@ -4,12 +4,12 @@ import type { Produto, Pedido } from '@/types/database.types';
 import { DEMO_MODE } from '@/lib/demo';
 import Link from 'next/link';
 
-function KpiCard({ title, value, subtitle, icon: Icon, color }: {
+function KpiCard({ title, value, subtitle, icon: Icon, color, href }: {
   title: string; value: string; subtitle?: string;
-  icon: React.ElementType; color: string;
+  icon: React.ElementType; color: string; href?: string;
 }) {
-  return (
-    <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100">
+  const inner = (
+    <div className={`bg-white rounded-xl p-6 shadow-sm border border-slate-100 h-full ${href ? 'hover:shadow-md hover:border-blue-200 transition-all cursor-pointer' : ''}`}>
       <div className="flex items-center justify-between mb-3">
         <p className="text-sm font-medium text-slate-500">{title}</p>
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
@@ -20,6 +20,7 @@ function KpiCard({ title, value, subtitle, icon: Icon, color }: {
       {subtitle && <p className="text-xs text-slate-400 mt-1">{subtitle}</p>}
     </div>
   );
+  return href ? <Link href={href}>{inner}</Link> : inner;
 }
 
 const statusLabel: Record<string, string> = {
@@ -63,30 +64,34 @@ function DashboardUI({
         <KpiCard
           title="Faturamento do Mês"
           value={totalMes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-          subtitle="Pedidos faturados"
+          subtitle="Ver relatórios →"
           icon={DollarSign}
           color="bg-green-500"
+          href="/dashboard/relatorios"
         />
         <KpiCard
           title="Pedidos em Aberto"
           value={String(pedidosAbertos)}
-          subtitle="Aberto + Em andamento"
+          subtitle="Ver pedidos →"
           icon={ShoppingCart}
           color="bg-blue-500"
+          href="/dashboard/pedidos?status=aberto"
         />
         <KpiCard
           title="Clientes Ativos"
           value={String(clientesAtivos)}
-          subtitle="Cadastros ativos"
+          subtitle="Ver clientes →"
           icon={Users}
           color="bg-purple-500"
+          href="/dashboard/clientes"
         />
         <KpiCard
           title="Alertas de Estoque"
           value={String(alertas.length)}
-          subtitle="Produtos abaixo do mínimo"
+          subtitle="Ver produtos em falta →"
           icon={AlertTriangle}
           color={alertas.length > 0 ? 'bg-red-500' : 'bg-slate-400'}
+          href="/dashboard/produtos?estoque=baixo"
         />
       </div>
 
