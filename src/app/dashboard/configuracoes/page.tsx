@@ -8,9 +8,10 @@ import { Modal } from '@/components/ui/Modal';
 import { usePermissions } from '@/components/PermissionsProvider';
 import {
   Plus, Building2, Users, ShieldCheck, Check,
-  ChevronDown, UserPlus, KeyRound, RotateCcw,
+  ChevronDown, UserPlus, KeyRound, RotateCcw, Search, Loader2,
 } from 'lucide-react';
 import type { Empresa, Usuario } from '@/types/database.types';
+import { buscarCNPJ, isCNPJ, formatCpfCnpj } from '@/lib/brasilapi';
 import {
   ALL_ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_COLORS,
   PERMISSION_GROUPS, DEFAULT_ROLE_PERMISSIONS, resolveRoles,
@@ -89,8 +90,36 @@ export default function ConfiguracoesPage() {
   });
   const [savingPerms, setSavingPerms] = useState<UserRole | null>(null);
 
+  const [buscandoCNPJ, setBuscandoCNPJ] = useState(false);
+  const [cnpjMsg, setCnpjMsg] = useState('');
+
   const supabase = createClient();
   const isAdmin = can('manage_config');
+
+  async function handleBuscarCNPJ() {
+    setCnpjMsg('');
+    if (!isCNPJ(empresa.cnpj || '')) { setCnpjMsg('Informe um CNPJ com 14 dígitos.'); return; }
+    setBuscandoCNPJ(true);
+    try {
+      const d = await buscarCNPJ(empresa.cnpj || '');
+      setEmpresa((p) => ({
+        ...p,
+        razao_social: d.razaoSocial,
+        nome: p.nome || d.nomeFantasia,
+        email: p.email || d.email,
+        telefone: p.telefone || d.telefone,
+        endereco: d.enderecoCompleto,
+        cidade: d.municipio,
+        estado: d.uf,
+        cep: d.cep,
+      }));
+      setCnpjMsg(d.situacao ? `Encontrado · situação: ${d.situacao}` : 'Dados preenchidos!');
+    } catch (err) {
+      setCnpjMsg(err instanceof Error ? err.message : 'Erro ao consultar CNPJ');
+    } finally {
+      setBuscandoCNPJ(false);
+    }
+  }
 
   useEffect(() => { fetchData(); }, []);
 
@@ -242,9 +271,24 @@ export default function ConfiguracoesPage() {
         </div>
         <form onSubmit={handleSaveEmpresa} className="px-6 py-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-slate-700 block mb-1">CNPJ</label>
+              <div className="flex gap-2">
+                <input value={empresa.cnpj || ''} disabled={!isAdmin}
+                  onChange={(e) => setEmpresa((p) => ({ ...p, cnpj: formatCpfCnpj(e.target.value) }))}
+                  placeholder="00.000.000/0001-00"
+                  className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-slate-50" />
+                {isAdmin && (
+                  <Button type="button" variant="secondary" size="sm" onClick={handleBuscarCNPJ}
+                    disabled={buscandoCNPJ || !isCNPJ(empresa.cnpj || '')} title="Buscar dados na Receita">
+                    {buscandoCNPJ ? <Loader2 size={14} className="animate-spin" /> : <><Search size={14} /> Buscar</>}
+                  </Button>
+                )}
+              </div>
+              {cnpjMsg && <p className={`text-xs mt-1 ${cnpjMsg.includes('Erro') || cnpjMsg.includes('Informe') || cnpjMsg.includes('não') ? 'text-red-500' : 'text-green-600'}`}>{cnpjMsg}</p>}
+            </div>
             <Input label="Nome Fantasia" value={empresa.nome || ''} onChange={set('nome')} disabled={!isAdmin} />
             <Input label="Razão Social" value={empresa.razao_social || ''} onChange={set('razao_social')} disabled={!isAdmin} />
-            <Input label="CNPJ" value={empresa.cnpj || ''} onChange={set('cnpj')} disabled={!isAdmin} />
             <Input label="E-mail" type="email" value={empresa.email || ''} onChange={set('email')} disabled={!isAdmin} />
             <Input label="Telefone" value={empresa.telefone || ''} onChange={set('telefone')} disabled={!isAdmin} />
             <Input label="CEP" value={empresa.cep || ''} onChange={set('cep')} disabled={!isAdmin} />

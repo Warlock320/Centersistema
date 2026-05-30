@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea } from '@/components/ui/Input';
 import { usePermissions } from '@/components/PermissionsProvider';
 import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
-import { Plus, CheckCircle, XCircle, Zap, FileClock, Layers, Repeat } from 'lucide-react';
+import { Plus, CheckCircle, XCircle, Zap, FileClock, Layers, Repeat, Pencil } from 'lucide-react';
 import type {
   ContaPagar, ContaPagarStatus, Fornecedor,
   PlanoContas, ContaBancaria, Unidade,
@@ -51,6 +51,7 @@ export default function ContasPagarPage() {
   const [showBaixa, setShowBaixa] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
   const [selected, setSelected] = useState<ContaPagar | null>(null);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [acting, setActing] = useState(false);
 
@@ -95,6 +96,7 @@ export default function ContasPagarPage() {
   }
 
   function openForm() {
+    setEditandoId(null);
     setTipo('prazo');
     const padrao = unidades.find((u) => u.padrao) || unidades[0];
     setFUnidade(padrao?.id || '');
@@ -104,10 +106,39 @@ export default function ContasPagarPage() {
     setShowForm(true);
   }
 
+  function openEditar(c: ContaPagar) {
+    setEditandoId(c.id);
+    setTipo('prazo');
+    setFUnidade(c.unidade_id || '');
+    setFFornecedor(c.fornecedor_id || '');
+    setFCategoria(c.plano_contas_id || '');
+    setFDescricao(c.descricao);
+    setFValor(Number(c.valor));
+    setFVencimento(c.data_vencimento);
+    setShowForm(true);
+  }
+
   async function handleSave(e: FormEvent) {
     e.preventDefault();
     if (fValor <= 0) { alert('Informe o valor.'); return; }
     setSaving(true);
+
+    // Edição de um lançamento existente
+    if (editandoId) {
+      await supabase.from('contas_pagar').update({
+        unidade_id: fUnidade || null,
+        fornecedor_id: fFornecedor || null,
+        plano_contas_id: fCategoria || null,
+        descricao: fDescricao || 'Despesa',
+        valor: fValor,
+        data_vencimento: fVencimento,
+        updated_at: new Date().toISOString(),
+      }).eq('id', editandoId);
+      setSaving(false);
+      setShowForm(false);
+      fetchAll();
+      return;
+    }
 
     const { data: { user } } = await supabase.auth.getUser();
     const { data: usr } = await supabase.from('usuarios').select('empresa_id').eq('id', user!.id).single();
@@ -284,6 +315,9 @@ export default function ContasPagarPage() {
                             <Button variant="success" size="sm" onClick={() => openBaixa(c)}>
                               <CheckCircle size={13} /> Pagar
                             </Button>
+                            <Button variant="ghost" size="sm" onClick={() => openEditar(c)} title="Editar">
+                              <Pencil size={13} />
+                            </Button>
                             <Button variant="ghost" size="sm" onClick={() => { setSelected(c); setShowCancel(true); }}>
                               <XCircle size={13} />
                             </Button>
@@ -305,24 +339,28 @@ export default function ContasPagarPage() {
         )}
       </div>
 
-      {/* Nova Despesa Modal */}
-      <Modal open={showForm} onClose={() => setShowForm(false)} title="Nova Despesa" size="lg">
+      {/* Nova/Editar Despesa Modal */}
+      <Modal open={showForm} onClose={() => setShowForm(false)} title={editandoId ? 'Editar Despesa' : 'Nova Despesa'} size="lg">
         <form onSubmit={handleSave} className="space-y-4">
-          {/* Tipo */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {TIPOS.map((t) => {
-              const Icon = t.icon;
-              const active = tipo === t.value;
-              return (
-                <button key={t.value} type="button" onClick={() => setTipo(t.value)}
-                  className={`p-3 rounded-lg border text-left transition-colors ${active ? 'border-blue-400 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                  <Icon size={16} className={active ? 'text-blue-600' : 'text-slate-400'} />
-                  <p className="text-sm font-medium text-slate-800 mt-1">{t.label}</p>
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-xs text-slate-400 -mt-2">{TIPOS.find((t) => t.value === tipo)?.desc}</p>
+          {/* Tipo (oculto na edição) */}
+          {!editandoId && (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {TIPOS.map((t) => {
+                  const Icon = t.icon;
+                  const active = tipo === t.value;
+                  return (
+                    <button key={t.value} type="button" onClick={() => setTipo(t.value)}
+                      className={`p-3 rounded-lg border text-left transition-colors ${active ? 'border-blue-400 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                      <Icon size={16} className={active ? 'text-blue-600' : 'text-slate-400'} />
+                      <p className="text-sm font-medium text-slate-800 mt-1">{t.label}</p>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-slate-400 -mt-2">{TIPOS.find((t) => t.value === tipo)?.desc}</p>
+            </>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             {unidades.length > 1 && (
