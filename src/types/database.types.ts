@@ -364,6 +364,64 @@ export interface HistoricoCobranca {
   created_at: string;
 }
 
+export interface Veiculo {
+  id: string;
+  empresa_id: string;
+  cliente_id: string | null;
+  marca: string | null;
+  modelo: string;
+  placa: string | null;
+  ano: string | null;
+  cor: string | null;
+  km: number | null;
+  chassi: string | null;
+  observacoes: string | null;
+  ativo: boolean;
+  created_at: string;
+  clientes?: { nome: string };
+}
+
+export type OrdemServicoStatus = 'aberta' | 'em_execucao' | 'concluida' | 'entregue' | 'cancelada';
+
+export interface OsItem {
+  id: string;
+  os_id: string;
+  tipo: 'peca' | 'servico';
+  produto_id: string | null;
+  descricao: string;
+  quantidade: number;
+  preco_unitario: number;
+  total: number;
+  ordem: number;
+}
+
+export interface OrdemServico {
+  id: string;
+  empresa_id: string;
+  unidade_id: string | null;
+  cliente_id: string;
+  veiculo_id: string | null;
+  tecnico_id: string | null;
+  numero: number;
+  status: OrdemServicoStatus;
+  descricao_problema: string | null;
+  diagnostico: string | null;
+  observacoes: string | null;
+  km_entrada: number | null;
+  total_pecas: number;
+  total_servicos: number;
+  desconto: number;
+  total: number;
+  data_entrada: string;
+  data_conclusao: string | null;
+  data_entrega: string | null;
+  created_at: string;
+  updated_at: string;
+  clientes?: Cliente;
+  veiculos?: Veiculo;
+  os_itens?: OsItem[];
+}
+
 export interface Caixa {
   id: string;
   empresa_id: string;
