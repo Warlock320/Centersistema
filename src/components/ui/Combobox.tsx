@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Plus, Check, Search } from 'lucide-react';
 
-export interface ComboOption { value: string; label: string; sublabel?: string }
+export interface ComboOption { value: string; label: string; sublabel?: string; keywords?: string }
 
 interface Props {
   label?: string;
@@ -37,7 +37,10 @@ export function Combobox({ label, value, onChange, options, placeholder, createL
 
   const q = query.toLowerCase();
   const filtered = q
-    ? options.filter((o) => o.label.toLowerCase().includes(q) || (o.sublabel || '').toLowerCase().includes(q))
+    ? options.filter((o) =>
+        o.label.toLowerCase().includes(q) ||
+        (o.sublabel || '').toLowerCase().includes(q) ||
+        (o.keywords || '').toLowerCase().includes(q))
     : options;
 
   function select(v: string) {

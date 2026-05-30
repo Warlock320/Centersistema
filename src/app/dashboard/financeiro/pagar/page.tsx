@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Confirm } from '@/components/ui/Confirm';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea } from '@/components/ui/Input';
+import { Combobox } from '@/components/ui/Combobox';
 import { usePermissions } from '@/components/PermissionsProvider';
 import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
 import { Plus, CheckCircle, XCircle, Zap, FileClock, Layers, Repeat, Pencil } from 'lucide-react';
@@ -367,10 +368,12 @@ export default function ContasPagarPage() {
               <Select label="Empresa (CNPJ) *" value={fUnidade} onChange={(e) => setFUnidade(e.target.value)}
                 options={unidades.map((u) => ({ value: u.id, label: u.nome_fantasia || u.razao_social }))} required />
             )}
-            <Select label="Fornecedor" value={fFornecedor} onChange={(e) => setFFornecedor(e.target.value)}
-              options={fornecedores.map((f) => ({ value: f.id, label: f.nome }))} />
-            <Select label="Categoria (despesa)" value={fCategoria} onChange={(e) => setFCategoria(e.target.value)}
-              options={categorias.map((c) => ({ value: c.id, label: c.nome }))} />
+            <Combobox label="Fornecedor" value={fFornecedor} onChange={setFFornecedor}
+              options={fornecedores.map((f) => ({ value: f.id, label: f.nome }))}
+              placeholder="Buscar fornecedor..." />
+            <Combobox label="Categoria (despesa)" value={fCategoria} onChange={setFCategoria}
+              options={categorias.map((c) => ({ value: c.id, label: c.nome }))}
+              placeholder="Buscar categoria..." />
           </div>
 
           <Input label="Descrição *" value={fDescricao} onChange={(e) => setFDescricao(e.target.value)}

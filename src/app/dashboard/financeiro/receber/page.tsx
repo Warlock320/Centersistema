@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Confirm } from '@/components/ui/Confirm';
 import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
+import { Combobox } from '@/components/ui/Combobox';
 import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
 import { Plus, CheckCircle, XCircle, CreditCard, Banknote, Smartphone, Landmark } from 'lucide-react';
 import type {
@@ -76,7 +77,7 @@ export default function ContasReceberPage() {
     setLoading(true);
     const [conts, clis, unis, cats, bks] = await Promise.all([
       supabase.from('contas_receber').select('*, clientes(nome)').order('created_at', { ascending: false }),
-      supabase.from('clientes').select('id, nome').eq('ativo', true).order('nome'),
+      supabase.from('clientes').select('id, nome, cpf_cnpj').eq('ativo', true).order('nome'),
       supabase.from('unidades').select('*').eq('ativo', true).order('padrao', { ascending: false }),
       supabase.from('plano_contas').select('*').eq('tipo', 'receita').eq('ativo', true).order('codigo'),
       supabase.from('v_saldo_bancario').select('*').eq('ativo', true).order('nome'),
@@ -317,10 +318,12 @@ export default function ContasReceberPage() {
                 options={unidades.map((u) => ({ value: u.id, label: u.nome_fantasia || u.razao_social }))} required />
             ) : <div />}
           </div>
-          <Select label="Cliente" value={vCliente} onChange={(e) => setVCliente(e.target.value)}
-            options={clientes.map((c) => ({ value: c.id, label: c.nome }))} />
-          <Select label="Categoria (receita)" value={vCategoria} onChange={(e) => setVCategoria(e.target.value)}
-            options={categorias.map((c) => ({ value: c.id, label: c.nome }))} />
+          <Combobox label="Cliente" value={vCliente} onChange={setVCliente}
+            options={clientes.map((c) => ({ value: c.id, label: c.nome, sublabel: c.cpf_cnpj || undefined }))}
+            placeholder="Buscar cliente por nome ou CPF/CNPJ..." />
+          <Combobox label="Categoria (receita)" value={vCategoria} onChange={setVCategoria}
+            options={categorias.map((c) => ({ value: c.id, label: c.nome }))}
+            placeholder="Buscar categoria..." />
           <div className="grid grid-cols-2 gap-4">
             <Input label="Valor Total (R$) *" inputMode="numeric"
               value={formatMoedaInput(vValor)} onChange={(e) => setVValor(parseMoedaInput(e.target.value))}

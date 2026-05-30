@@ -7,6 +7,7 @@ import { Confirm } from '@/components/ui/Confirm';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Input, Textarea, Select } from '@/components/ui/Input';
+import { Combobox } from '@/components/ui/Combobox';
 import { OrcamentoPDFButton } from '@/components/OrcamentoPDF';
 import { Plus, Copy, ChevronRight, Trash2, AlertTriangle, Clock, Send, Pencil, Share2 } from 'lucide-react';
 import type { Orcamento, OrcamentoStatus, Cliente, Produto, OrcamentoItem, Usuario, TabelaPreco, PrecoProdutoView } from '@/types/database.types';
@@ -71,8 +72,8 @@ export default function OrcamentosPage() {
     setLoading(true);
     const [orcs, clis, prods, tabs, precos] = await Promise.all([
       supabase.from('orcamentos').select('*, clientes(nome), usuarios(nome), orcamento_itens(*)').order('numero', { ascending: false }),
-      supabase.from('clientes').select('id, nome').eq('ativo', true).order('nome'),
-      supabase.from('produtos').select('id, nome, codigo, preco, estoque').eq('ativo', true).order('nome'),
+      supabase.from('clientes').select('id, nome, cpf_cnpj').eq('ativo', true).order('nome'),
+      supabase.from('produtos').select('id, nome, codigo, ref, preco, estoque, codigos_auxiliares').eq('ativo', true).order('nome'),
       supabase.from('tabelas_preco').select('*').eq('ativo', true).order('padrao', { ascending: false }).order('nome'),
       supabase.from('v_precos_produto').select('produto_id, tabela_preco_id, preco'),
     ]);
@@ -182,6 +183,7 @@ export default function OrcamentosPage() {
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
+    if (!formClienteId) { alert('Selecione o cliente.'); return; }
     setSaving(true);
     const total = itens.reduce((s, i) => s + Number(i.total || 0), 0);
 
@@ -367,12 +369,12 @@ export default function OrcamentosPage() {
         <form onSubmit={handleSave} className="space-y-5">
           <div className="grid grid-cols-4 gap-4">
             <div className="col-span-2">
-              <Select
+              <Combobox
                 label="Cliente *"
                 value={formClienteId}
-                onChange={(e) => setFormClienteId(e.target.value)}
-                options={clientes.map((c) => ({ value: c.id, label: c.nome }))}
-                required
+                onChange={setFormClienteId}
+                options={clientes.map((c) => ({ value: c.id, label: c.nome, sublabel: c.cpf_cnpj || undefined }))}
+                placeholder="Buscar cliente por nome ou CPF/CNPJ..."
               />
             </div>
             <div>
@@ -414,22 +416,18 @@ export default function OrcamentosPage() {
                 <tbody>
                   {itens.map((item, i) => (
                     <tr key={i} className="border-t border-slate-100">
-                      <td className="px-2 py-1.5">
-                        <select
+                      <td className="px-2 py-1.5 w-52">
+                        <Combobox
                           value={item.produto_id || ''}
-                          onChange={(e) => setItemProduto(i, e.target.value)}
-                          className="text-xs border border-slate-200 rounded px-2 py-1 w-36 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        >
-                          <option value="">Selecionar...</option>
-                          {produtos.map((p) => {
-                            const pr = precoNaTabela(p.id, p.preco);
-                            return (
-                              <option key={p.id} value={p.id}>
-                                {p.codigo ? `[${p.codigo}] ` : ''}{p.nome} — {pr.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (est: {Number(p.estoque).toFixed(0)})
-                              </option>
-                            );
-                          })}
-                        </select>
+                          onChange={(v) => setItemProduto(i, v)}
+                          placeholder="Buscar produto..."
+                          options={produtos.map((p) => ({
+                            value: p.id,
+                            label: p.nome,
+                            sublabel: `${p.codigo ? `[${p.codigo}] ` : ''}${precoNaTabela(p.id, p.preco).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · est: ${Number(p.estoque).toFixed(0)}`,
+                            keywords: `${p.codigo || ''} ${p.ref || ''} ${(p.codigos_auxiliares || []).join(' ')}`,
+                          }))}
+                        />
                       </td>
                       <td className="px-2 py-1.5">
                         <input
