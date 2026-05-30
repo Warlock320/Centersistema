@@ -167,7 +167,9 @@ export interface Orcamento {
   numero: number;
   status: OrcamentoStatus;
   validade: string | null;
+  prazo_dias: number | null;
   observacoes: string | null;
+  observacoes_internas: string | null;
   total: number;
   created_at: string;
   updated_at: string;

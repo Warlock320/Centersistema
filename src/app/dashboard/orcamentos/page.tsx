@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Input, Textarea, Select } from '@/components/ui/Input';
 import { OrcamentoPDFButton } from '@/components/OrcamentoPDF';
-import { Plus, Copy, ChevronRight, Trash2, AlertTriangle, Clock, Send, Pencil } from 'lucide-react';
+import { Plus, Copy, ChevronRight, Trash2, AlertTriangle, Clock, Send, Pencil, Share2 } from 'lucide-react';
 import type { Orcamento, OrcamentoStatus, Cliente, Produto, OrcamentoItem, Usuario, TabelaPreco, PrecoProdutoView } from '@/types/database.types';
 
 const STATUS_STEPS: OrcamentoStatus[] = [
@@ -45,8 +45,9 @@ export default function OrcamentosPage() {
   const [showDelete, setShowDelete] = useState(false);
 
   const [formClienteId, setFormClienteId] = useState('');
-  const [formValidade, setFormValidade] = useState('');
-  const [formObs, setFormObs] = useState('');
+  const [formPrazo, setFormPrazo] = useState('');
+  const [formObs, setFormObs] = useState('');            // externa (vai no PDF)
+  const [formObsInt, setFormObsInt] = useState('');       // interna (não vai no PDF)
   const [formTabelaId, setFormTabelaId] = useState('');
   const [itens, setItens] = useState<Partial<OrcamentoItem>[]>([
     { descricao: '', quantidade: 1, preco_unitario: 0, desconto: 0, total: 0 },
@@ -148,8 +149,9 @@ export default function OrcamentosPage() {
   function resetForm() {
     setEditandoId(null);
     setFormClienteId('');
-    setFormValidade('');
+    setFormPrazo('');
     setFormObs('');
+    setFormObsInt('');
     const padrao = tabelas.find((t) => t.padrao) || tabelas[0];
     if (padrao) setFormTabelaId(padrao.id);
     setItens([{ descricao: '', quantidade: 1, preco_unitario: 0, desconto: 0, total: 0 }]);
@@ -169,8 +171,9 @@ export default function OrcamentosPage() {
     const full = data as Orcamento;
     setEditandoId(full.id);
     setFormClienteId(full.cliente_id);
-    setFormValidade(full.validade || '');
+    setFormPrazo(full.prazo_dias ? String(full.prazo_dias) : '');
     setFormObs(full.observacoes || '');
+    setFormObsInt(full.observacoes_internas || '');
     const itensOrd = (full.orcamento_itens || []).sort((a, b) => a.ordem - b.ordem);
     setItens(itensOrd.length ? itensOrd.map((it) => ({ ...it })) : [{ descricao: '', quantidade: 1, preco_unitario: 0, desconto: 0, total: 0 }]);
     setShowDetail(false);
@@ -184,12 +187,15 @@ export default function OrcamentosPage() {
 
     let orcId = editandoId;
 
+    const prazo = formPrazo ? parseInt(formPrazo) : null;
+
     if (editandoId) {
       // Edição: atualiza cabeçalho e regrava os itens
       await supabase.from('orcamentos').update({
         cliente_id: formClienteId,
-        validade: formValidade || null,
+        prazo_dias: prazo,
         observacoes: formObs || null,
+        observacoes_internas: formObsInt || null,
         total,
         updated_at: new Date().toISOString(),
       }).eq('id', editandoId);
@@ -201,8 +207,9 @@ export default function OrcamentosPage() {
           empresa_id: usuario?.empresa_id,
           cliente_id: formClienteId,
           usuario_id: usuario?.id,
-          validade: formValidade || null,
+          prazo_dias: prazo,
           observacoes: formObs || null,
+          observacoes_internas: formObsInt || null,
           total,
         })
         .select()
@@ -252,6 +259,22 @@ export default function OrcamentosPage() {
     setActing(false);
     setShowDetail(false);
     fetchData();
+  }
+
+  function handleCompartilharWhatsapp() {
+    if (!selected) return;
+    const brl = (n: number) => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const linhas = [
+      `*Orçamento #${selected.numero}*`,
+      selected.clientes?.nome ? `Cliente: ${selected.clientes.nome}` : '',
+      '',
+      ...(selected.orcamento_itens || []).map((it) => `• ${Number(it.quantidade)}x ${it.descricao} — ${brl(it.total)}`),
+      '',
+      `*Total: ${brl(selected.total)}*`,
+      selected.prazo_dias != null ? `Prazo de entrega: ${selected.prazo_dias} dia(s)` : '',
+      selected.observacoes ? `\nObs: ${selected.observacoes}` : '',
+    ].filter(Boolean).join('\n');
+    window.open(`https://wa.me/?text=${encodeURIComponent(linhas)}`, '_blank');
   }
 
   async function handleDuplicate() {
@@ -314,7 +337,7 @@ export default function OrcamentosPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100">
-                {['#', 'Cliente', 'Vendedor', 'Status', 'Validade', 'Total', ''].map((h) => (
+                {['#', 'Cliente', 'Vendedor', 'Status', 'Prazo', 'Total', ''].map((h) => (
                   <th key={h} className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">{h}</th>
                 ))}
               </tr>
@@ -326,7 +349,7 @@ export default function OrcamentosPage() {
                   <td className="px-6 py-3 font-medium text-slate-900">{orc.clientes?.nome}</td>
                   <td className="px-6 py-3 text-slate-500">{orc.usuarios?.nome}</td>
                   <td className="px-6 py-3"><Badge type="orcamento" value={orc.status} /></td>
-                  <td className="px-6 py-3 text-slate-500">{orc.validade ? new Date(orc.validade).toLocaleDateString('pt-BR') : '—'}</td>
+                  <td className="px-6 py-3 text-slate-500">{orc.prazo_dias != null ? `${orc.prazo_dias} dia(s)` : '—'}</td>
                   <td className="px-6 py-3 font-medium">{Number(orc.total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                   <td className="px-6 py-3"><ChevronRight size={16} className="text-slate-300" /></td>
                 </tr>
@@ -363,7 +386,8 @@ export default function OrcamentosPage() {
                 ))}
               </select>
             </div>
-            <Input label="Validade" type="date" value={formValidade} onChange={(e) => setFormValidade(e.target.value)} />
+            <Input label="Prazo de entrega (dias)" type="number" min="0" value={formPrazo}
+              onChange={(e) => setFormPrazo(e.target.value)} placeholder="Ex: 3" />
           </div>
 
           <div>
@@ -457,7 +481,18 @@ export default function OrcamentosPage() {
             </div>
           </div>
 
-          <Textarea label="Observações" value={formObs} onChange={(e) => setFormObs(e.target.value)} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Textarea label="Observações ao cliente (saem no PDF)" value={formObs} onChange={(e) => setFormObs(e.target.value)}
+                placeholder='Ex: "Necessita confirmação do modelo"' />
+              <p className="text-xs text-slate-400 mt-1">Aparecem no PDF e para o cliente.</p>
+            </div>
+            <div>
+              <Textarea label="Observações internas (uso interno)" value={formObsInt} onChange={(e) => setFormObsInt(e.target.value)}
+                placeholder="Ex: comprar esta peça no fornecedor X" />
+              <p className="text-xs text-slate-400 mt-1">Não saem no PDF nem para o cliente.</p>
+            </div>
+          </div>
 
           <div className="flex gap-3">
             <Button type="submit" loading={saving} className="flex-1">{editandoId ? 'Salvar Alterações' : 'Salvar Orçamento'}</Button>
@@ -515,11 +550,8 @@ export default function OrcamentosPage() {
               <div><span className="text-xs text-slate-400 block">Cliente</span><p className="font-medium">{selected.clientes?.nome}</p></div>
               <div><span className="text-xs text-slate-400 block">Vendedor</span><p className="font-medium">{selected.usuarios?.nome}</p></div>
               <div>
-                <span className="text-xs text-slate-400 block">Validade</span>
-                <p className={`font-medium ${selected.validade && new Date(selected.validade) < new Date() ? 'text-red-600' : ''}`}>
-                  {selected.validade ? new Date(selected.validade).toLocaleDateString('pt-BR') : '—'}
-                  {selected.validade && new Date(selected.validade) < new Date() && ' (vencido)'}
-                </p>
+                <span className="text-xs text-slate-400 block">Prazo de entrega</span>
+                <p className="font-medium">{selected.prazo_dias != null ? `${selected.prazo_dias} dia(s)` : '—'}</p>
               </div>
             </div>
 
@@ -555,7 +587,12 @@ export default function OrcamentosPage() {
 
             {selected.observacoes && (
               <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg text-sm text-amber-800">
-                <strong>Observações:</strong> {selected.observacoes}
+                <strong>Observações ao cliente (PDF):</strong> {selected.observacoes}
+              </div>
+            )}
+            {selected.observacoes_internas && (
+              <div className="p-3 bg-slate-100 border border-slate-200 rounded-lg text-sm text-slate-600">
+                <strong>🔒 Observações internas:</strong> {selected.observacoes_internas}
               </div>
             )}
 
@@ -575,6 +612,10 @@ export default function OrcamentosPage() {
               )}
               {/* PDF */}
               <OrcamentoPDFButton orcamento={selected} empresaNome={usuario?.empresa_id ? undefined : 'Center Auto Peças'} />
+              {/* Compartilhar no WhatsApp */}
+              <Button variant="success" onClick={handleCompartilharWhatsapp}>
+                <Share2 size={14} /> WhatsApp
+              </Button>
               {/* Duplicar */}
               <Button variant="secondary" onClick={handleDuplicate} loading={acting}>
                 <Copy size={14} /> Duplicar
