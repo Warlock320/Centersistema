@@ -7,6 +7,7 @@ import { Confirm } from '@/components/ui/Confirm';
 import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
 import { Combobox } from '@/components/ui/Combobox';
+import { useToast } from '@/components/ui/Toast';
 import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
 import { Plus, CheckCircle, XCircle, CreditCard, Banknote, Smartphone, Landmark } from 'lucide-react';
 import type {
@@ -70,6 +71,7 @@ export default function ContasReceberPage() {
   const [baixaBanco, setBaixaBanco] = useState('');
 
   const supabase = createClient();
+  const toast = useToast();
 
   useEffect(() => { fetchAll(); }, []);
 
@@ -156,6 +158,7 @@ export default function ContasReceberPage() {
 
     setSaving(false);
     setShowVenda(false);
+    toast.success('Venda registrada!');
     fetchAll();
   }
 
@@ -170,7 +173,7 @@ export default function ContasReceberPage() {
     e.preventDefault();
     if (!selected) return;
     setActing(true);
-    await supabase.rpc('baixar_conta_receber', {
+    const { error } = await supabase.rpc('baixar_conta_receber', {
       p_id: selected.id,
       p_data_pagamento: baixaData,
       p_valor_pago: selected.valor,
@@ -181,6 +184,7 @@ export default function ContasReceberPage() {
     setActing(false);
     setShowBaixa(false);
     setSelected(null);
+    if (error) toast.error('Erro ao receber: ' + error.message); else toast.success('Recebimento confirmado!');
     fetchAll();
   }
 

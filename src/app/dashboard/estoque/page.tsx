@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Input, Textarea } from '@/components/ui/Input';
 import { Combobox } from '@/components/ui/Combobox';
 import { usePermissions } from '@/components/PermissionsProvider';
+import { useToast } from '@/components/ui/Toast';
 import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
 import { Plus, Minus, SlidersHorizontal, ArrowDownCircle, ArrowUpCircle, Warehouse } from 'lucide-react';
 import type { Produto, MovimentacaoEstoque } from '@/types/database.types';
@@ -37,6 +38,7 @@ export default function EstoquePage() {
   const [erro, setErro] = useState('');
 
   const supabase = createClient();
+  const toast = useToast();
   const { can } = usePermissions();
   const podeEditar = can('edit_produtos');
 
@@ -100,7 +102,7 @@ export default function EstoquePage() {
       observacao: observacao || null,
     });
 
-    if (error) { setErro(error.message); setSaving(false); return; }
+    if (error) { setErro(error.message); toast.error('Erro: ' + error.message); setSaving(false); return; }
 
     // Em entrada de compra, atualiza o custo do produto (último custo)
     if (op === 'entrada' && custo > 0) {
@@ -109,6 +111,7 @@ export default function EstoquePage() {
 
     setSaving(false);
     setShowForm(false);
+    toast.success(op === 'entrada' ? 'Entrada registrada!' : op === 'saida' ? 'Saída registrada!' : 'Estoque ajustado!');
     fetchAll();
   }
 

@@ -7,6 +7,7 @@ import { Confirm } from '@/components/ui/Confirm';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea } from '@/components/ui/Input';
 import { Combobox } from '@/components/ui/Combobox';
+import { useToast } from '@/components/ui/Toast';
 import { usePermissions } from '@/components/PermissionsProvider';
 import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
 import { Plus, CheckCircle, XCircle, Zap, FileClock, Layers, Repeat, Pencil } from 'lucide-react';
@@ -75,6 +76,7 @@ export default function ContasPagarPage() {
   const [baixaBanco, setBaixaBanco] = useState('');
 
   const supabase = createClient();
+  const toast = useToast();
   const { can } = usePermissions();
   const podePagar = can('edit_financeiro');
 
@@ -138,6 +140,7 @@ export default function ContasPagarPage() {
       }).eq('id', editandoId);
       setSaving(false);
       setShowForm(false);
+      toast.success('Despesa atualizada!');
       fetchAll();
       return;
     }
@@ -197,6 +200,7 @@ export default function ContasPagarPage() {
 
     setSaving(false);
     setShowForm(false);
+    toast.success('Despesa lançada!');
     fetchAll();
   }
 
@@ -211,13 +215,14 @@ export default function ContasPagarPage() {
     e.preventDefault();
     if (!selected) return;
     setActing(true);
-    await supabase.rpc('baixar_conta_pagar', {
+    const { error } = await supabase.rpc('baixar_conta_pagar', {
       p_id: selected.id, p_data_pagamento: baixaData, p_valor_pago: selected.valor,
       p_juros: 0, p_desconto: 0, p_conta_bancaria: baixaBanco || null,
     });
     setActing(false);
     setShowBaixa(false);
     setSelected(null);
+    if (error) toast.error('Erro ao pagar: ' + error.message); else toast.success('Pagamento registrado!');
     fetchAll();
   }
 

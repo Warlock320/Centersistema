@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
 import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
+import { useToast } from '@/components/ui/Toast';
 import {
   Plus, Minus, Lock, Unlock, ArrowDownCircle, ArrowUpCircle,
   Smartphone, Banknote, CreditCard, Landmark, Wallet,
@@ -49,6 +50,7 @@ export default function CaixaPage() {
   const [fObs, setFObs] = useState('');
 
   const supabase = createClient();
+  const toast = useToast();
 
   useEffect(() => { fetchAll(); }, []);
 
@@ -88,6 +90,7 @@ export default function CaixaPage() {
     setSaving(false);
     setShowAbrir(false);
     setASaldo(0);
+    toast.success('Caixa aberto!');
     fetchAll();
   }
 
@@ -106,6 +109,7 @@ export default function CaixaPage() {
     setSaving(false);
     setShowMov(false);
     setMValor(0); setMDescricao('');
+    toast.success(mTipo === 'entrada' ? 'Entrada registrada!' : 'Saída registrada!');
     fetchAll();
   }
 
@@ -121,6 +125,7 @@ export default function CaixaPage() {
     setSaving(false);
     setShowFechar(false);
     setFSaldoInformado(0); setFObs('');
+    toast.success('Caixa fechado!');
     fetchAll();
   }
 

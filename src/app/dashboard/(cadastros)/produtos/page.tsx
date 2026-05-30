@@ -8,6 +8,7 @@ import { Confirm } from '@/components/ui/Confirm';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Combobox } from '@/components/ui/Combobox';
+import { useToast } from '@/components/ui/Toast';
 import { Plus, Pencil, AlertTriangle, Tag, PackageX, X, MapPin, DollarSign, Trash2, Search, Loader2 } from 'lucide-react';
 import type { Produto, Categoria, Fornecedor, TabelaPreco, PrecoProduto } from '@/types/database.types';
 import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
@@ -61,6 +62,7 @@ export default function ProdutosPage() {
   const [savingForn, setSavingForn] = useState(false);
 
   const supabase = createClient();
+  const toast = useToast();
 
   async function getEmpresaId() {
     const { data: { user } } = await supabase.auth.getUser();
@@ -179,12 +181,14 @@ export default function ProdutosPage() {
     let empresaId = selected?.empresa_id;
 
     if (selected) {
-      await supabase.from('produtos').update(payload).eq('id', selected.id);
+      const { error } = await supabase.from('produtos').update(payload).eq('id', selected.id);
+      if (error) { toast.error('Erro ao salvar: ' + error.message); setSaving(false); return; }
     } else {
       const { data: { user } } = await supabase.auth.getUser();
       const { data: usr } = await supabase.from('usuarios').select('empresa_id').eq('id', user!.id).single();
       empresaId = (usr as { empresa_id: string })!.empresa_id;
-      const { data: novo } = await supabase.from('produtos').insert({ ...payload, empresa_id: empresaId }).select('id').single();
+      const { data: novo, error } = await supabase.from('produtos').insert({ ...payload, empresa_id: empresaId }).select('id').single();
+      if (error) { toast.error('Erro ao salvar: ' + error.message); setSaving(false); return; }
       produtoId = (novo as { id: string } | null)?.id;
     }
 
@@ -205,9 +209,9 @@ export default function ProdutosPage() {
     }
 
     setSaving(false);
-    setSaveMsg('Produto salvo!');
+    toast.success(selected ? 'Produto atualizado!' : 'Produto cadastrado!');
+    setShowForm(false);
     fetchData();
-    setTimeout(() => { setSaveMsg(''); setShowForm(false); }, 900);
   }
 
   async function handleDelete() {

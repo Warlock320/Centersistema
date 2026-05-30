@@ -10,6 +10,7 @@ import { Input, Textarea, Select } from '@/components/ui/Input';
 import { Plus, History, Pencil, UserX, Search, Loader2 } from 'lucide-react';
 import type { Cliente, Orcamento, Pedido } from '@/types/database.types';
 import { buscarCNPJ, isCNPJ, formatCpfCnpj, buscarCEP, isCEP, formatCEP } from '@/lib/brasilapi';
+import { useToast } from '@/components/ui/Toast';
 
 const EMPTY: Partial<Cliente> = {
   nome: '', tipo: 'juridica', cpf_cnpj: '', razao_social: '', inscricao_estadual: '',
@@ -51,6 +52,7 @@ export default function ClientesPage() {
   const [cepMsg, setCepMsg] = useState('');
 
   const supabase = createClient();
+  const toast = useToast();
 
   async function handleBuscarCEP() {
     setCepMsg('');
@@ -140,17 +142,19 @@ export default function ClientesPage() {
   async function handleSave(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
+    let error;
     if (selected) {
-      await supabase.from('clientes').update({ ...form }).eq('id', selected.id);
+      ({ error } = await supabase.from('clientes').update({ ...form }).eq('id', selected.id));
     } else {
       const { data: { user } } = await supabase.auth.getUser();
       const { data: usr } = await supabase.from('usuarios').select('empresa_id').eq('id', user!.id).single();
-      await supabase.from('clientes').insert({ ...form, empresa_id: (usr as { empresa_id: string })!.empresa_id });
+      ({ error } = await supabase.from('clientes').insert({ ...form, empresa_id: (usr as { empresa_id: string })!.empresa_id }));
     }
     setSaving(false);
-    setSaveMsg('Salvo com sucesso!');
+    if (error) { toast.error('Erro ao salvar: ' + error.message); return; }
+    toast.success(selected ? 'Cliente atualizado!' : 'Cliente cadastrado!');
+    setShowForm(false);
     fetchClientes();
-    setTimeout(() => { setSaveMsg(''); setShowForm(false); }, 1000);
   }
 
   async function handleDelete() {
