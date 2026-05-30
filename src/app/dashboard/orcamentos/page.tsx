@@ -9,8 +9,12 @@ import { Badge } from '@/components/ui/Badge';
 import { Input, Textarea, Select } from '@/components/ui/Input';
 import { Combobox } from '@/components/ui/Combobox';
 import { OrcamentoPDFButton } from '@/components/OrcamentoPDF';
+import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
 import { Plus, Copy, ChevronRight, Trash2, AlertTriangle, Clock, Send, Pencil, Share2 } from 'lucide-react';
 import type { Orcamento, OrcamentoStatus, Cliente, Produto, OrcamentoItem, Usuario, TabelaPreco, PrecoProdutoView } from '@/types/database.types';
+
+// Converte valor digitado (string com vírgula/ponto ou número) em número
+const num = (v: unknown) => parseFloat(String(v ?? '').replace(',', '.')) || 0;
 
 const STATUS_STEPS: OrcamentoStatus[] = [
   'criado', 'orcamento_enviado', 'aguardando_aprovacao', 'aprovado', 'aguardando_pecas', 'enviado',
@@ -112,9 +116,9 @@ export default function OrcamentosPage() {
       const copy = [...prev];
       (copy[index] as Record<string, unknown>)[field] = value;
       const item = copy[index];
-      const qty = Number(item.quantidade || 0);
-      const price = Number(item.preco_unitario || 0);
-      const disc = Number(item.desconto || 0);
+      const qty = num(item.quantidade);
+      const price = num(item.preco_unitario);
+      const disc = num(item.desconto);
       copy[index].total = parseFloat((qty * price * (1 - disc / 100)).toFixed(2));
       return copy;
     });
@@ -126,9 +130,9 @@ export default function OrcamentosPage() {
     const preco = precoNaTabela(prodId, prod.preco);
     setItens((prev) => {
       const copy = [...prev];
-      copy[index] = { ...copy[index], produto_id: prodId, descricao: prod.nome, preco_unitario: preco };
-      const qty = Number(copy[index].quantidade || 1);
-      const disc = Number(copy[index].desconto || 0);
+      const qty = num(copy[index].quantidade) || 1;
+      copy[index] = { ...copy[index], produto_id: prodId, descricao: prod.nome, preco_unitario: preco, quantidade: qty };
+      const disc = num(copy[index].desconto);
       copy[index].total = parseFloat((qty * preco * (1 - disc / 100)).toFixed(2));
       return copy;
     });
@@ -225,10 +229,10 @@ export default function OrcamentosPage() {
         orcamento_id: orcId,
         produto_id: it.produto_id || null,
         descricao: it.descricao || '',
-        quantidade: Number(it.quantidade || 1),
-        preco_unitario: Number(it.preco_unitario || 0),
-        desconto: Number(it.desconto || 0),
-        total: Number(it.total || 0),
+        quantidade: num(it.quantidade) || 1,
+        preco_unitario: num(it.preco_unitario),
+        desconto: num(it.desconto),
+        total: num(it.total),
         ordem: i,
       }));
       await supabase.from('orcamento_itens').insert(itemsToInsert);
@@ -400,82 +404,80 @@ export default function OrcamentosPage() {
               </Button>
             </div>
 
-            <div className="border border-slate-200 rounded-lg overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-3 py-2 text-left text-xs text-slate-500">Produto</th>
-                    <th className="px-3 py-2 text-left text-xs text-slate-500">Descrição</th>
-                    <th className="px-3 py-2 text-left text-xs text-slate-500">Qtd</th>
-                    <th className="px-3 py-2 text-left text-xs text-slate-500">Preço</th>
-                    <th className="px-3 py-2 text-left text-xs text-slate-500">Desc%</th>
-                    <th className="px-3 py-2 text-right text-xs text-slate-500">Total</th>
-                    <th className="px-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {itens.map((item, i) => (
-                    <tr key={i} className="border-t border-slate-100">
-                      <td className="px-2 py-1.5 w-52">
-                        <Combobox
-                          value={item.produto_id || ''}
-                          onChange={(v) => setItemProduto(i, v)}
-                          placeholder="Buscar produto..."
-                          options={produtos.map((p) => ({
-                            value: p.id,
-                            label: p.nome,
-                            sublabel: `${p.codigo ? `[${p.codigo}] ` : ''}${precoNaTabela(p.id, p.preco).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · est: ${Number(p.estoque).toFixed(0)}`,
-                            keywords: `${p.codigo || ''} ${p.ref || ''} ${(p.codigos_auxiliares || []).join(' ')}`,
-                          }))}
-                        />
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <input
-                          value={item.descricao || ''}
-                          onChange={(e) => recalcItem(i, 'descricao', e.target.value)}
-                          placeholder="Descrição"
-                          className="text-xs border border-slate-200 rounded px-2 py-1 w-40 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        />
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <input type="number" step="0.001" min="0.001" value={item.quantidade || 1}
-                          onChange={(e) => recalcItem(i, 'quantidade', e.target.value)}
-                          className="text-xs border border-slate-200 rounded px-2 py-1 w-16 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <input type="number" step="0.01" min="0" value={item.preco_unitario || 0}
-                          onChange={(e) => recalcItem(i, 'preco_unitario', e.target.value)}
-                          className="text-xs border border-slate-200 rounded px-2 py-1 w-20 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <input type="number" step="0.01" min="0" max="100" value={item.desconto || 0}
-                          onChange={(e) => recalcItem(i, 'desconto', e.target.value)}
-                          className="text-xs border border-slate-200 rounded px-2 py-1 w-14 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                      </td>
-                      <td className="px-2 py-1.5 text-right font-medium text-slate-800 text-xs">
+            <div className="space-y-2">
+              {itens.map((item, i) => (
+                <div key={i} className="border border-slate-200 rounded-lg p-3 space-y-2">
+                  {/* Linha 1: produto + remover */}
+                  <div className="flex gap-2 items-start">
+                    <div className="flex-1 min-w-0">
+                      <Combobox
+                        value={item.produto_id || ''}
+                        onChange={(v) => setItemProduto(i, v)}
+                        placeholder="Buscar produto por código, ref ou nome..."
+                        options={produtos.map((p) => ({
+                          value: p.id,
+                          label: p.nome,
+                          sublabel: `${p.codigo ? `[${p.codigo}] ` : ''}${precoNaTabela(p.id, p.preco).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · est: ${Number(p.estoque).toFixed(0)}`,
+                          keywords: `${p.codigo || ''} ${p.ref || ''} ${(p.codigos_auxiliares || []).join(' ')}`,
+                        }))}
+                      />
+                    </div>
+                    {itens.length > 1 && (
+                      <button type="button" onClick={() => setItens((p) => p.filter((_, j) => j !== i))}
+                        className="text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg p-2 mt-0.5 shrink-0">
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Linha 2: descrição */}
+                  <input
+                    value={item.descricao || ''}
+                    onChange={(e) => recalcItem(i, 'descricao', e.target.value)}
+                    placeholder="Descrição do item"
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+
+                  {/* Linha 3: qtd, preço, desc, total */}
+                  <div className="grid grid-cols-4 gap-2">
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-0.5">Qtd</label>
+                      <input type="text" inputMode="decimal" value={item.quantidade ?? ''}
+                        onChange={(e) => recalcItem(i, 'quantidade', e.target.value.replace(/[^\d.,]/g, ''))}
+                        placeholder="1"
+                        className="w-full text-sm border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-0.5">Preço (R$)</label>
+                      <input type="text" inputMode="numeric" value={formatMoedaInput(num(item.preco_unitario))}
+                        onChange={(e) => recalcItem(i, 'preco_unitario', parseMoedaInput(e.target.value))}
+                        placeholder="0,00"
+                        className="w-full text-sm border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-0.5">Desc %</label>
+                      <input type="text" inputMode="decimal" value={item.desconto ?? ''}
+                        onChange={(e) => recalcItem(i, 'desconto', e.target.value.replace(/[^\d.,]/g, ''))}
+                        placeholder="0"
+                        className="w-full text-sm border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-0.5">Total</label>
+                      <div className="w-full text-sm font-semibold text-slate-800 px-2 py-2 bg-slate-50 rounded-lg text-right">
                         {Number(item.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                      </td>
-                      <td className="px-2">
-                        {itens.length > 1 && (
-                          <button type="button" onClick={() => setItens((p) => p.filter((_, j) => j !== i))}
-                            className="text-red-400 hover:text-red-600 p-1">
-                            <Trash2 size={12} />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="bg-slate-50 border-t border-slate-200">
-                  <tr>
-                    <td colSpan={5} className="px-3 py-2 text-right text-sm font-semibold text-slate-600">Total:</td>
-                    <td className="px-3 py-2 text-right font-bold text-slate-900">
-                      {itens.reduce((s, i) => s + Number(i.total || 0), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </td>
-                    <td />
-                  </tr>
-                </tfoot>
-              </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Total geral */}
+              <div className="flex justify-end items-center gap-3 px-3 py-2">
+                <span className="text-sm font-semibold text-slate-600">Total do orçamento:</span>
+                <span className="text-lg font-bold text-slate-900">
+                  {itens.reduce((s, i) => s + Number(i.total || 0), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
+              </div>
             </div>
           </div>
 
