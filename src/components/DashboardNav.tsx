@@ -85,6 +85,13 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
   const router = useRouter();
   const supabase = createClient();
   const userRoles = resolveRoles(usuario || {});
+
+  // Item ativo = rota mais específica (href mais longo) que casa com o pathname.
+  // Evita que /dashboard/financeiro fique ativo nas sub-rotas /dashboard/financeiro/*.
+  const activeHref = navSections
+    .flatMap((s) => s.items)
+    .filter((it) => pathname === it.href || pathname.startsWith(it.href + '/'))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
   const { can } = usePermissions();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -193,7 +200,7 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
                 <p className="px-3 mb-1 text-xs font-bold text-slate-600 tracking-widest">{section.label}</p>
                 <div className="space-y-0.5">
                   {sectionItems.map((item) => {
-                    const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+                    const isActive = item.href === activeHref;
                     const Icon = item.icon;
                     return (
                       <Link
