@@ -123,8 +123,11 @@ export default function FornecedoresPage() {
     fetchData();
   }
 
-  const set = (key: keyof Fornecedor) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-    setForm((p) => ({ ...p, [key]: e.target.value }));
+  const UPPER = ['nome', 'razao_social', 'endereco', 'cidade'];
+  const set = (key: keyof Fornecedor) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const v = UPPER.includes(key) ? e.target.value.toUpperCase() : e.target.value;
+    setForm((p) => ({ ...p, [key]: v }));
+  };
 
   const columns: Column<Fornecedor>[] = [
     { key: 'nome', label: 'Fornecedor', render: (r) => (

@@ -164,8 +164,11 @@ export default function ClientesPage() {
     fetchClientes();
   }
 
-  const set = (key: keyof Cliente) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-    setForm((p) => ({ ...p, [key]: e.target.value }));
+  const UPPER = ['nome', 'razao_social', 'endereco', 'cidade'];
+  const set = (key: keyof Cliente) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const v = UPPER.includes(key) ? e.target.value.toUpperCase() : e.target.value;
+    setForm((p) => ({ ...p, [key]: v }));
+  };
 
   const columns: Column<Cliente>[] = [
     { key: 'nome', label: 'Nome', render: (r) => <span className="font-medium text-slate-900">{r.nome}</span> },

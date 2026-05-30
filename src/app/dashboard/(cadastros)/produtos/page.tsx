@@ -6,10 +6,12 @@ import { DataTable, type Column } from '@/components/ui/DataTable';
 import { Modal } from '@/components/ui/Modal';
 import { Confirm } from '@/components/ui/Confirm';
 import { Button } from '@/components/ui/Button';
-import { Input, Select } from '@/components/ui/Input';
-import { Plus, Pencil, AlertTriangle, Tag, PackageX, X, MapPin, DollarSign, Trash2 } from 'lucide-react';
+import { Input } from '@/components/ui/Input';
+import { Combobox } from '@/components/ui/Combobox';
+import { Plus, Pencil, AlertTriangle, Tag, PackageX, X, MapPin, DollarSign, Trash2, Search, Loader2 } from 'lucide-react';
 import type { Produto, Categoria, Fornecedor, TabelaPreco, PrecoProduto } from '@/types/database.types';
 import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
+import { buscarCNPJ, isCNPJ, formatCpfCnpj } from '@/lib/brasilapi';
 
 const EMPTY: Partial<Produto> = {
   codigo: '', ref: '', nome: '', categoria: null, fornecedor_id: null,
@@ -50,7 +52,62 @@ export default function ProdutosPage() {
 
   const [soBaixoEstoque, setSoBaixoEstoque] = useState(false);
 
+  // Cadastro rápido de fornecedor (a partir do combobox)
+  const [showNovoForn, setShowNovoForn] = useState(false);
+  const [nfNome, setNfNome] = useState('');
+  const [nfCnpj, setNfCnpj] = useState('');
+  const [nfTelefone, setNfTelefone] = useState('');
+  const [nfBuscando, setNfBuscando] = useState(false);
+  const [savingForn, setSavingForn] = useState(false);
+
   const supabase = createClient();
+
+  async function getEmpresaId() {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: usr } = await supabase.from('usuarios').select('empresa_id').eq('id', user!.id).single();
+    return (usr as { empresa_id: string })!.empresa_id;
+  }
+
+  // Cria categoria na hora (a partir do combobox) e já seleciona
+  async function criarCategoriaRapida(nome: string) {
+    const nm = nome.trim();
+    if (!nm) { setShowCategorias(true); return; }
+    const empresaId = await getEmpresaId();
+    const { data } = await supabase.from('categorias').insert({ nome: nm, empresa_id: empresaId }).select().single();
+    const { data: cats } = await supabase.from('categorias').select('*').order('nome');
+    setCategorias(cats as Categoria[] || []);
+    if (data) setForm((p) => ({ ...p, categoria: (data as Categoria).id }));
+  }
+
+  function abrirNovoForn(nome: string) {
+    setNfNome(nome.trim()); setNfCnpj(''); setNfTelefone('');
+    setShowNovoForn(true);
+  }
+
+  async function buscarCnpjForn() {
+    if (!isCNPJ(nfCnpj)) return;
+    setNfBuscando(true);
+    try {
+      const d = await buscarCNPJ(nfCnpj);
+      setNfNome(nfNome || d.nomeFantasia);
+      setNfTelefone(nfTelefone || d.telefone);
+    } catch { /* ignora */ }
+    setNfBuscando(false);
+  }
+
+  async function salvarNovoForn(e: FormEvent) {
+    e.preventDefault();
+    setSavingForn(true);
+    const empresaId = await getEmpresaId();
+    const { data } = await supabase.from('fornecedores').insert({
+      empresa_id: empresaId, nome: nfNome.trim(), cnpj_cpf: nfCnpj || null, telefone: nfTelefone || null,
+    }).select().single();
+    const { data: forns } = await supabase.from('fornecedores').select('id, nome').eq('ativo', true).order('nome');
+    setFornecedores(forns as Fornecedor[] || []);
+    if (data) setForm((p) => ({ ...p, fornecedor_id: (data as Fornecedor).id }));
+    setSavingForn(false);
+    setShowNovoForn(false);
+  }
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('estoque') === 'baixo') setSoBaixoEstoque(true);
@@ -219,8 +276,6 @@ export default function ProdutosPage() {
   const setCodAux = (i: number, v: string) => setCodigosAux((p) => p.map((c, j) => (j === i ? v : c)));
   const removeCodAux = (i: number) => setCodigosAux((p) => p.filter((_, j) => j !== i));
 
-  const catOptions = categorias.map((c) => ({ value: c.id, label: c.nome }));
-  const fornOptions = fornecedores.map((f) => ({ value: f.id, label: f.nome }));
   const abaixoMinimo = produtos.filter((p) => p.estoque_minimo > 0 && p.estoque < p.estoque_minimo).length;
 
   const columns: Column<Produto>[] = [
@@ -310,17 +365,20 @@ export default function ProdutosPage() {
               <Input label="Código" value={form.codigo || ''} onChange={set('codigo')} placeholder="SKU interno" />
               <Input label="Referência (ref)" value={form.ref || ''} onChange={set('ref')} placeholder="Ref. do fabricante" />
               <div className="col-span-2">
-                <Input label="Nome do Produto *" value={form.nome || ''} onChange={set('nome')} required placeholder="Ex: Filtro de Óleo Toyota Corolla" />
+                <Input label="Nome do Produto *" value={form.nome || ''}
+                  onChange={(e) => setForm((p) => ({ ...p, nome: e.target.value.toUpperCase() }))}
+                  required placeholder="EX: FILTRO DE ÓLEO TOYOTA COROLLA" />
               </div>
               <Input label="Localização" value={form.localizacao || ''} onChange={set('localizacao')} placeholder="Ex: Prateleira A-12" />
-              <div className="flex gap-2 items-end">
-                <div className="flex-1">
-                  <Select label="Categoria" value={form.categoria || ''} onChange={set('categoria')} options={catOptions} />
-                </div>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setShowCategorias(true)} className="mb-0.5 shrink-0">
-                  <Tag size={14} />
-                </Button>
-              </div>
+              <Combobox
+                label="Categoria"
+                value={form.categoria || ''}
+                onChange={(v) => setForm((p) => ({ ...p, categoria: v || null }))}
+                options={categorias.map((c) => ({ value: c.id, label: c.nome }))}
+                placeholder="Buscar ou criar categoria..."
+                createLabel="Nova categoria"
+                onCreate={criarCategoriaRapida}
+              />
             </div>
           </div>
 
@@ -359,7 +417,15 @@ export default function ProdutosPage() {
                 value={formatMoedaInput(Number(form.preco) || 0)}
                 onChange={(e) => setForm((p) => ({ ...p, preco: parseMoedaInput(e.target.value) }))}
                 placeholder="0,00" required />
-              <Select label="Fornecedor" value={form.fornecedor_id || ''} onChange={set('fornecedor_id')} options={fornOptions} />
+              <Combobox
+                label="Fornecedor"
+                value={form.fornecedor_id || ''}
+                onChange={(v) => setForm((p) => ({ ...p, fornecedor_id: v || null }))}
+                options={fornecedores.map((f) => ({ value: f.id, label: f.nome }))}
+                placeholder="Buscar fornecedor..."
+                createLabel="Cadastrar fornecedor"
+                onCreate={abrirNovoForn}
+              />
               <Input label="Custo de Compra (R$)" inputMode="numeric"
                 value={formatMoedaInput(Number(form.custo) || 0)}
                 onChange={(e) => setForm((p) => ({ ...p, custo: parseMoedaInput(e.target.value) }))}
@@ -499,6 +565,29 @@ export default function ProdutosPage() {
             ))}
           </div>
         </div>
+      </Modal>
+
+      {/* Cadastro rápido de fornecedor */}
+      <Modal open={showNovoForn} onClose={() => setShowNovoForn(false)} title="Cadastrar Fornecedor" size="sm">
+        <form onSubmit={salvarNovoForn} className="space-y-4">
+          <div>
+            <label className="text-sm font-medium text-slate-700 block mb-1">CNPJ (opcional)</label>
+            <div className="flex gap-2">
+              <input value={nfCnpj} onChange={(e) => setNfCnpj(formatCpfCnpj(e.target.value))}
+                placeholder="00.000.000/0001-00"
+                className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              <Button type="button" variant="secondary" size="sm" onClick={buscarCnpjForn} disabled={nfBuscando || !isCNPJ(nfCnpj)}>
+                {nfBuscando ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+              </Button>
+            </div>
+          </div>
+          <Input label="Nome *" value={nfNome} onChange={(e) => setNfNome(e.target.value)} required />
+          <Input label="Telefone" value={nfTelefone} onChange={(e) => setNfTelefone(e.target.value)} />
+          <div className="flex gap-3">
+            <Button type="submit" loading={savingForn} className="flex-1">Cadastrar e usar</Button>
+            <Button type="button" variant="secondary" onClick={() => setShowNovoForn(false)}>Cancelar</Button>
+          </div>
+        </form>
       </Modal>
 
       <Confirm open={showConfirm} title="Desativar produto"

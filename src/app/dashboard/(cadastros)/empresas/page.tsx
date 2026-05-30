@@ -112,8 +112,11 @@ export default function EmpresasPage() {
     fetchData();
   }
 
-  const set = (key: keyof Unidade) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm((p) => ({ ...p, [key]: e.target.value }));
+  const UPPER = ['razao_social', 'nome_fantasia', 'endereco'];
+  const set = (key: keyof Unidade) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const v = UPPER.includes(key) ? e.target.value.toUpperCase() : e.target.value;
+    setForm((p) => ({ ...p, [key]: v }));
+  };
 
   const columns: Column<Unidade>[] = [
     { key: 'razao_social', label: 'Empresa', render: (r) => (
