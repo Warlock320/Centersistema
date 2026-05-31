@@ -194,17 +194,20 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
+  const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toLocaleDateString('en-CA');
+
   const [faturamento, pedidosAbertos, clientesAtivos, alertasEstoque, recentePedidos] =
     await Promise.all([
-      supabase.from('pedidos').select('total').eq('status', 'faturado')
-        .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
+      // Receita real do mês = tudo que foi recebido (balcão + pedidos + OS passam por contas_receber)
+      supabase.from('contas_receber').select('valor, valor_pago').eq('status', 'pago')
+        .gte('data_pagamento', inicioMes),
       supabase.from('pedidos').select('id', { count: 'exact', head: true }).in('status', ['aberto', 'em_andamento']),
       supabase.from('clientes').select('id', { count: 'exact', head: true }).eq('ativo', true),
       supabase.from('v_produtos_abaixo_minimo').select('id, nome, estoque, estoque_minimo'),
       supabase.from('pedidos').select('*, clientes(nome)').order('created_at', { ascending: false }).limit(8),
     ]);
 
-  const totalMes = (faturamento.data || []).reduce((s, p) => s + Number(p.total), 0);
+  const totalMes = (faturamento.data || []).reduce((s, p) => s + Number(p.valor_pago ?? p.valor), 0);
 
   return (
     <DashboardUI

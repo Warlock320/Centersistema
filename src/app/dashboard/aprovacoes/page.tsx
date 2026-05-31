@@ -117,9 +117,9 @@ export default function AprovacoesPage() {
                   <p className="text-2xl font-bold text-slate-900">
                     {Number(orc.total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                   </p>
-                  {orc.validade && (
+                  {orc.prazo_dias != null && (
                     <p className="text-xs text-slate-400">
-                      Válido até {new Date(orc.validade).toLocaleDateString('pt-BR')}
+                      Prazo de entrega: {orc.prazo_dias} dia(s)
                     </p>
                   )}
                 </div>

@@ -23,13 +23,13 @@ const STATUS_LABELS: Record<OrcamentoStatus, string> = {
   criado: 'Criado', orcamento_enviado: 'Enviado', aguardando_aprovacao: 'Ag. Aprovação',
   aprovado: 'Aprovado', aguardando_pecas: 'Ag. Peças', enviado: 'Entregue', cancelado: 'Cancelado',
 };
+// Após 'aguardando_aprovacao', a decisão é feita na tela de Aprovações (gera o pedido).
+// O orçamento congela em 'aprovado' e o trabalho segue no Pedido.
 const NEXT_STATUS: Partial<Record<OrcamentoStatus, OrcamentoStatus>> = {
   criado: 'orcamento_enviado', orcamento_enviado: 'aguardando_aprovacao',
-  aprovado: 'aguardando_pecas', aguardando_pecas: 'enviado',
 };
 const NEXT_BTN: Partial<Record<OrcamentoStatus, string>> = {
   criado: 'Enviar Orçamento', orcamento_enviado: 'Solicitar Aprovação',
-  aprovado: 'Iniciar Separação', aguardando_pecas: 'Marcar como Entregue',
 };
 
 export default function OrcamentosPage() {
@@ -542,6 +542,14 @@ export default function OrcamentosPage() {
               <div className="flex items-center gap-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-700 text-sm">
                 <Clock size={16} className="shrink-0" />
                 Este orçamento está na <strong className="ml-1">Fila de Aprovação</strong>. Aguarde a decisão de um gestor ou administrador.
+              </div>
+            )}
+
+            {/* Aprovado — pedido gerado */}
+            {['aprovado', 'aguardando_pecas', 'enviado'].includes(selected.status) && (
+              <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                <Send size={16} className="shrink-0" />
+                Orçamento aprovado — um <strong>Pedido</strong> foi gerado. Acompanhe a separação e o faturamento em <strong>Pedidos</strong>.
               </div>
             )}
 
