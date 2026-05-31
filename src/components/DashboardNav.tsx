@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, Package, FileText, CheckSquare,
   ShoppingCart, FileInput, BarChart2, Settings, LogOut,
   Search, X, ChevronRight, Bell, Truck, Wallet,
-  ArrowDownCircle, ArrowUpCircle, Landmark, Building2, Tags, Warehouse, Bike
+  ArrowDownCircle, ArrowUpCircle, Landmark, Building2, Tags, Warehouse, Bike, Wrench
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Logo } from '@/components/ui/Logo';
@@ -52,6 +52,7 @@ const navSections: NavSection[] = [
       { href: '/dashboard/orcamentos', label: 'Orçamentos', icon: FileText, permission: 'view_orcamentos' },
       { href: '/dashboard/aprovacoes', label: 'Aprovações', icon: CheckSquare, permission: 'approve_orcamentos' },
       { href: '/dashboard/pedidos', label: 'Pedidos', icon: ShoppingCart, permission: 'view_pedidos' },
+      { href: '/dashboard/os', label: 'Ordens de Serviço', icon: Wrench, permission: 'view_os' },
       { href: '/dashboard/nfe', label: 'Importar NF-e', icon: FileInput, permission: 'view_nfe' },
     ],
   },

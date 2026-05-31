@@ -35,6 +35,7 @@ export type Permission =
   | 'view_fornecedores' | 'edit_fornecedores'
   | 'view_orcamentos' | 'edit_orcamentos' | 'approve_orcamentos'
   | 'view_pedidos' | 'edit_pedidos'
+  | 'view_os' | 'edit_os'
   | 'view_nfe'
   | 'view_financeiro' | 'edit_financeiro' | 'approve_contas_pagar' | 'operar_caixa'
   | 'view_relatorios'
@@ -47,6 +48,7 @@ const ALL_PERMISSIONS: Permission[] = [
   'view_fornecedores', 'edit_fornecedores',
   'view_orcamentos', 'edit_orcamentos', 'approve_orcamentos',
   'view_pedidos', 'edit_pedidos',
+  'view_os', 'edit_os',
   'view_nfe',
   'view_financeiro', 'edit_financeiro', 'approve_contas_pagar', 'operar_caixa',
   'view_relatorios',
@@ -64,6 +66,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'view_fornecedores', 'edit_fornecedores',
     'view_orcamentos', 'edit_orcamentos', 'approve_orcamentos',
     'view_pedidos', 'edit_pedidos',
+    'view_os', 'edit_os',
     'view_nfe',
     'view_financeiro',            // só visualiza o financeiro
     'approve_contas_pagar', 'operar_caixa',
@@ -77,6 +80,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'view_fornecedores', 'edit_fornecedores',
     'view_orcamentos',
     'view_pedidos',
+    'view_os',
     'view_nfe',
     'view_financeiro', 'edit_financeiro', 'approve_contas_pagar', 'operar_caixa',
     'view_relatorios',
@@ -89,6 +93,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'view_fornecedores',
     'view_orcamentos', 'edit_orcamentos',
     'view_pedidos', 'edit_pedidos',
+    'view_os', 'edit_os',         // vendedor/balconista abre e gerencia OS
     'view_nfe',
     'operar_caixa',               // balconista opera o caixa diário
   ],
@@ -140,6 +145,7 @@ export const PERMISSION_GROUPS: { modulo: string; permissions: { key: Permission
   { modulo: 'Fornecedores', permissions: [{ key: 'view_fornecedores', label: 'Visualizar' }, { key: 'edit_fornecedores', label: 'Criar / Editar' }] },
   { modulo: 'Orçamentos', permissions: [{ key: 'view_orcamentos', label: 'Visualizar' }, { key: 'edit_orcamentos', label: 'Criar / Editar' }, { key: 'approve_orcamentos', label: 'Aprovar orçamentos' }] },
   { modulo: 'Pedidos', permissions: [{ key: 'view_pedidos', label: 'Visualizar' }, { key: 'edit_pedidos', label: 'Criar / Editar' }] },
+  { modulo: 'Ordem de Serviço', permissions: [{ key: 'view_os', label: 'Visualizar' }, { key: 'edit_os', label: 'Criar / Editar / Faturar' }] },
   { modulo: 'Notas Fiscais', permissions: [{ key: 'view_nfe', label: 'Importar NF-e' }] },
   { modulo: 'Financeiro', permissions: [{ key: 'view_financeiro', label: 'Visualizar' }, { key: 'edit_financeiro', label: 'Pagar / Gerenciar bancos' }, { key: 'approve_contas_pagar', label: 'Aprovar contas a pagar' }, { key: 'operar_caixa', label: 'Operar caixa diário' }] },
   { modulo: 'Relatórios', permissions: [{ key: 'view_relatorios', label: 'Visualizar relatórios' }] },
