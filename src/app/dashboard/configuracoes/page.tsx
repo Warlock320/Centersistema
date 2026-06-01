@@ -12,7 +12,7 @@ import {
   ChevronDown, UserPlus, KeyRound, RotateCcw, Search, Loader2,
 } from 'lucide-react';
 import type { Empresa, Usuario } from '@/types/database.types';
-import { buscarCNPJ, isCNPJ, formatCpfCnpj } from '@/lib/brasilapi';
+import { buscarCNPJ, isCNPJ, formatCpfCnpj, somenteDigitos } from '@/lib/brasilapi';
 import {
   ALL_ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_COLORS,
   PERMISSION_GROUPS, DEFAULT_ROLE_PERMISSIONS, resolveRoles,
@@ -189,9 +189,10 @@ export default function ConfiguracoesPage() {
     if (!empresa.id) { toast.error('Empresa não carregada. Recarregue a página.'); return; }
     setSaving(true);
     const { error } = await supabase.from('empresas').update({
-      nome: empresa.nome, razao_social: empresa.razao_social, cnpj: empresa.cnpj,
+      nome: empresa.nome, razao_social: empresa.razao_social,
+      cnpj: somenteDigitos(empresa.cnpj || ''),  // coluna é VARCHAR(14) NOT NULL — sem formatação
       email: empresa.email, telefone: empresa.telefone, endereco: empresa.endereco,
-      cidade: empresa.cidade, estado: empresa.estado, cep: empresa.cep,
+      cidade: empresa.cidade, estado: (empresa.estado || '').slice(0, 2).toUpperCase() || null, cep: empresa.cep,
       permite_estoque_negativo: empresa.permite_estoque_negativo,
     }).eq('id', empresa.id);
     setSaving(false);
@@ -307,7 +308,7 @@ export default function ConfiguracoesPage() {
             <div>
               <label className="text-sm font-medium text-slate-700 block mb-1">CNPJ</label>
               <div className="flex gap-2">
-                <input value={empresa.cnpj || ''} disabled={!isAdmin}
+                <input value={formatCpfCnpj(empresa.cnpj || '')} disabled={!isAdmin}
                   onChange={(e) => setEmpresa((p) => ({ ...p, cnpj: formatCpfCnpj(e.target.value) }))}
                   placeholder="00.000.000/0001-00"
                   className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-slate-50" />
