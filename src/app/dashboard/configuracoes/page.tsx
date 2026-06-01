@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { useToast } from '@/components/ui/Toast';
 import { usePermissions } from '@/components/PermissionsProvider';
 import {
   Plus, Building2, Users, ShieldCheck, Check,
@@ -94,6 +95,7 @@ export default function ConfiguracoesPage() {
   const [cnpjMsg, setCnpjMsg] = useState('');
 
   const supabase = createClient();
+  const toast = useToast();
   const isAdmin = can('manage_config');
 
   async function handleBuscarCNPJ() {
@@ -155,16 +157,18 @@ export default function ConfiguracoesPage() {
 
   async function handleSaveEmpresa(e: FormEvent) {
     e.preventDefault();
+    if (!empresa.id) { toast.error('Empresa não carregada. Recarregue a página.'); return; }
     setSaving(true);
-    await supabase.from('empresas').update({
+    const { error } = await supabase.from('empresas').update({
       nome: empresa.nome, razao_social: empresa.razao_social, cnpj: empresa.cnpj,
       email: empresa.email, telefone: empresa.telefone, endereco: empresa.endereco,
       cidade: empresa.cidade, estado: empresa.estado, cep: empresa.cep,
       permite_estoque_negativo: empresa.permite_estoque_negativo,
-    }).eq('id', empresa.id!);
+    }).eq('id', empresa.id);
     setSaving(false);
-    setSavedMsg('Dados salvos com sucesso!');
-    setTimeout(() => setSavedMsg(''), 3000);
+    if (error) { toast.error('Erro ao salvar: ' + error.message); return; }
+    toast.success('Dados da empresa salvos!');
+    fetchData(); // recarrega do banco para refletir o que persistiu
   }
 
   // ── Cadastro direto de usuário (email + senha + papéis) ───────────────────────
