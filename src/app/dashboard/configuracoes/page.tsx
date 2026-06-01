@@ -94,9 +94,38 @@ export default function ConfiguracoesPage() {
   const [buscandoCNPJ, setBuscandoCNPJ] = useState(false);
   const [cnpjMsg, setCnpjMsg] = useState('');
 
+  // Trocar senha de usuário
+  const [showSenha, setShowSenha] = useState(false);
+  const [senhaTarget, setSenhaTarget] = useState<Usuario | null>(null);
+  const [novaSenhaUser, setNovaSenhaUser] = useState('');
+  const [savingSenha, setSavingSenha] = useState(false);
+
   const supabase = createClient();
   const toast = useToast();
   const isAdmin = can('manage_config');
+
+  async function handleResetSenha(ev: FormEvent) {
+    ev.preventDefault();
+    if (!senhaTarget) return;
+    setSavingSenha(true);
+    try {
+      const res = await fetch('/api/usuarios', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: senhaTarget.id, password: novaSenhaUser }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Erro ao alterar senha');
+      toast.success(`Senha de ${senhaTarget.nome} alterada!`);
+      setShowSenha(false);
+      setNovaSenhaUser('');
+      setSenhaTarget(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao alterar senha');
+    } finally {
+      setSavingSenha(false);
+    }
+  }
 
   async function handleBuscarCNPJ() {
     setCnpjMsg('');
@@ -360,6 +389,11 @@ export default function ConfiguracoesPage() {
                     </Button>
                   )}
                   {isAdmin && (
+                    <Button variant="ghost" size="sm" onClick={() => { setSenhaTarget(u); setNovaSenhaUser(''); setShowSenha(true); }}>
+                      <KeyRound size={14} /> Senha
+                    </Button>
+                  )}
+                  {isAdmin && (
                     <Button variant={u.ativo ? 'danger' : 'success'} size="sm" onClick={() => handleToggleAtivo(u.id, u.ativo)}>
                       {u.ativo ? 'Desativar' : 'Ativar'}
                     </Button>
@@ -497,6 +531,22 @@ export default function ConfiguracoesPage() {
             <Button variant="secondary" onClick={() => setShowRoles(false)}>Cancelar</Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Trocar Senha Modal */}
+      <Modal open={showSenha} onClose={() => setShowSenha(false)} title={`Redefinir senha — ${senhaTarget?.nome}`} size="sm">
+        <form onSubmit={handleResetSenha} className="space-y-4">
+          <p className="text-sm text-slate-500">
+            Defina uma nova senha para <strong>{senhaTarget?.email}</strong>. O usuário poderá acessar com ela imediatamente.
+          </p>
+          <Input label="Nova senha *" type="text" value={novaSenhaUser}
+            onChange={(e) => setNovaSenhaUser(e.target.value)} required minLength={6}
+            placeholder="Mínimo 6 caracteres" autoFocus />
+          <div className="flex gap-3">
+            <Button type="submit" loading={savingSenha} className="flex-1">Salvar nova senha</Button>
+            <Button type="button" variant="secondary" onClick={() => setShowSenha(false)}>Cancelar</Button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

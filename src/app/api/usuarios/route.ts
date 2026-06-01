@@ -80,3 +80,47 @@ export async function POST(request: Request) {
     );
   }
 }
+
+// Admin redefine a senha de um usuário da própria empresa
+export async function PATCH(request: Request) {
+  try {
+    const { userId, password } = await request.json();
+    if (!userId || !password) return NextResponse.json({ error: 'Dados incompletos.' }, { status: 400 });
+    if (String(password).length < 6) {
+      return NextResponse.json({ error: 'A senha deve ter ao menos 6 caracteres.' }, { status: 400 });
+    }
+
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+
+    const { data: requester } = await supabase
+      .from('usuarios').select('empresa_id, roles, role').eq('id', user.id).single();
+    if (!requester || !can(resolveRoles(requester), 'manage_config')) {
+      return NextResponse.json({ error: 'Sem permissão para alterar senhas.' }, { status: 403 });
+    }
+
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!serviceKey) return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY não configurada.' }, { status: 500 });
+
+    const admin = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    // Garante que o alvo é da MESMA empresa do admin (isolamento)
+    const { data: alvo } = await admin.from('usuarios').select('empresa_id').eq('id', userId).single();
+    if (!alvo || (alvo as { empresa_id: string }).empresa_id !== (requester as { empresa_id: string }).empresa_id) {
+      return NextResponse.json({ error: 'Usuário não pertence à sua empresa.' }, { status: 403 });
+    }
+
+    const { error } = await admin.auth.admin.updateUserById(userId, { password });
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Erro inesperado.' },
+      { status: 500 }
+    );
+  }
+}
