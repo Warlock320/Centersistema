@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/Toast';
 import { usePermissions } from '@/components/PermissionsProvider';
 import {
   Plus, Building2, Users, ShieldCheck, Check,
-  ChevronDown, UserPlus, KeyRound, RotateCcw, Search, Loader2,
+  ChevronDown, UserPlus, KeyRound, RotateCcw, Search, Loader2, Trash2, AlertTriangle,
 } from 'lucide-react';
 import type { Empresa, Usuario } from '@/types/database.types';
 import { buscarCNPJ, isCNPJ, formatCpfCnpj, somenteDigitos } from '@/lib/brasilapi';
@@ -61,10 +61,14 @@ function RoleBadges({ roles }: { roles: UserRole[] }) {
 }
 
 export default function ConfiguracoesPage() {
-  const { can, map: permMap, reload: reloadPerms } = usePermissions();
+  const { can, map: permMap, reload: reloadPerms, roles } = usePermissions();
+  const isAdminRole = roles.includes('admin'); // só o PAPEL admin (mais restrito que manage_config)
 
   const [empresa, setEmpresa] = useState<Partial<Empresa>>({});
   const [equipe, setEquipe] = useState<Usuario[]>([]);
+  const [meuId, setMeuId] = useState('');
+  const [delTarget, setDelTarget] = useState<Usuario | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [empresaId, setEmpresaId] = useState<string>('');
@@ -127,6 +131,27 @@ export default function ConfiguracoesPage() {
     }
   }
 
+  async function handleExcluirUsuario() {
+    if (!delTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/usuarios', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: delTarget.id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Erro ao excluir usuário');
+      toast.success(`Usuário ${delTarget.nome} excluído.`);
+      setDelTarget(null);
+      fetchData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao excluir usuário');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   async function handleBuscarCNPJ() {
     setCnpjMsg('');
     if (!isCNPJ(empresa.cnpj || '')) { setCnpjMsg('Informe um CNPJ com 14 dígitos.'); return; }
@@ -170,6 +195,7 @@ export default function ConfiguracoesPage() {
     const { data: { user } } = await supabase.auth.getUser();
     let eid = '';
     if (user) {
+      setMeuId(user.id);
       const { data: usr } = await supabase.from('usuarios').select('empresa_id').eq('id', user.id).single();
       eid = (usr as { empresa_id: string } | null)?.empresa_id || '';
     }
@@ -400,6 +426,12 @@ export default function ConfiguracoesPage() {
                       {u.ativo ? 'Desativar' : 'Ativar'}
                     </Button>
                   )}
+                  {/* Excluir: somente PAPEL admin e nunca a própria conta */}
+                  {isAdminRole && u.id !== meuId && (
+                    <Button variant="ghost" size="sm" onClick={() => setDelTarget(u)} title="Excluir usuário">
+                      <Trash2 size={14} className="text-red-500" />
+                    </Button>
+                  )}
                 </div>
               </div>
             );
@@ -549,6 +581,24 @@ export default function ConfiguracoesPage() {
             <Button type="button" variant="secondary" onClick={() => setShowSenha(false)}>Cancelar</Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Excluir Usuário Modal (somente admin) */}
+      <Modal open={!!delTarget} onClose={() => setDelTarget(null)} title="Excluir usuário" size="sm">
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">Esta ação é permanente.</p>
+              <p>O acesso de <strong>{delTarget?.nome}</strong> ({delTarget?.email}) será removido do sistema. Os registros históricos (caixa, lançamentos, auditoria) são mantidos, mas deixam de ficar vinculados a este usuário.</p>
+            </div>
+          </div>
+          <p className="text-xs text-slate-400">Se a intenção for apenas suspender o acesso, prefira <strong>Desativar</strong> — é reversível.</p>
+          <div className="flex gap-3">
+            <Button variant="danger" onClick={handleExcluirUsuario} loading={deleting} className="flex-1"><Trash2 size={14} /> Excluir definitivamente</Button>
+            <Button variant="secondary" onClick={() => setDelTarget(null)}>Cancelar</Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

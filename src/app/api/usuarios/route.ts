@@ -124,3 +124,50 @@ export async function PATCH(request: Request) {
     );
   }
 }
+
+// Excluir usuário — SOMENTE papel administrador
+export async function DELETE(request: Request) {
+  try {
+    const { userId } = await request.json();
+    if (!userId) return NextResponse.json({ error: 'Dados incompletos.' }, { status: 400 });
+
+    const supabase = await createServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+
+    // Só quem tem o PAPEL admin pode excluir (não basta manage_config)
+    const { data: requester } = await supabase
+      .from('usuarios').select('empresa_id, roles, role').eq('id', user.id).single();
+    if (!requester || !resolveRoles(requester).includes('admin')) {
+      return NextResponse.json({ error: 'Apenas administradores podem excluir usuários.' }, { status: 403 });
+    }
+    if (userId === user.id) {
+      return NextResponse.json({ error: 'Você não pode excluir a própria conta.' }, { status: 400 });
+    }
+
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!serviceKey) return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY não configurada.' }, { status: 500 });
+
+    const admin = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    // Alvo precisa ser da MESMA empresa (isolamento)
+    const { data: alvo } = await admin.from('usuarios').select('empresa_id').eq('id', userId).single();
+    if (!alvo || (alvo as { empresa_id: string }).empresa_id !== (requester as { empresa_id: string }).empresa_id) {
+      return NextResponse.json({ error: 'Usuário não pertence à sua empresa.' }, { status: 403 });
+    }
+
+    // Remove o perfil (FKs em outras tabelas são ON DELETE SET NULL) e depois o usuário do Auth
+    await admin.from('usuarios').delete().eq('id', userId);
+    const { error } = await admin.auth.admin.deleteUser(userId);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Erro inesperado.' },
+      { status: 500 }
+    );
+  }
+}
