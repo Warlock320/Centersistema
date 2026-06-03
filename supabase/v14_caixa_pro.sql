@@ -10,6 +10,8 @@
 UPDATE public.caixas SET status = 'encerrado' WHERE status = 'fechado';
 
 ALTER TABLE public.caixas DROP CONSTRAINT IF EXISTS caixas_status_check;
+-- 'em_conferencia' tem 14 chars; a coluna nasceu VARCHAR(10) no v10 → amplia
+ALTER TABLE public.caixas ALTER COLUMN status TYPE VARCHAR(20);
 ALTER TABLE public.caixas
   ALTER COLUMN status SET DEFAULT 'aberto';
 ALTER TABLE public.caixas ADD CONSTRAINT caixas_status_check
