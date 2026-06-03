@@ -110,7 +110,7 @@ interface SearchResult {
   sublabel?: string;
 }
 
-export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
+export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario | null; collapsed?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -216,8 +216,8 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
         <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Sidebar — drawer no mobile, fixa no desktop */}
-      <aside className={`fixed left-0 top-0 h-full w-64 bg-slate-900 flex flex-col z-50 transform transition-transform duration-200 md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      {/* Sidebar — drawer no mobile, fixa no desktop (recolhível) */}
+      <aside className={`fixed left-0 top-0 h-full w-64 bg-slate-900 flex flex-col z-50 transform transition-transform duration-200 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'md:-translate-x-full' : 'md:translate-x-0'}`}>
         {/* Brand */}
         <div className="px-6 py-5 border-b border-slate-700/50">
           <div className="flex items-center gap-3">
@@ -291,7 +291,7 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
       </aside>
 
       {/* Header */}
-      <header className="fixed top-0 left-0 md:left-64 right-0 h-16 bg-white border-b border-slate-100 z-30 flex items-center px-4 md:px-6 gap-3 md:gap-4">
+      <header className={`fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-100 z-30 flex items-center px-4 md:px-6 gap-3 md:gap-4 transition-all duration-200 ${collapsed ? 'md:left-0' : 'md:left-64'}`}>
         {/* Hambúrguer (só mobile) */}
         <button
           type="button"
