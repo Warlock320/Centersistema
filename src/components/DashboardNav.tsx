@@ -230,7 +230,7 @@ export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario 
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-4">
+        <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-4 no-scrollbar">
           {navSections.map((section) => {
             const sectionItems = section.items.filter((item) =>
               Array.isArray(item.permission) ? item.permission.some((p) => can(p)) : can(item.permission)
