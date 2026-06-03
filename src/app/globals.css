@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Dark mode por classe (.dark no <html>) — habilita as variantes dark: do Tailwind v4 */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @keyframes slideIn {
   from { opacity: 0; transform: translateX(20px); }
   to { opacity: 1; transform: translateX(0); }
@@ -51,3 +54,46 @@
   /* cores e fundos das barras/gráficos saem na impressão */
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* =====================================================================
+   MODO ESCURO — remapeia os tons neutros usados em todo o sistema.
+   Assim todas as telas escurecem sem precisar editar cada componente.
+   (As cores de destaque — verde/azul/vermelho/etc — são preservadas.)
+   ===================================================================== */
+html.dark {
+  color-scheme: dark;
+}
+
+/* Fundos */
+.dark .bg-white { background-color: #1e293b; }                 /* cards / modais */
+.dark .bg-slate-50 { background-color: #0f172a; }              /* fundos internos / hover base */
+.dark .bg-slate-100 { background-color: #334155; }             /* chips, trilhos, ícones */
+.dark .hover\:bg-slate-50:hover { background-color: #243044; }
+.dark .hover\:bg-slate-100:hover { background-color: #3b4a61; }
+
+/* Textos */
+.dark .text-slate-900 { color: #f1f5f9; }
+.dark .text-slate-800 { color: #e2e8f0; }
+.dark .text-slate-700 { color: #cbd5e1; }
+.dark .text-slate-600 { color: #a3b2c7; }
+.dark .text-slate-500 { color: #94a3b8; }
+.dark .text-slate-400 { color: #64748b; }
+
+/* Bordas */
+.dark .border-slate-50,
+.dark .border-slate-100 { border-color: #1e293b; }
+.dark .border-slate-200 { border-color: #334155; }
+
+/* Linhas divisórias (divide-y) */
+.dark .divide-slate-50 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-slate-50 > :not(:last-child),
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-slate-100 > :not(:last-child) { border-color: #243044; }
+
+/* Campos de formulário */
+.dark input, .dark select, .dark textarea { color: #f1f5f9; }
+.dark input::placeholder, .dark textarea::placeholder { color: #64748b; }
+.dark select option { background-color: #1e293b; color: #f1f5f9; }
+
+/* Tabelas com cabeçalho claro */
+.dark thead tr { background-color: transparent; }

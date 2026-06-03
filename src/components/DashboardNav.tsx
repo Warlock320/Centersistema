@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Logo } from '@/components/ui/Logo';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import type { Usuario } from '@/types/database.types';
 import { DEMO_MODE, DEMO_COOKIE } from '@/lib/demo';
 import { resolveRoles, ROLE_LABELS, type Permission } from '@/lib/permissions';
@@ -222,10 +223,12 @@ export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario 
         <div className="px-6 py-5 border-b border-slate-700/50">
           <div className="flex items-center gap-3">
             <Logo size={40} className="ring-2 ring-white/10" />
-            <div>
+            <div className="min-w-0">
               <p className="text-white font-bold text-sm leading-tight">Center Auto</p>
               <p className="text-slate-400 text-xs">Gestão de Peças</p>
             </div>
+            {/* Alternar modo claro/escuro */}
+            <ThemeToggle className="ml-auto -mr-1" />
           </div>
         </div>
 
