@@ -371,7 +371,7 @@ export default function OrcamentosPage() {
       {/* New Orcamento Modal */}
       <Modal open={showForm} onClose={() => { setShowForm(false); resetForm(); }} title={editandoId ? 'Editar Orçamento' : 'Novo Orçamento'} size="xl">
         <form onSubmit={handleSave} className="space-y-5">
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="col-span-2">
               <Combobox
                 label="Cliente *"
@@ -439,7 +439,7 @@ export default function OrcamentosPage() {
                   />
 
                   {/* Linha 3: qtd, preço, desc, total */}
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <div>
                       <label className="text-[11px] text-slate-400 block mb-0.5">Qtd</label>
                       <input type="text" inputMode="decimal" value={item.quantidade ?? ''}

@@ -8,7 +8,7 @@ import {
   ShoppingCart, FileInput, BarChart2, Settings, LogOut,
   Search, X, ChevronRight, Bell, Truck, Wallet,
   ArrowDownCircle, ArrowUpCircle, Landmark, Building2, Tags, Warehouse, Bike, Wrench, Scale, CreditCard,
-  FileBarChart, ShieldAlert
+  FileBarChart, ShieldAlert, Menu
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Logo } from '@/components/ui/Logo';
@@ -128,7 +128,11 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [alertas, setAlertas] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // drawer no mobile
   const searchRef = useRef<HTMLDivElement>(null);
+
+  // Fecha o menu mobile ao trocar de rota
+  useEffect(() => { setSidebarOpen(false); }, [pathname]);
 
   useEffect(() => {
     const loadAlertas = async () => {
@@ -207,8 +211,13 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
 
   return (
     <>
-      {/* Sidebar */}
-      <aside className="fixed left-0 top-0 h-full w-64 bg-slate-900 flex flex-col z-40">
+      {/* Overlay do drawer (só mobile) */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
+      {/* Sidebar — drawer no mobile, fixa no desktop */}
+      <aside className={`fixed left-0 top-0 h-full w-64 bg-slate-900 flex flex-col z-50 transform transition-transform duration-200 md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         {/* Brand */}
         <div className="px-6 py-5 border-b border-slate-700/50">
           <div className="flex items-center gap-3">
@@ -282,7 +291,17 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
       </aside>
 
       {/* Header */}
-      <header className="fixed top-0 left-64 right-0 h-16 bg-white border-b border-slate-100 z-30 flex items-center px-6 gap-4">
+      <header className="fixed top-0 left-0 md:left-64 right-0 h-16 bg-white border-b border-slate-100 z-30 flex items-center px-4 md:px-6 gap-3 md:gap-4">
+        {/* Hambúrguer (só mobile) */}
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          className="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg shrink-0"
+          aria-label="Abrir menu"
+        >
+          <Menu size={22} />
+        </button>
+
         {/* Global Search */}
         <div ref={searchRef} className="relative flex-1 max-w-lg">
           <div className="relative">

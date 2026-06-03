@@ -12,7 +12,7 @@ function Shell({ usuario, children }: { usuario: Usuario; children: React.ReactN
     <PermissionsProvider roles={resolveRoles(usuario)} empresaId={usuario.empresa_id || null}>
       <div className="flex min-h-screen bg-slate-50">
         <DashboardNav usuario={usuario} />
-        <main className="flex-1 ml-64 pt-20 px-6 pb-8 min-h-screen">{children}</main>
+        <main className="flex-1 ml-0 md:ml-64 pt-20 px-4 md:px-6 pb-8 min-h-screen w-full min-w-0">{children}</main>
       </div>
     </PermissionsProvider>
   );
