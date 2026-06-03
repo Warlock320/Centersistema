@@ -70,11 +70,11 @@ export default function RelatoriosPage() {
       supabase.from('v_produtos_abaixo_minimo').select('id', { count: 'exact', head: true }),
     ]);
 
-    const cr = (crR.data as CR[]) || [];
-    const cp = (cpR.data as CP[]) || [];
-    const peds = (pedR.data as Ped[]) || [];
-    const cred = (credR.data as Cred[]) || [];
-    const parc = (parcR.data as Parc[]) || [];
+    const cr = (crR.data as unknown as CR[]) || [];
+    const cp = (cpR.data as unknown as CP[]) || [];
+    const peds = (pedR.data as unknown as Ped[]) || [];
+    const cred = (credR.data as unknown as Cred[]) || [];
+    const parc = (parcR.data as unknown as Parc[]) || [];
 
     const inRange = (d: string | null) => !!d && d >= ini && d <= fimDay;
 
