@@ -40,3 +40,14 @@
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* =====================================================================
+   Impressão / exportar PDF — esconde menu e cabeçalho, usa a tela cheia.
+   ===================================================================== */
+@media print {
+  aside, header { display: none !important; }
+  main { margin: 0 !important; padding: 12px !important; }
+  body { background: #fff !important; }
+  /* cores e fundos das barras/gráficos saem na impressão */
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
