@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Combobox } from '@/components/ui/Combobox';
 import { useToast } from '@/components/ui/Toast';
+import { usePermissions } from '@/components/PermissionsProvider';
 import { Plus, Pencil, AlertTriangle, Tag, PackageX, X, MapPin, DollarSign, Trash2, Search, Loader2 } from 'lucide-react';
 import type { Produto, Categoria, Fornecedor, TabelaPreco, PrecoProduto } from '@/types/database.types';
 import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
@@ -63,6 +64,8 @@ export default function ProdutosPage() {
 
   const supabase = createClient();
   const toast = useToast();
+  const { can } = usePermissions();
+  const podeEditar = can('edit_produtos');
 
   async function getEmpresaId() {
     const { data: { user } } = await supabase.auth.getUser();
@@ -320,6 +323,7 @@ export default function ProdutosPage() {
       </Button>
     )},
   ];
+  const visibleColumns = podeEditar ? columns : columns.filter((c) => c.key !== 'acoes');
 
   return (
     <div className="space-y-4">
@@ -331,11 +335,13 @@ export default function ProdutosPage() {
             {abaixoMinimo > 0 && <span className="ml-2 text-red-500 font-medium">· {abaixoMinimo} abaixo do mínimo</span>}
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => setShowTabelas(true)}><DollarSign size={16} /> Tabelas de Preço</Button>
-          <Button variant="secondary" onClick={() => setShowCategorias(true)}><Tag size={16} /> Categorias</Button>
-          <Button onClick={() => openForm()}><Plus size={16} /> Novo Produto</Button>
-        </div>
+        {podeEditar && (
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setShowTabelas(true)}><DollarSign size={16} /> Tabelas de Preço</Button>
+            <Button variant="secondary" onClick={() => setShowCategorias(true)}><Tag size={16} /> Categorias</Button>
+            <Button onClick={() => openForm()}><Plus size={16} /> Novo Produto</Button>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-100">
@@ -355,7 +361,7 @@ export default function ProdutosPage() {
             <AlertTriangle size={14} /> Estoque baixo
           </button>
         </div>
-        <DataTable columns={columns} data={filtered} keyField="id" loading={loading}
+        <DataTable columns={visibleColumns} data={filtered} keyField="id" loading={loading}
           emptyMessage="Nenhum produto cadastrado. Clique em 'Novo Produto' para começar." />
       </div>
 

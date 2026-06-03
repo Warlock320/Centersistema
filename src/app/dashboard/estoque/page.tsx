@@ -40,7 +40,7 @@ export default function EstoquePage() {
   const supabase = createClient();
   const toast = useToast();
   const { can } = usePermissions();
-  const podeEditar = can('edit_produtos');
+  const podeEditar = can('edit_estoque');
 
   useEffect(() => { fetchAll(); }, []);
 

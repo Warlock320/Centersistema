@@ -134,17 +134,81 @@ export interface Cliente {
   cpf_cnpj: string | null;
   razao_social: string | null;
   inscricao_estadual: string | null;
+  rg: string | null;
   email: string | null;
   telefone: string | null;
+  celular: string | null;
   endereco: string | null;
   numero: string | null;
   cidade: string | null;
   estado: string | null;
   cep: string | null;
   observacoes: string | null;
+  limite_credito: number;
+  status_credito: StatusCredito;
   ativo: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export type StatusCredito = 'ativo' | 'bloqueado' | 'inadimplente' | 'em_analise';
+// status_efetivo da view inclui 'atraso' (vencido mas dentro do prazo de inadimplência)
+export type StatusCreditoEfetivo = StatusCredito | 'atraso';
+
+export interface CreditoCliente {
+  cliente_id: string;
+  empresa_id: string;
+  nome: string;
+  telefone: string | null;
+  celular: string | null;
+  cpf_cnpj: string | null;
+  limite_credito: number;
+  limite_utilizado: number;
+  limite_disponivel: number;
+  pct_utilizado: number;
+  status_credito: StatusCredito;
+  status_efetivo: StatusCreditoEfetivo;
+  parcelas_abertas: number;
+  parcelas_vencidas: number;
+  valor_vencido: number;
+  dias_atraso_max: number;
+  total_comprado: number;
+  ultima_compra: string | null;
+  ultimo_pagamento: string | null;
+  score_pontos: number;
+  score_estrelas: number;
+}
+
+export interface ParcelaCliente {
+  id: string;
+  empresa_id: string;
+  cliente_id: string;
+  cliente_nome: string;
+  telefone: string | null;
+  celular: string | null;
+  cpf_cnpj: string | null;
+  descricao: string;
+  valor: number;
+  valor_pago: number;
+  saldo: number;
+  data_vencimento: string;
+  status: ContaReceberStatus;
+  numero_parcela: number;
+  total_parcelas: number;
+  unidade_id: string | null;
+  dias_atraso: number;
+  faixa_atraso: 'a_vencer' | '1_30' | '31_60' | '61_90' | '90_mais';
+}
+
+export interface AprovacaoCredito {
+  id: string;
+  empresa_id: string;
+  cliente_id: string;
+  tipo: 'acima_limite' | 'inadimplente';
+  valor: number;
+  aprovado_por: string | null;
+  motivo: string;
+  created_at: string;
 }
 
 export interface OrcamentoItem {
@@ -293,7 +357,7 @@ export interface ContaBancaria {
   created_at: string;
 }
 
-export type ContaReceberStatus = 'pendente' | 'pago' | 'cancelado';
+export type ContaReceberStatus = 'pendente' | 'pago_parcial' | 'pago' | 'cancelado';
 export type ContaPagarStatus = 'pendente' | 'aprovado' | 'pago' | 'cancelado';
 
 export interface ContaReceber {
@@ -319,6 +383,9 @@ export interface ContaReceber {
   total_parcelas: number;
   grupo_parcelas: string | null;
   observacoes: string | null;
+  conciliado: boolean;
+  conciliado_em: string | null;
+  conciliado_por: string | null;
   created_at: string;
   updated_at: string;
   clientes?: Cliente;
@@ -348,6 +415,9 @@ export interface ContaPagar {
   total_parcelas: number;
   grupo_parcelas: string | null;
   observacoes: string | null;
+  conciliado: boolean;
+  conciliado_em: string | null;
+  conciliado_por: string | null;
   created_at: string;
   updated_at: string;
   fornecedores?: Fornecedor;
@@ -422,15 +492,20 @@ export interface OrdemServico {
   os_itens?: OsItem[];
 }
 
+export type CaixaStatus = 'aberto' | 'em_conferencia' | 'encerrado';
+export type MovimentoCategoria = 'abertura' | 'recebimento' | 'sangria' | 'suprimento';
+
 export interface Caixa {
   id: string;
   empresa_id: string;
   unidade_id: string | null;
   usuario_id: string | null;
   saldo_inicial: number;
-  status: 'aberto' | 'fechado';
+  status: CaixaStatus;
   aberto_em: string;
   fechado_em: string | null;
+  encerrado_em: string | null;
+  conferido_por: string | null;
   saldo_informado: number | null;
   saldo_calculado: number | null;
   observacao: string | null;
@@ -441,9 +516,41 @@ export interface MovimentoCaixa {
   empresa_id: string;
   caixa_id: string;
   tipo: 'entrada' | 'saida';
+  categoria: MovimentoCategoria;
   forma_pagamento: string | null;
   valor: number;
   descricao: string | null;
+  cliente_id: string | null;
+  usuario_id: string | null;
+  cancelado: boolean;
+  cancelado_por: string | null;
+  cancelado_em: string | null;
+  motivo_cancelamento: string | null;
+  created_at: string;
+  clientes?: Cliente;
+  usuarios?: { nome: string };
+}
+
+export interface AuditLog {
+  id: number;
+  empresa_id: string | null;
+  tabela: string;
+  registro_id: string | null;
+  operacao: 'INSERT' | 'UPDATE' | 'DELETE';
+  usuario_id: string | null;
+  campos: string[] | null;
+  dados_antes: Record<string, unknown> | null;
+  dados_depois: Record<string, unknown> | null;
+  created_at: string;
+  usuarios?: { nome: string };
+}
+
+export interface ReaberturaCaixa {
+  id: string;
+  empresa_id: string;
+  caixa_id: string;
+  usuario_id: string | null;
+  motivo: string;
   created_at: string;
 }
 

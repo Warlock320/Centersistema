@@ -7,7 +7,8 @@ import {
   LayoutDashboard, Users, Package, FileText, CheckSquare,
   ShoppingCart, FileInput, BarChart2, Settings, LogOut,
   Search, X, ChevronRight, Bell, Truck, Wallet,
-  ArrowDownCircle, ArrowUpCircle, Landmark, Building2, Tags, Warehouse, Bike, Wrench
+  ArrowDownCircle, ArrowUpCircle, Landmark, Building2, Tags, Warehouse, Bike, Wrench, Scale, CreditCard,
+  FileBarChart, ShieldAlert
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Logo } from '@/components/ui/Logo';
@@ -20,7 +21,7 @@ interface NavItem {
   href: string;
   label: string;
   icon: React.ElementType;
-  permission: Permission;
+  permission: Permission | Permission[];
 }
 
 interface NavSection {
@@ -40,9 +41,9 @@ const navSections: NavSection[] = [
     items: [
       { href: '/dashboard/clientes', label: 'Clientes', icon: Users, permission: 'view_clientes' },
       { href: '/dashboard/produtos', label: 'Produtos', icon: Package, permission: 'view_produtos' },
-      { href: '/dashboard/estoque', label: 'Estoque', icon: Warehouse, permission: 'view_produtos' },
+      { href: '/dashboard/estoque', label: 'Estoque', icon: Warehouse, permission: 'view_estoque' },
       { href: '/dashboard/fornecedores', label: 'Fornecedores', icon: Truck, permission: 'view_fornecedores' },
-      { href: '/dashboard/veiculos', label: 'Veículos', icon: Bike, permission: 'view_clientes' },
+      { href: '/dashboard/veiculos', label: 'Veículos', icon: Bike, permission: 'view_veiculos' },
       { href: '/dashboard/empresas', label: 'Empresas (CNPJs)', icon: Building2, permission: 'manage_config' },
     ],
   },
@@ -57,13 +58,21 @@ const navSections: NavSection[] = [
     ],
   },
   {
+    label: 'CREDIÁRIO',
+    items: [
+      { href: '/dashboard/crediario', label: 'Crediário', icon: CreditCard, permission: ['view_financeiro', 'gerir_crediario'] },
+    ],
+  },
+  {
     label: 'FINANCEIRO',
     items: [
       { href: '/dashboard/financeiro', label: 'Visão Financeira', icon: Wallet, permission: 'view_financeiro' },
-      { href: '/dashboard/financeiro/receber', label: 'Contas a Receber', icon: ArrowDownCircle, permission: 'view_financeiro' },
+      { href: '/dashboard/financeiro/receber', label: 'Contas a Receber', icon: ArrowDownCircle, permission: ['view_financeiro', 'registrar_venda'] },
       { href: '/dashboard/financeiro/pagar', label: 'Contas a Pagar', icon: ArrowUpCircle, permission: 'view_financeiro' },
-      { href: '/dashboard/financeiro/caixa', label: 'Caixa Diário', icon: Wallet, permission: 'operar_caixa' },
+      { href: '/dashboard/financeiro/caixa', label: 'Caixa', icon: Wallet, permission: 'operar_caixa' },
+      { href: '/dashboard/financeiro/caixa/relatorios', label: 'Relatórios de Caixa', icon: FileBarChart, permission: ['view_financeiro', 'gerir_caixa'] },
       { href: '/dashboard/financeiro/bancos', label: 'Contas Bancárias', icon: Landmark, permission: 'edit_financeiro' },
+      { href: '/dashboard/financeiro/conciliacao', label: 'Conciliação', icon: Scale, permission: 'edit_financeiro' },
       { href: '/dashboard/financeiro/categorias', label: 'Categorias', icon: Tags, permission: 'edit_financeiro' },
     ],
   },
@@ -71,10 +80,28 @@ const navSections: NavSection[] = [
     label: 'GESTÃO',
     items: [
       { href: '/dashboard/relatorios', label: 'Relatórios', icon: BarChart2, permission: 'view_relatorios' },
+      { href: '/dashboard/auditoria', label: 'Auditoria', icon: ShieldAlert, permission: 'view_auditoria' },
       { href: '/dashboard/configuracoes', label: 'Configurações', icon: Settings, permission: 'manage_config' },
     ],
   },
 ];
+
+// Relógio ao vivo (data + hora atual). Atualiza a cada segundo no cliente.
+function HeaderClock() {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  if (!now) return null; // evita mismatch de hidratação (hora só no cliente)
+  return (
+    <div className="hidden sm:flex flex-col items-end leading-tight">
+      <span className="text-sm font-semibold text-slate-700 tabular-nums">{now.toLocaleTimeString('pt-BR')}</span>
+      <span className="text-[11px] text-slate-400 capitalize">{now.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}</span>
+    </div>
+  );
+}
 
 interface SearchResult {
   type: 'cliente' | 'produto';
@@ -196,7 +223,9 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
         {/* Navigation */}
         <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-4">
           {navSections.map((section) => {
-            const sectionItems = section.items.filter((item) => can(item.permission));
+            const sectionItems = section.items.filter((item) =>
+              Array.isArray(item.permission) ? item.permission.some((p) => can(p)) : can(item.permission)
+            );
             if (sectionItems.length === 0) return null;
             return (
               <div key={section.label}>
@@ -297,7 +326,8 @@ export function DashboardNav({ usuario }: { usuario: Usuario | null }) {
           )}
         </div>
 
-        <div className="flex items-center gap-3 ml-auto">
+        <div className="flex items-center gap-4 ml-auto">
+          <HeaderClock />
           {DEMO_MODE && (
             <span className="text-xs font-bold px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full border border-amber-200">
               DEMO

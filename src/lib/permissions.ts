@@ -3,22 +3,24 @@
 // Um usuário pode ter MÚLTIPLOS papéis (roles: UserRole[]).
 // =====================================================================
 
-export type UserRole = 'admin' | 'gestor' | 'financeiro' | 'vendedor';
+export type UserRole = 'admin' | 'gestor' | 'financeiro' | 'vendedor' | 'caixa';
 
-export const ALL_ROLES: UserRole[] = ['admin', 'gestor', 'financeiro', 'vendedor'];
+export const ALL_ROLES: UserRole[] = ['admin', 'gestor', 'financeiro', 'vendedor', 'caixa'];
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Administrador',
   gestor: 'Gestor',
   financeiro: 'Financeiro',
   vendedor: 'Vendedor',
+  caixa: 'Operador de Caixa',
 };
 
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   admin: 'Acesso total ao sistema, equipe e configurações',
   gestor: 'Gestão comercial, aprova orçamentos e vê relatórios',
   financeiro: 'Módulo financeiro completo, aprova contas a pagar',
-  vendedor: 'Cadastra clientes, cria orçamentos e pedidos',
+  vendedor: 'Cadastra clientes, cria orçamentos, pedidos e OS',
+  caixa: 'Balcão: opera o caixa, registra vendas e atende clientes',
 };
 
 export const ROLE_COLORS: Record<UserRole, string> = {
@@ -26,36 +28,47 @@ export const ROLE_COLORS: Record<UserRole, string> = {
   gestor: 'bg-blue-100 text-blue-700',
   financeiro: 'bg-emerald-100 text-emerald-700',
   vendedor: 'bg-amber-100 text-amber-700',
+  caixa: 'bg-pink-100 text-pink-700',
 };
 
 export type Permission =
   | 'view_dashboard'
   | 'view_clientes' | 'edit_clientes'
   | 'view_produtos' | 'edit_produtos'
+  | 'view_estoque' | 'edit_estoque'
+  | 'view_veiculos' | 'edit_veiculos'
   | 'view_fornecedores' | 'edit_fornecedores'
   | 'view_orcamentos' | 'edit_orcamentos' | 'approve_orcamentos'
   | 'view_pedidos' | 'edit_pedidos'
   | 'view_os' | 'edit_os'
   | 'view_nfe'
-  | 'view_financeiro' | 'edit_financeiro' | 'approve_contas_pagar' | 'operar_caixa'
+  | 'registrar_venda'
+  | 'view_financeiro' | 'edit_financeiro' | 'approve_contas_pagar' | 'operar_caixa' | 'gerir_caixa'
+  | 'gerir_crediario' | 'aprovar_credito'
   | 'view_relatorios'
+  | 'view_auditoria'
   | 'manage_config';
 
 const ALL_PERMISSIONS: Permission[] = [
   'view_dashboard',
   'view_clientes', 'edit_clientes',
   'view_produtos', 'edit_produtos',
+  'view_estoque', 'edit_estoque',
+  'view_veiculos', 'edit_veiculos',
   'view_fornecedores', 'edit_fornecedores',
   'view_orcamentos', 'edit_orcamentos', 'approve_orcamentos',
   'view_pedidos', 'edit_pedidos',
   'view_os', 'edit_os',
   'view_nfe',
-  'view_financeiro', 'edit_financeiro', 'approve_contas_pagar', 'operar_caixa',
+  'registrar_venda',
+  'view_financeiro', 'edit_financeiro', 'approve_contas_pagar', 'operar_caixa', 'gerir_caixa',
+  'gerir_crediario', 'aprovar_credito',
   'view_relatorios',
+  'view_auditoria',
   'manage_config',
 ];
 
-// Matriz de permissões por papel (FIXA)
+// Matriz de permissões por papel (FIXA — ponto de partida; editável por empresa)
 export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   admin: ALL_PERMISSIONS,
 
@@ -63,39 +76,58 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'view_dashboard',
     'view_clientes', 'edit_clientes',
     'view_produtos', 'edit_produtos',
+    'view_estoque', 'edit_estoque',
+    'view_veiculos', 'edit_veiculos',
     'view_fornecedores', 'edit_fornecedores',
     'view_orcamentos', 'edit_orcamentos', 'approve_orcamentos',
     'view_pedidos', 'edit_pedidos',
     'view_os', 'edit_os',
     'view_nfe',
+    'registrar_venda',
     'view_financeiro',            // só visualiza o financeiro
     'approve_contas_pagar', 'operar_caixa',
+    'gerir_crediario', 'aprovar_credito',
     'view_relatorios',
   ],
 
   financeiro: [
     'view_dashboard',
     'view_clientes',
-    'view_produtos',
+    'view_produtos', 'view_estoque',
+    'view_veiculos',
     'view_fornecedores', 'edit_fornecedores',
     'view_orcamentos',
     'view_pedidos',
     'view_os',
     'view_nfe',
-    'view_financeiro', 'edit_financeiro', 'approve_contas_pagar', 'operar_caixa',
+    'registrar_venda',
+    'view_financeiro', 'edit_financeiro', 'approve_contas_pagar', 'operar_caixa', 'gerir_caixa',
+    'gerir_crediario', 'aprovar_credito',
     'view_relatorios',
   ],
 
   vendedor: [
     'view_dashboard',
     'view_clientes', 'edit_clientes',
-    'view_produtos',
+    'view_produtos', 'view_estoque',
+    'view_veiculos', 'edit_veiculos',
     'view_fornecedores',
     'view_orcamentos', 'edit_orcamentos',
     'view_pedidos', 'edit_pedidos',
-    'view_os', 'edit_os',         // vendedor/balconista abre e gerencia OS
+    'view_os', 'edit_os',
     'view_nfe',
-    'operar_caixa',               // balconista opera o caixa diário
+    'registrar_venda',
+    'operar_caixa',
+  ],
+
+  // Operador de caixa: foco no balcão
+  caixa: [
+    'view_dashboard',
+    'view_clientes', 'edit_clientes',
+    'view_produtos', 'view_estoque',
+    'view_veiculos',
+    'registrar_venda',
+    'operar_caixa',
   ],
 };
 
@@ -141,20 +173,49 @@ export function resolveRoles(input: { roles?: string[] | null; role?: string | n
 export const PERMISSION_GROUPS: { modulo: string; permissions: { key: Permission; label: string }[] }[] = [
   { modulo: 'Dashboard', permissions: [{ key: 'view_dashboard', label: 'Acessar o dashboard' }] },
   { modulo: 'Clientes', permissions: [{ key: 'view_clientes', label: 'Visualizar' }, { key: 'edit_clientes', label: 'Criar / Editar' }] },
+  { modulo: 'Veículos', permissions: [{ key: 'view_veiculos', label: 'Visualizar' }, { key: 'edit_veiculos', label: 'Criar / Editar' }] },
   { modulo: 'Produtos', permissions: [{ key: 'view_produtos', label: 'Visualizar' }, { key: 'edit_produtos', label: 'Criar / Editar' }] },
+  { modulo: 'Estoque', permissions: [{ key: 'view_estoque', label: 'Visualizar movimentações' }, { key: 'edit_estoque', label: 'Movimentar (entrada/saída/ajuste)' }] },
   { modulo: 'Fornecedores', permissions: [{ key: 'view_fornecedores', label: 'Visualizar' }, { key: 'edit_fornecedores', label: 'Criar / Editar' }] },
   { modulo: 'Orçamentos', permissions: [{ key: 'view_orcamentos', label: 'Visualizar' }, { key: 'edit_orcamentos', label: 'Criar / Editar' }, { key: 'approve_orcamentos', label: 'Aprovar orçamentos' }] },
   { modulo: 'Pedidos', permissions: [{ key: 'view_pedidos', label: 'Visualizar' }, { key: 'edit_pedidos', label: 'Criar / Editar' }] },
   { modulo: 'Ordem de Serviço', permissions: [{ key: 'view_os', label: 'Visualizar' }, { key: 'edit_os', label: 'Criar / Editar / Faturar' }] },
   { modulo: 'Notas Fiscais', permissions: [{ key: 'view_nfe', label: 'Importar NF-e' }] },
-  { modulo: 'Financeiro', permissions: [{ key: 'view_financeiro', label: 'Visualizar' }, { key: 'edit_financeiro', label: 'Pagar / Gerenciar bancos' }, { key: 'approve_contas_pagar', label: 'Aprovar contas a pagar' }, { key: 'operar_caixa', label: 'Operar caixa diário' }] },
+  { modulo: 'Vendas / Caixa', permissions: [{ key: 'registrar_venda', label: 'Registrar venda (Contas a Receber)' }, { key: 'operar_caixa', label: 'Abrir e operar o caixa' }, { key: 'gerir_caixa', label: 'Conferir / encerrar / reabrir caixa' }] },
+  { modulo: 'Financeiro', permissions: [{ key: 'view_financeiro', label: 'Visualizar financeiro' }, { key: 'edit_financeiro', label: 'Pagar / Gerenciar bancos' }, { key: 'approve_contas_pagar', label: 'Aprovar contas a pagar' }] },
+  { modulo: 'Crediário', permissions: [{ key: 'gerir_crediario', label: 'Definir limite e status do cliente' }, { key: 'aprovar_credito', label: 'Liberar venda acima do limite / inadimplente' }] },
   { modulo: 'Relatórios', permissions: [{ key: 'view_relatorios', label: 'Visualizar relatórios' }] },
+  { modulo: 'Auditoria', permissions: [{ key: 'view_auditoria', label: 'Consultar logs do sistema (somente admin)' }] },
   { modulo: 'Configurações', permissions: [{ key: 'manage_config', label: 'Gerenciar empresa e equipe' }] },
 ];
 
+// Ordem de prioridade das telas para definir a "página inicial" de quem não vê o dashboard.
+// Espelha grosso modo a ordem do menu — o caixa-only cai direto no Caixa Diário.
+export const HOME_ROUTE_PRIORITY: { href: string; permission: Permission }[] = [
+  { href: '/dashboard', permission: 'view_dashboard' },
+  { href: '/dashboard/financeiro/caixa', permission: 'operar_caixa' },
+  { href: '/dashboard/financeiro/receber', permission: 'registrar_venda' },
+  { href: '/dashboard/orcamentos', permission: 'view_orcamentos' },
+  { href: '/dashboard/os', permission: 'view_os' },
+  { href: '/dashboard/pedidos', permission: 'view_pedidos' },
+  { href: '/dashboard/clientes', permission: 'view_clientes' },
+  { href: '/dashboard/produtos', permission: 'view_produtos' },
+  { href: '/dashboard/estoque', permission: 'view_estoque' },
+  { href: '/dashboard/veiculos', permission: 'view_veiculos' },
+  { href: '/dashboard/financeiro', permission: 'view_financeiro' },
+  { href: '/dashboard/relatorios', permission: 'view_relatorios' },
+  { href: '/dashboard/configuracoes', permission: 'manage_config' },
+];
+
+/** Primeira rota acessível conforme as permissões do usuário (tela inicial). */
+export function resolveHomeRoute(map: RolePermissionMap, roles: UserRole[] | null | undefined): string {
+  const hit = HOME_ROUTE_PRIORITY.find((r) => canWith(map, roles, r.permission));
+  return hit?.href ?? '/dashboard';
+}
+
 /** Constrói um mapa a partir de linhas {papel, permissao} (vindas do banco). Default para papéis sem linhas. */
 export function buildPermissionMap(rows: { papel: string; permissao: string }[]): RolePermissionMap {
-  const map: RolePermissionMap = { admin: [], gestor: [], financeiro: [], vendedor: [] };
+  const map: RolePermissionMap = { admin: [], gestor: [], financeiro: [], vendedor: [], caixa: [] };
   const seen = new Set<UserRole>();
   rows.forEach(({ papel, permissao }) => {
     if (ALL_ROLES.includes(papel as UserRole)) {

@@ -1,7 +1,9 @@
+import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { DollarSign, ShoppingCart, Users, AlertTriangle, TrendingUp, Package } from 'lucide-react';
+import { DollarSign, ShoppingCart, Users, AlertTriangle, TrendingUp, Package, CreditCard, CalendarClock } from 'lucide-react';
 import type { Produto, Pedido } from '@/types/database.types';
 import { DEMO_MODE } from '@/lib/demo';
+import { resolveRoles, buildPermissionMap, canWith, resolveHomeRoute, DEFAULT_ROLE_PERMISSIONS } from '@/lib/permissions';
 import Link from 'next/link';
 
 function KpiCard({ title, value, subtitle, icon: Icon, color, href }: {
@@ -32,13 +34,14 @@ const statusColor: Record<string, string> = {
 };
 
 function DashboardUI({
-  totalMes, pedidosAbertos, clientesAtivos, alertas, pedidos,
+  totalMes, pedidosAbertos, clientesAtivos, alertas, pedidos, crediario,
 }: {
   totalMes: number;
   pedidosAbertos: number;
   clientesAtivos: number;
   alertas: Produto[];
   pedidos: Pedido[];
+  crediario: { venceHoje: number; inadimplentes: number; totalAtraso: number };
 }) {
   const mes = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
@@ -57,6 +60,17 @@ function DashboardUI({
             <code className="bg-amber-100 px-1 rounded">.env.local</code> para usar dados reais.
           </span>
         </div>
+      )}
+
+      {/* Alertas de crediário (cobrança do dia) */}
+      {(crediario.venceHoje > 0 || crediario.inadimplentes > 0 || crediario.totalAtraso > 0) && (
+        <Link href="/dashboard/crediario" className="flex items-center gap-4 p-4 bg-orange-50 border border-orange-200 rounded-xl text-orange-800 text-sm hover:bg-orange-100 transition-colors flex-wrap">
+          <span className="flex items-center gap-2 font-semibold"><CreditCard size={18} className="shrink-0" /> Crediário hoje:</span>
+          <span className="flex items-center gap-1.5"><CalendarClock size={15} /> {crediario.venceHoje} parcela(s) vencem hoje</span>
+          <span className="flex items-center gap-1.5"><AlertTriangle size={15} /> {crediario.inadimplentes} inadimplente(s)</span>
+          <span className="flex items-center gap-1.5"><DollarSign size={15} /> {crediario.totalAtraso.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} em atraso</span>
+          <span className="ml-auto font-medium underline">abrir crediário →</span>
+        </Link>
       )}
 
       {/* KPIs */}
@@ -187,16 +201,38 @@ function DashboardUI({
 
 export default async function DashboardPage() {
   if (DEMO_MODE) {
-    return <DashboardUI totalMes={0} pedidosAbertos={0} clientesAtivos={0} alertas={[]} pedidos={[]} />;
+    return <DashboardUI totalMes={0} pedidosAbertos={0} clientesAtivos={0} alertas={[]} pedidos={[]}
+      crediario={{ venceHoje: 0, inadimplentes: 0, totalAtraso: 0 }} />;
   }
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
+  // Quem não tem permissão para ver o dashboard cai na sua primeira tela disponível
+  // (ex.: operador de caixa entra direto no Caixa Diário).
+  const { data: perfil } = await supabase
+    .from('usuarios').select('roles, role, empresa_id').eq('id', user.id).single();
+  const roles = resolveRoles(perfil || {});
+  const empresaId = (perfil as { empresa_id?: string } | null)?.empresa_id;
+  let permMap = DEFAULT_ROLE_PERMISSIONS;
+  if (empresaId) {
+    const { data: perms } = await supabase
+      .from('permissoes_papel').select('papel, permissao').eq('empresa_id', empresaId);
+    if (perms && perms.length > 0) {
+      permMap = buildPermissionMap(perms as { papel: string; permissao: string }[]);
+    }
+  }
+  if (!canWith(permMap, roles, 'view_dashboard')) {
+    const home = resolveHomeRoute(permMap, roles);
+    if (home !== '/dashboard') redirect(home); // evita loop se nenhuma rota casar
+  }
+
   const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toLocaleDateString('en-CA');
 
-  const [faturamento, pedidosAbertos, clientesAtivos, alertasEstoque, recentePedidos] =
+  const hojeStr = new Date().toLocaleDateString('en-CA');
+
+  const [faturamento, pedidosAbertos, clientesAtivos, alertasEstoque, recentePedidos, parcelasAbertas, creditoCli] =
     await Promise.all([
       // Receita real do mês = tudo que foi recebido (balcão + pedidos + OS passam por contas_receber)
       supabase.from('contas_receber').select('valor, valor_pago').eq('status', 'pago')
@@ -205,9 +241,18 @@ export default async function DashboardPage() {
       supabase.from('clientes').select('id', { count: 'exact', head: true }).eq('ativo', true),
       supabase.from('v_produtos_abaixo_minimo').select('id, nome, estoque, estoque_minimo'),
       supabase.from('pedidos').select('*, clientes(nome)').order('created_at', { ascending: false }).limit(8),
+      supabase.from('v_parcelas_cliente').select('data_vencimento, saldo, dias_atraso'),
+      supabase.from('v_credito_cliente').select('status_efetivo'),
     ]);
 
   const totalMes = (faturamento.data || []).reduce((s, p) => s + Number(p.valor_pago ?? p.valor), 0);
+
+  const parcelas = (parcelasAbertas.data as { data_vencimento: string; saldo: number; dias_atraso: number }[]) || [];
+  const crediario = {
+    venceHoje: parcelas.filter((p) => p.data_vencimento === hojeStr).length,
+    totalAtraso: parcelas.filter((p) => p.dias_atraso > 0).reduce((s, p) => s + Number(p.saldo), 0),
+    inadimplentes: ((creditoCli.data as { status_efetivo: string }[]) || []).filter((c) => c.status_efetivo === 'inadimplente').length,
+  };
 
   return (
     <DashboardUI
@@ -216,6 +261,7 @@ export default async function DashboardPage() {
       clientesAtivos={clientesAtivos.count || 0}
       alertas={alertasEstoque.data as Produto[] || []}
       pedidos={recentePedidos.data as Pedido[] || []}
+      crediario={crediario}
     />
   );
 }

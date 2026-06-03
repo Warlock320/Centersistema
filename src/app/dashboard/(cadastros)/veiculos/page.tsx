@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Input, Textarea } from '@/components/ui/Input';
 import { Combobox } from '@/components/ui/Combobox';
 import { useToast } from '@/components/ui/Toast';
+import { usePermissions } from '@/components/PermissionsProvider';
 import { Plus, Pencil, Bike } from 'lucide-react';
 import type { Veiculo, Cliente } from '@/types/database.types';
 
@@ -33,6 +34,8 @@ export default function VeiculosPage() {
 
   const supabase = createClient();
   const toast = useToast();
+  const { can } = usePermissions();
+  const podeEditar = can('edit_veiculos');
 
   useEffect(() => { fetchData(); }, []);
   useEffect(() => {
@@ -120,6 +123,7 @@ export default function VeiculosPage() {
       <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); openForm(r); }}><Pencil size={14} /></Button>
     )},
   ];
+  const visibleColumns = podeEditar ? columns : columns.filter((c) => c.key !== 'acoes');
 
   return (
     <div className="space-y-4">
@@ -128,7 +132,7 @@ export default function VeiculosPage() {
           <h1 className="text-2xl font-bold text-slate-900">Veículos</h1>
           <p className="text-slate-500 text-sm">{veiculos.length} veículo(s) cadastrado(s)</p>
         </div>
-        <Button onClick={() => openForm()}><Plus size={16} /> Novo Veículo</Button>
+        {podeEditar && <Button onClick={() => openForm()}><Plus size={16} /> Novo Veículo</Button>}
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-100">
@@ -137,7 +141,7 @@ export default function VeiculosPage() {
             value={search} onChange={(e) => setSearch(e.target.value)}
             className="w-full max-w-md px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" />
         </div>
-        <DataTable columns={columns} data={filtered} keyField="id" loading={loading}
+        <DataTable columns={visibleColumns} data={filtered} keyField="id" loading={loading}
           emptyMessage="Nenhum veículo cadastrado." />
       </div>
 

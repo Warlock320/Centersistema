@@ -77,8 +77,15 @@ export default function ContasPagarPage() {
 
   const supabase = createClient();
   const toast = useToast();
-  const { can } = usePermissions();
+  const { can, roles } = usePermissions();
   const podePagar = can('edit_financeiro');
+  const podeAprovar = can('approve_contas_pagar');
+  const isAdmin = roles.includes('admin');
+
+  // Regra de aprovação: ≤ R$500 lança direto (aprovado); acima fica pendente de aprovação.
+  const LIMITE_DIRETO = 500;
+  const LIMITE_ADMIN = 5000;
+  const statusPorValor = (v: number): 'aprovado' | 'pendente' => (v <= LIMITE_DIRETO ? 'aprovado' : 'pendente');
 
   useEffect(() => { fetchAll(); }, []);
 
@@ -164,12 +171,13 @@ export default function ContasPagarPage() {
       });
     } else if (tipo === 'prazo') {
       await supabase.from('contas_pagar').insert({
-        ...comum, valor: fValor, data_vencimento: fVencimento || fPagamento, status: 'pendente',
+        ...comum, valor: fValor, data_vencimento: fVencimento || fPagamento, status: statusPorValor(fValor),
       });
     } else if (tipo === 'parcelado') {
       const parcelas = Math.max(2, parseInt(fParcelas) || 2);
       const grupo = crypto.randomUUID();
       const valorParcela = parseFloat((fValor / parcelas).toFixed(2));
+      const stParcela = statusPorValor(valorParcela);
       const base = new Date(fVencimento || new Date().toISOString().split('T')[0]);
       const rows = Array.from({ length: parcelas }, (_, i) => {
         const venc = new Date(base);
@@ -177,7 +185,7 @@ export default function ContasPagarPage() {
         return {
           ...comum, descricao: `${comum.descricao} (${i + 1}/${parcelas})`,
           valor: valorParcela, data_vencimento: venc.toISOString().split('T')[0],
-          status: 'pendente' as const, numero_parcela: i + 1, total_parcelas: parcelas, grupo_parcelas: grupo,
+          status: stParcela, numero_parcela: i + 1, total_parcelas: parcelas, grupo_parcelas: grupo,
         };
       });
       await supabase.from('contas_pagar').insert(rows);
@@ -186,13 +194,14 @@ export default function ContasPagarPage() {
       const meses = Math.max(1, parseInt(fMeses) || 12);
       const dia = Math.min(28, Math.max(1, parseInt(fDiaVenc) || 10));
       const grupo = crypto.randomUUID();
+      const stRec = statusPorValor(fValor);
       const hoje = new Date();
       const rows = Array.from({ length: meses }, (_, i) => {
         const venc = new Date(hoje.getFullYear(), hoje.getMonth() + i, dia);
         return {
           ...comum, descricao: `${comum.descricao} (recorrente)`,
           valor: fValor, data_vencimento: venc.toISOString().split('T')[0],
-          status: 'pendente' as const, grupo_parcelas: grupo,
+          status: stRec, grupo_parcelas: grupo,
         };
       });
       await supabase.from('contas_pagar').insert(rows);
@@ -233,6 +242,21 @@ export default function ContasPagarPage() {
     setActing(false);
     setShowCancel(false);
     setSelected(null);
+    fetchAll();
+  }
+
+  // Aprovação de despesa (acima de R$5.000 exige admin)
+  async function handleAprovar(c: ContaPagar) {
+    if (Number(c.valor) > LIMITE_ADMIN && !isAdmin) {
+      toast.error(`Despesas acima de ${formatBRL(LIMITE_ADMIN)} só podem ser aprovadas por um Administrador.`);
+      return;
+    }
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase.from('contas_pagar')
+      .update({ status: 'aprovado', aprovado_por: user?.id || null, updated_at: new Date().toISOString() })
+      .eq('id', c.id);
+    if (error) toast.error('Erro ao aprovar: ' + error.message);
+    else toast.success('Despesa aprovada!');
     fetchAll();
   }
 
@@ -344,17 +368,35 @@ export default function ContasPagarPage() {
                         </span>
                       </td>
                       <td className="px-6 py-3">
-                        {(c.status === 'pendente' || c.status === 'aprovado') && podePagar && (
-                          <div className="flex gap-1 justify-end">
-                            <Button variant="success" size="sm" onClick={() => openBaixa(c)}>
-                              <CheckCircle size={13} /> Pagar
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => openEditar(c)} title="Editar">
-                              <Pencil size={13} />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => { setSelected(c); setShowCancel(true); }}>
-                              <XCircle size={13} />
-                            </Button>
+                        {(c.status === 'pendente' || c.status === 'aprovado') && (podePagar || podeAprovar) && (
+                          <div className="flex gap-1 justify-end items-center">
+                            {/* Pendente: precisa aprovar antes de pagar */}
+                            {c.status === 'pendente' && podeAprovar && (
+                              <Button variant="primary" size="sm" onClick={() => handleAprovar(c)}
+                                title={Number(c.valor) > LIMITE_ADMIN && !isAdmin ? 'Acima de R$5.000 — exige Administrador' : 'Aprovar'}
+                                disabled={Number(c.valor) > LIMITE_ADMIN && !isAdmin}>
+                                <CheckCircle size={13} /> Aprovar
+                              </Button>
+                            )}
+                            {c.status === 'pendente' && !podeAprovar && (
+                              <span className="text-xs text-amber-600">aguardando aprovação</span>
+                            )}
+                            {/* Pagar só quando aprovado */}
+                            {c.status === 'aprovado' && podePagar && (
+                              <Button variant="success" size="sm" onClick={() => openBaixa(c)}>
+                                <CheckCircle size={13} /> Pagar
+                              </Button>
+                            )}
+                            {podePagar && (
+                              <Button variant="ghost" size="sm" onClick={() => openEditar(c)} title="Editar">
+                                <Pencil size={13} />
+                              </Button>
+                            )}
+                            {podePagar && (
+                              <Button variant="ghost" size="sm" onClick={() => { setSelected(c); setShowCancel(true); }}>
+                                <XCircle size={13} />
+                              </Button>
+                            )}
                           </div>
                         )}
                         {c.status === 'pago' && c.data_pagamento && (
@@ -411,6 +453,17 @@ export default function ContasPagarPage() {
 
           <Input label="Descrição *" value={fDescricao} onChange={(e) => setFDescricao(e.target.value)}
             placeholder="Ex: Conta de água / Boleto fornecedor X" required />
+
+          {/* Aviso do fluxo de aprovação (não se aplica a lançamento à vista, que já é pago) */}
+          {!editandoId && tipo !== 'avista' && fValor > 0 && (
+            <div className={`text-xs rounded-lg p-2 ${fValor <= LIMITE_DIRETO ? 'bg-green-50 text-green-700' : fValor > LIMITE_ADMIN ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
+              {fValor <= LIMITE_DIRETO
+                ? `Até ${formatBRL(LIMITE_DIRETO)}: lançamento direto (já entra aprovado).`
+                : fValor > LIMITE_ADMIN
+                  ? `Acima de ${formatBRL(LIMITE_ADMIN)}: fica pendente e só um Administrador pode aprovar.`
+                  : `Acima de ${formatBRL(LIMITE_DIRETO)}: fica pendente de aprovação antes do pagamento.`}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <Input label={tipo === 'parcelado' ? 'Valor Total (R$) *' : 'Valor (R$) *'} inputMode="numeric"

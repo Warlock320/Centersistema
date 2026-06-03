@@ -17,6 +17,17 @@ Execute os scripts SQL **na ordem exata** abaixo, no **SQL Editor** do seu proje
 | 6 | `v3_financeiro.sql` | **Módulo financeiro**: fornecedores, plano de contas, centros de custo, contas bancárias, contas a pagar/receber, régua de cobrança, views e RPCs financeiras |
 | 7 | `v4_permissoes.sql` | **Papéis múltiplos** (`roles[]`): migra papel único → array, atualiza setup e convite |
 | 8 | `v5_permissoes_config.sql` | **Permissões editáveis por papel**: tabela `permissoes_papel` + RPC de salvar |
+| 9 | `v6_cadastros.sql` | Melhorias de cadastros (categorias, vínculos, busca) |
+| 10 | `v7_precos_estoque.sql` | Tabelas de preço por produto e ajustes de estoque |
+| 11 | `v8_endereco_numero.sql` | Campo `numero` no endereço dos clientes |
+| 12 | `v9_financeiro_fundacao.sql` | Fundação financeira: `unidade_id` (CNPJs) em contas a pagar/receber |
+| 13 | `v10_caixa.sql` | **Caixa diário** (versão inicial): `caixas`, `movimentos_caixa`, `fechar_caixa` |
+| 14 | `v11_orcamento.sql` | Prazo, observações interna/externa e melhorias de orçamento |
+| 15 | `v12_ordem_servico.sql` | **Ordem de Serviço** + veículos |
+| 16 | `v13_papel_caixa.sql` | Papel **Operador de Caixa** nos CHECKs de usuários/convites/permissões |
+| 17 | `v14_caixa_pro.sql` | **Caixa profissional**: estados (aberto→em conferência→encerrado), sangria/suprimento/recebimento tipados, reabertura auditada, cancelamento sem exclusão, RPCs e flags de **conciliação bancária** |
+| 18 | `v15_crediario.sql` | **Crediário**: limite/status/RG/celular no cliente, status `pago_parcial`, `aprovacoes_credito`, views `v_credito_cliente`/`v_parcelas_cliente` (limite, inadimplência, score) e RPC `receber_parcela` (motor único de recebimento, parcial + caixa) |
+| 19 | `v16_auditoria.sql` | **Auditoria global** (`audit_log` + trigger genérico em todas as tabelas, `is_admin()`, RLS só admin) + correções de fluxo: `v_saldo_bancario`/`v_fluxo_caixa` consideram `pago_parcial` e passam a usar `security_invoker` (isolamento por empresa) |
 
 > ⚠️ **A ordem importa.** Cada script depende dos anteriores (funções, tabelas e colunas).
 > Os scripts são idempotentes (`IF NOT EXISTS` / `CREATE OR REPLACE`) — podem ser reexecutados sem erro.

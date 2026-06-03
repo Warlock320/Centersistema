@@ -12,7 +12,7 @@ import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
 import { Plus, CheckCircle, XCircle, CreditCard, Banknote, Smartphone, Landmark } from 'lucide-react';
 import type {
   ContaReceber, ContaReceberStatus, Cliente, PlanoContas,
-  ContaBancaria, Unidade, FormaPagamento,
+  ContaBancaria, Unidade, FormaPagamento, CreditoCliente,
 } from '@/types/database.types';
 
 function formatBRL(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
@@ -32,8 +32,12 @@ const A_VISTA: FormaPagamento[] = ['pix', 'dinheiro', 'debito', 'credito_vista']
 
 const STATUS_COLORS: Record<ContaReceberStatus, string> = {
   pendente: 'bg-yellow-100 text-yellow-700',
+  pago_parcial: 'bg-orange-100 text-orange-700',
   pago: 'bg-green-100 text-green-700',
   cancelado: 'bg-slate-100 text-slate-500',
+};
+const STATUS_LABEL: Record<ContaReceberStatus, string> = {
+  pendente: 'A receber', pago_parcial: 'Parcial', pago: 'Recebido', cancelado: 'Cancelado',
 };
 
 export default function ContasReceberPage() {
@@ -66,9 +70,18 @@ export default function ContasReceberPage() {
   const [vVencimento, setVVencimento] = useState('');
   const [vDescricao, setVDescricao] = useState('');
 
-  // Baixa
+  // Baixa / Recebimento (suporta parcial)
   const [baixaData, setBaixaData] = useState(new Date().toISOString().split('T')[0]);
   const [baixaBanco, setBaixaBanco] = useState('');
+  const [baixaValor, setBaixaValor] = useState(0);
+  const [baixaForma, setBaixaForma] = useState<FormaPagamento>('pix');
+
+  // Validação de limite + aprovação de gestor (venda no crediário)
+  const [showAprov, setShowAprov] = useState(false);
+  const [aprovTipo, setAprovTipo] = useState<'acima_limite' | 'inadimplente'>('acima_limite');
+  const [aprovMsg, setAprovMsg] = useState('');
+  const [aprovEmail, setAprovEmail] = useState('');
+  const [aprovSenha, setAprovSenha] = useState('');
 
   const supabase = createClient();
   const toast = useToast();
@@ -102,9 +115,37 @@ export default function ContasReceberPage() {
     setShowVenda(true);
   }
 
+  // Valida limite/status do cliente antes de uma venda no crediário.
+  // Retorna null se ok; ou { tipo, msg } se precisa de aprovação de gestor.
+  async function validarCrediario(): Promise<{ tipo: 'acima_limite' | 'inadimplente'; msg: string } | null> {
+    if (vForma !== 'credito_parcelado') return null;       // só crediário valida limite
+    if (!vCliente) return null;                            // sem cliente vinculado, não há controle de limite
+    const { data } = await supabase.from('v_credito_cliente').select('*').eq('cliente_id', vCliente).single();
+    const cred = data as CreditoCliente | null;
+    if (!cred) return null;
+    if (cred.status_efetivo === 'bloqueado' || cred.status_efetivo === 'inadimplente') {
+      return { tipo: 'inadimplente', msg: `Cliente ${cred.status_efetivo === 'bloqueado' ? 'BLOQUEADO' : 'INADIMPLENTE'}. Vencido: ${formatBRL(cred.valor_vencido)} · ${cred.parcelas_vencidas} parcela(s).` };
+    }
+    if (vValor > Number(cred.limite_disponivel)) {
+      return { tipo: 'acima_limite', msg: `Limite ${formatBRL(cred.limite_credito)} · utilizado ${formatBRL(cred.limite_utilizado)} · disponível ${formatBRL(cred.limite_disponivel)}. Esta venda de ${formatBRL(vValor)} ultrapassa o limite.` };
+    }
+    return null;
+  }
+
   async function handleRegistrarVenda(e: FormEvent) {
     e.preventDefault();
-    if (vValor <= 0) { alert('Informe o valor da venda.'); return; }
+    if (vValor <= 0) { toast.error('Informe o valor da venda.'); return; }
+    // Validação de crediário: pode exigir aprovação de gestor
+    const bloqueio = await validarCrediario();
+    if (bloqueio) {
+      setAprovTipo(bloqueio.tipo); setAprovMsg(bloqueio.msg);
+      setAprovEmail(''); setAprovSenha(''); setShowAprov(true);
+      return;
+    }
+    await executarVenda();
+  }
+
+  async function executarVenda() {
     setSaving(true);
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -162,23 +203,51 @@ export default function ContasReceberPage() {
     fetchAll();
   }
 
+  // Override de gestor: autoriza a venda acima do limite / inadimplente e segue com a venda
+  async function handleAprovarVenda(e: FormEvent) {
+    e.preventDefault();
+    if (!aprovEmail || !aprovSenha) { toast.error('Informe e-mail e senha do gestor.'); return; }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/crediario/autorizar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clienteId: vCliente, tipo: aprovTipo, valor: vValor,
+          motivo: aprovMsg, gestorEmail: aprovEmail, gestorPassword: aprovSenha,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) { toast.error(json.error || 'Erro na autorização.'); setSaving(false); return; }
+      setShowAprov(false);
+      toast.success('Venda autorizada pelo gestor!');
+      await executarVenda(); // segue com a venda já liberada
+    } catch {
+      toast.error('Falha de conexão na autorização.');
+      setSaving(false);
+    }
+  }
+
   function openBaixa(c: ContaReceber) {
     setSelected(c);
     setBaixaData(new Date().toISOString().split('T')[0]);
     setBaixaBanco('');
+    setBaixaValor(Number(c.valor) - Number(c.valor_pago || 0)); // saldo restante
+    setBaixaForma((c.forma_pagamento && c.forma_pagamento !== 'credito_parcelado' ? c.forma_pagamento : 'pix'));
     setShowBaixa(true);
   }
 
   async function handleBaixa(e: FormEvent) {
     e.preventDefault();
     if (!selected) return;
+    if (baixaValor <= 0) { toast.error('Informe o valor recebido.'); return; }
     setActing(true);
-    const { error } = await supabase.rpc('baixar_conta_receber', {
-      p_id: selected.id,
-      p_data_pagamento: baixaData,
-      p_valor_pago: selected.valor,
-      p_juros: 0,
-      p_desconto: 0,
+    // Motor único de recebimento (parcial). Sem caixa aqui — entra no banco selecionado.
+    const { error } = await supabase.rpc('receber_parcela', {
+      p_conta_id: selected.id,
+      p_valor: baixaValor,
+      p_forma: baixaForma,
+      p_data: baixaData,
+      p_caixa_id: null,
       p_conta_bancaria: baixaBanco || null,
     });
     setActing(false);
@@ -207,8 +276,10 @@ export default function ContasReceberPage() {
   });
 
   const totais = filtered.reduce((acc, c) => {
-    if (c.status === 'pago') acc.recebido += Number(c.valor_pago || c.valor);
-    if (c.status === 'pendente') acc.aReceber += c.valor;
+    acc.recebido += Number(c.valor_pago || 0);                          // tudo que já entrou (inclui parcial)
+    if (c.status === 'pendente' || c.status === 'pago_parcial') {
+      acc.aReceber += Number(c.valor) - Number(c.valor_pago || 0);      // saldo em aberto
+    }
     return acc;
   }, { recebido: 0, aReceber: 0 });
 
@@ -237,6 +308,7 @@ export default function ContasReceberPage() {
             className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500">
             <option value="">Todos os status</option>
             <option value="pago">Recebido</option>
+            <option value="pago_parcial">Parcial</option>
             <option value="pendente">A receber</option>
             <option value="cancelado">Cancelado</option>
           </select>
@@ -264,7 +336,9 @@ export default function ContasReceberPage() {
               <tbody>
                 {filtered.map((c) => {
                   const Icon = c.forma_pagamento ? FORMA_ICON[c.forma_pagamento] : null;
-                  const isVencido = c.status === 'pendente' && new Date(c.data_vencimento) < new Date();
+                  const emAberto = c.status === 'pendente' || c.status === 'pago_parcial';
+                  const isVencido = emAberto && new Date(c.data_vencimento) < new Date();
+                  const saldo = Number(c.valor) - Number(c.valor_pago || 0);
                   return (
                     <tr key={c.id} className="border-b border-slate-50 hover:bg-slate-50">
                       <td className="px-6 py-3">
@@ -282,14 +356,17 @@ export default function ContasReceberPage() {
                           ? new Date(c.data_pagamento).toLocaleDateString('pt-BR')
                           : new Date(c.data_vencimento).toLocaleDateString('pt-BR')}
                       </td>
-                      <td className="px-6 py-3 font-bold text-slate-900">{formatBRL(c.valor)}</td>
+                      <td className="px-6 py-3 font-bold text-slate-900">
+                        {formatBRL(c.valor)}
+                        {c.status === 'pago_parcial' && <span className="block text-xs font-normal text-orange-600">saldo {formatBRL(saldo)}</span>}
+                      </td>
                       <td className="px-6 py-3">
                         <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[c.status]}`}>
-                          {c.status === 'pago' ? 'Recebido' : c.status === 'pendente' ? 'A receber' : 'Cancelado'}
+                          {STATUS_LABEL[c.status]}
                         </span>
                       </td>
                       <td className="px-6 py-3">
-                        {c.status === 'pendente' && (
+                        {emAberto && (
                           <div className="flex gap-1 justify-end">
                             <Button variant="success" size="sm" onClick={() => openBaixa(c)}>
                               <CheckCircle size={13} /> Receber
@@ -370,9 +447,28 @@ export default function ContasReceberPage() {
       {/* Baixa Modal */}
       <Modal open={showBaixa} onClose={() => setShowBaixa(false)} title="Confirmar Recebimento" size="sm">
         <form onSubmit={handleBaixa} className="space-y-4">
-          <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm">
-            {selected?.descricao}<br />Valor: <strong>{formatBRL(selected?.valor || 0)}</strong>
-          </div>
+          {selected && (() => {
+            const saldo = Number(selected.valor) - Number(selected.valor_pago || 0);
+            return (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm space-y-0.5">
+                <div>{selected.descricao}</div>
+                <div className="flex justify-between"><span className="text-slate-500">Valor da parcela</span><span>{formatBRL(Number(selected.valor))}</span></div>
+                {Number(selected.valor_pago || 0) > 0 && (
+                  <div className="flex justify-between"><span className="text-slate-500">Já recebido</span><span>{formatBRL(Number(selected.valor_pago || 0))}</span></div>
+                )}
+                <div className="flex justify-between font-bold border-t border-green-200 pt-0.5"><span>Saldo</span><span>{formatBRL(saldo)}</span></div>
+              </div>
+            );
+          })()}
+          <Input label="Valor recebido R$ *" inputMode="numeric"
+            value={formatMoedaInput(baixaValor)} onChange={(e) => setBaixaValor(parseMoedaInput(e.target.value))} placeholder="0,00" required />
+          {selected && baixaValor > 0 && baixaValor < (Number(selected.valor) - Number(selected.valor_pago || 0)) && (
+            <div className="text-xs text-orange-600 bg-orange-50 rounded-lg p-2">
+              Recebimento parcial — saldo restante: {formatBRL(Number(selected.valor) - Number(selected.valor_pago || 0) - baixaValor)} (parcela fica como “Parcial”).
+            </div>
+          )}
+          <Select label="Forma" value={baixaForma} onChange={(e) => setBaixaForma(e.target.value as FormaPagamento)}
+            options={formaOptions.filter((f) => f.value !== 'credito_parcelado')} />
           <Input label="Data do Recebimento *" type="date" value={baixaData} onChange={(e) => setBaixaData(e.target.value)} required />
           <Select label="Conta de Destino" value={baixaBanco} onChange={(e) => setBaixaBanco(e.target.value)}
             options={bancos.map((b) => ({ value: b.id, label: `${b.nome}${b.saldo_atual !== undefined ? ` — ${formatBRL(b.saldo_atual)}` : ''}` }))} />
@@ -387,6 +483,21 @@ export default function ContasReceberPage() {
         message="Este recebimento será cancelado."
         confirmLabel="Confirmar" loading={acting}
         onConfirm={handleCancel} onCancel={() => setShowCancel(false)} />
+
+      {/* Aprovação de venda no crediário (override de gestor) */}
+      <Modal open={showAprov} onClose={() => setShowAprov(false)}
+        title={aprovTipo === 'inadimplente' ? 'Cliente com pendências' : 'Venda acima do limite'} size="sm">
+        <form onSubmit={handleAprovarVenda} className="space-y-4">
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{aprovMsg}</div>
+          <p className="text-xs text-slate-500">O operador não pode liberar. Um gestor/admin precisa autorizar — fica registrado quem autorizou (auditoria).</p>
+          <Input label="E-mail do gestor *" type="email" value={aprovEmail} onChange={(e) => setAprovEmail(e.target.value)} placeholder="gestor@empresa.com" autoComplete="off" required />
+          <Input label="Senha do gestor *" type="password" value={aprovSenha} onChange={(e) => setAprovSenha(e.target.value)} placeholder="••••••" autoComplete="off" required />
+          <div className="flex gap-3">
+            <Button type="submit" loading={saving} className="flex-1"><CheckCircle size={14} /> Autorizar e vender</Button>
+            <Button type="button" variant="secondary" onClick={() => setShowAprov(false)}>Cancelar venda</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
