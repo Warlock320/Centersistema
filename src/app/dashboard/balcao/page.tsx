@@ -16,7 +16,7 @@ import type { Comanda, ComandaItem, Produto } from '@/types/database.types';
 
 function brl(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 
-type ProdBusca = Pick<Produto, 'id' | 'codigo' | 'ref' | 'nome' | 'aplicacao' | 'localizacao' | 'estoque' | 'preco' | 'codigos_auxiliares'>;
+type ProdBusca = Pick<Produto, 'id' | 'codigo' | 'ref' | 'nome' | 'aplicacoes' | 'localizacao' | 'estoque' | 'preco' | 'codigos_auxiliares'>;
 
 export default function BalcaoPage() {
   const supabase = createClient();
@@ -56,7 +56,7 @@ export default function BalcaoPage() {
       supabase.from('comandas').select('*, clientes(nome)').eq('status', 'aberta').order('created_at', { ascending: false }),
       supabase.from('comandas').select('*, clientes(nome)').eq('status', 'aguardando_caixa').order('created_at', { ascending: false }),
       supabase.from('clientes').select('id, nome, telefone').eq('ativo', true).order('nome').limit(500),
-      supabase.from('produtos').select('id, codigo, ref, nome, aplicacao, localizacao, estoque, preco, codigos_auxiliares').eq('ativo', true).order('nome').limit(2000),
+      supabase.from('produtos').select('id, codigo, ref, nome, aplicacoes, localizacao, estoque, preco, codigos_auxiliares').eq('ativo', true).order('nome').limit(2000),
     ]);
     setAbertas((ab.data as Comanda[]) || []);
     setPendentes((pe.data as Comanda[]) || []);
@@ -158,7 +158,7 @@ export default function BalcaoPage() {
     (p.nome || '').toLowerCase().includes(q) ||
     (p.codigo || '').toLowerCase().includes(q) ||
     (p.ref || '').toLowerCase().includes(q) ||
-    (p.aplicacao || '').toLowerCase().includes(q) ||
+    (p.aplicacoes || []).some((a) => a.toLowerCase().includes(q)) ||
     (p.codigos_auxiliares || []).some((c) => c.toLowerCase().includes(q))
   ).slice(0, 40);
 
@@ -293,7 +293,7 @@ export default function BalcaoPage() {
                       <p className="text-xs text-slate-400 flex items-center gap-2 flex-wrap">
                         {p.codigo && <span>cód {p.codigo}</span>}
                         {p.ref && <span>ref {p.ref}</span>}
-                        {p.aplicacao && <span>· {p.aplicacao}</span>}
+                        {(p.aplicacoes || []).length > 0 && <span>· {p.aplicacoes.join(', ')}</span>}
                         {p.localizacao && <span className="flex items-center gap-0.5"><MapPin size={10} /> {p.localizacao}</span>}
                       </p>
                     </div>

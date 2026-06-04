@@ -102,7 +102,8 @@ export interface Produto {
   categoria: string | null;
   fornecedor_id: string | null;
   localizacao: string | null;
-  aplicacao: string | null;
+  aplicacao: string | null;       // legado (campo único) — mantido por compat
+  aplicacoes: string[];           // lista de aplicações (vários veículos/anos)
   codigos_auxiliares: string[];
   preco: number;
   custo: number;

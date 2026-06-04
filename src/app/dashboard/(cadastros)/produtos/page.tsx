@@ -17,7 +17,7 @@ import { buscarCNPJ, isCNPJ, formatCpfCnpj } from '@/lib/brasilapi';
 
 const EMPTY: Partial<Produto> = {
   codigo: '', ref: '', nome: '', categoria: null, fornecedor_id: null,
-  localizacao: '', aplicacao: '', codigos_auxiliares: [], preco: 0, custo: 0, estoque: 0, estoque_minimo: 0,
+  localizacao: '', aplicacoes: [], codigos_auxiliares: [], preco: 0, custo: 0, estoque: 0, estoque_minimo: 0,
 };
 
 export default function ProdutosPage() {
@@ -39,6 +39,7 @@ export default function ProdutosPage() {
   const [selected, setSelected] = useState<Produto | null>(null);
   const [form, setForm] = useState<Partial<Produto>>(EMPTY);
   const [codigosAux, setCodigosAux] = useState<string[]>([]);
+  const [aplicacoes, setAplicacoes] = useState<string[]>([]);
   const [saveMsg, setSaveMsg] = useState('');
 
   const [novaCategoria, setNovaCategoria] = useState('');
@@ -152,6 +153,7 @@ export default function ProdutosPage() {
     setSelected(produto || null);
     setForm(produto ? { ...produto } : EMPTY);
     setCodigosAux(produto?.codigos_auxiliares || []);
+    setAplicacoes(produto?.aplicacoes || []);
     setSaveMsg('');
     setOverrides({});
     if (produto) {
@@ -173,7 +175,7 @@ export default function ProdutosPage() {
       categoria: form.categoria || null,
       fornecedor_id: form.fornecedor_id || null,
       localizacao: form.localizacao || null,
-      aplicacao: form.aplicacao || null,
+      aplicacoes: aplicacoes.map((a) => a.trim()).filter(Boolean),
       codigos_auxiliares: codigosAux.map((c) => c.trim()).filter(Boolean),
       preco: Number(form.preco),
       custo: Number(form.custo),
@@ -284,6 +286,10 @@ export default function ProdutosPage() {
   const setCodAux = (i: number, v: string) => setCodigosAux((p) => p.map((c, j) => (j === i ? v : c)));
   const removeCodAux = (i: number) => setCodigosAux((p) => p.filter((_, j) => j !== i));
 
+  const addAplic = () => setAplicacoes((p) => [...p, '']);
+  const setAplic = (i: number, v: string) => setAplicacoes((p) => p.map((c, j) => (j === i ? v : c)));
+  const removeAplic = (i: number) => setAplicacoes((p) => p.filter((_, j) => j !== i));
+
   const abaixoMinimo = produtos.filter((p) => p.estoque_minimo > 0 && p.estoque < p.estoque_minimo).length;
 
   const columns: Column<Produto>[] = [
@@ -381,7 +387,6 @@ export default function ProdutosPage() {
                   required placeholder="EX: FILTRO DE ÓLEO TOYOTA COROLLA" />
               </div>
               <Input label="Localização" value={form.localizacao || ''} onChange={set('localizacao')} placeholder="Ex: Prateleira A-12" />
-              <Input label="Aplicação" value={form.aplicacao || ''} onChange={set('aplicacao')} placeholder="Ex: Gol G5, Onix 1.0, universal" />
               <Combobox
                 label="Categoria"
                 value={form.categoria || ''}
@@ -392,6 +397,33 @@ export default function ProdutosPage() {
                 onCreate={criarCategoriaRapida}
               />
             </div>
+          </div>
+
+          {/* Aplicações (vários veículos/anos) */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Aplicações</p>
+              <Button type="button" variant="ghost" size="sm" onClick={addAplic}>
+                <Plus size={13} /> Adicionar aplicação
+              </Button>
+            </div>
+            {aplicacoes.length === 0 ? (
+              <p className="text-sm text-slate-400">Nenhuma aplicação. Ex: &quot;Gol G5 2008-2012&quot;, &quot;Onix 1.0 2013+&quot;, &quot;Universal&quot;.</p>
+            ) : (
+              <div className="space-y-2">
+                {aplicacoes.map((ap, i) => (
+                  <div key={i} className="flex gap-2">
+                    <input value={ap} onChange={(e) => setAplic(i, e.target.value)}
+                      placeholder={`Aplicação ${i + 1} (veículo / ano)`}
+                      className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    <button type="button" onClick={() => removeAplic(i)}
+                      className="px-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Códigos auxiliares */}
