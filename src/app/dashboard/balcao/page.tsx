@@ -154,13 +154,14 @@ export default function BalcaoPage() {
 
   const total = itens.reduce((s, i) => s + Number(i.total), 0);
   const q = busca.toLowerCase().trim();
-  const prodFiltrados = !q ? produtos.slice(0, 30) : produtos.filter((p) =>
+  // Mostra TODO o catálogo e vai filtrando ao vivo conforme digita
+  const prodFiltrados = !q ? produtos : produtos.filter((p) =>
     (p.nome || '').toLowerCase().includes(q) ||
     (p.codigo || '').toLowerCase().includes(q) ||
     (p.ref || '').toLowerCase().includes(q) ||
     (p.aplicacoes || []).some((a) => a.toLowerCase().includes(q)) ||
     (p.codigos_auxiliares || []).some((c) => c.toLowerCase().includes(q))
-  ).slice(0, 40);
+  );
 
   if (!podeOperar) return <div className="py-16 text-center text-slate-400 dark:text-slate-500">Você não tem permissão para o balcão.</div>;
 
@@ -273,7 +274,7 @@ export default function BalcaoPage() {
       )}
 
       {/* Busca de produto (F7) */}
-      <Modal open={showBusca} onClose={() => setShowBusca(false)} title="Buscar produto (F7)" size="lg">
+      <Modal open={showBusca} onClose={() => setShowBusca(false)} title="Buscar produto (F7)" size="xl">
         <div className="space-y-3">
           <div className="relative">
             <Search size={16} className="absolute left-3 top-3 text-slate-400" />
@@ -282,7 +283,8 @@ export default function BalcaoPage() {
               className="w-full pl-9 pr-9 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" />
             {busca && <button type="button" onClick={() => setBusca('')} className="absolute right-3 top-3 text-slate-400"><X size={14} /></button>}
           </div>
-          <div className="max-h-96 overflow-y-auto divide-y divide-slate-50 border border-slate-100 rounded-lg">
+          <p className="text-xs text-slate-400">{prodFiltrados.length} produto(s){busca ? ` para "${busca}"` : ' no catálogo'}</p>
+          <div className="max-h-[65vh] overflow-y-auto divide-y divide-slate-50 border border-slate-100 rounded-lg">
             {prodFiltrados.length === 0 ? <p className="px-4 py-8 text-center text-slate-400 text-sm">Nenhum produto encontrado.</p> :
               prodFiltrados.map((p) => {
                 const semEstoque = Number(p.estoque) <= 0;
