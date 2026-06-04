@@ -42,7 +42,7 @@ export type Permission =
   | 'view_pedidos' | 'edit_pedidos'
   | 'view_os' | 'edit_os'
   | 'view_nfe'
-  | 'registrar_venda'
+  | 'registrar_venda' | 'operar_balcao'
   | 'view_financeiro' | 'edit_financeiro' | 'approve_contas_pagar' | 'operar_caixa' | 'gerir_caixa'
   | 'gerir_crediario' | 'aprovar_credito'
   | 'view_relatorios'
@@ -60,7 +60,7 @@ const ALL_PERMISSIONS: Permission[] = [
   'view_pedidos', 'edit_pedidos',
   'view_os', 'edit_os',
   'view_nfe',
-  'registrar_venda',
+  'registrar_venda', 'operar_balcao',
   'view_financeiro', 'edit_financeiro', 'approve_contas_pagar', 'operar_caixa', 'gerir_caixa',
   'gerir_crediario', 'aprovar_credito',
   'view_relatorios',
@@ -83,7 +83,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'view_pedidos', 'edit_pedidos',
     'view_os', 'edit_os',
     'view_nfe',
-    'registrar_venda',
+    'registrar_venda', 'operar_balcao',
     'view_financeiro',            // só visualiza o financeiro
     'approve_contas_pagar', 'operar_caixa',
     'gerir_crediario', 'aprovar_credito',
@@ -100,7 +100,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'view_pedidos',
     'view_os',
     'view_nfe',
-    'registrar_venda',
+    'registrar_venda', 'operar_balcao',
     'view_financeiro', 'edit_financeiro', 'approve_contas_pagar', 'operar_caixa', 'gerir_caixa',
     'gerir_crediario', 'aprovar_credito',
     'view_relatorios',
@@ -116,7 +116,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'view_pedidos', 'edit_pedidos',
     'view_os', 'edit_os',
     'view_nfe',
-    'registrar_venda',
+    'registrar_venda', 'operar_balcao',
     'operar_caixa',
   ],
 
@@ -126,7 +126,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'view_clientes', 'edit_clientes',
     'view_produtos', 'view_estoque',
     'view_veiculos',
-    'registrar_venda',
+    'registrar_venda', 'operar_balcao',
     'operar_caixa',
   ],
 };
@@ -181,7 +181,7 @@ export const PERMISSION_GROUPS: { modulo: string; permissions: { key: Permission
   { modulo: 'Pedidos', permissions: [{ key: 'view_pedidos', label: 'Visualizar' }, { key: 'edit_pedidos', label: 'Criar / Editar' }] },
   { modulo: 'Ordem de Serviço', permissions: [{ key: 'view_os', label: 'Visualizar' }, { key: 'edit_os', label: 'Criar / Editar / Faturar' }] },
   { modulo: 'Notas Fiscais', permissions: [{ key: 'view_nfe', label: 'Importar NF-e' }] },
-  { modulo: 'Vendas / Caixa', permissions: [{ key: 'registrar_venda', label: 'Registrar venda (Contas a Receber)' }, { key: 'operar_caixa', label: 'Abrir e operar o caixa' }, { key: 'gerir_caixa', label: 'Conferir / encerrar / reabrir caixa' }] },
+  { modulo: 'Vendas / Caixa', permissions: [{ key: 'registrar_venda', label: 'Registrar venda (Contas a Receber)' }, { key: 'operar_balcao', label: 'Balcão: abrir/editar comandas (pré-venda)' }, { key: 'operar_caixa', label: 'Abrir e operar o caixa' }, { key: 'gerir_caixa', label: 'Conferir / encerrar / reabrir caixa' }] },
   { modulo: 'Financeiro', permissions: [{ key: 'view_financeiro', label: 'Visualizar financeiro' }, { key: 'edit_financeiro', label: 'Pagar / Gerenciar bancos' }, { key: 'approve_contas_pagar', label: 'Aprovar contas a pagar' }] },
   { modulo: 'Crediário', permissions: [{ key: 'gerir_crediario', label: 'Definir limite e status do cliente' }, { key: 'aprovar_credito', label: 'Liberar venda acima do limite / inadimplente' }] },
   { modulo: 'Relatórios', permissions: [{ key: 'view_relatorios', label: 'Visualizar relatórios' }] },

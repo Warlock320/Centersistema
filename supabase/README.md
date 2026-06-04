@@ -28,6 +28,7 @@ Execute os scripts SQL **na ordem exata** abaixo, no **SQL Editor** do seu proje
 | 17 | `v14_caixa_pro.sql` | **Caixa profissional**: estados (aberto→em conferência→encerrado), sangria/suprimento/recebimento tipados, reabertura auditada, cancelamento sem exclusão, RPCs e flags de **conciliação bancária** |
 | 18 | `v15_crediario.sql` | **Crediário**: limite/status/RG/celular no cliente, status `pago_parcial`, `aprovacoes_credito`, views `v_credito_cliente`/`v_parcelas_cliente` (limite, inadimplência, score) e RPC `receber_parcela` (motor único de recebimento, parcial + caixa) |
 | 19 | `v16_auditoria.sql` | **Auditoria global** (`audit_log` + trigger genérico em todas as tabelas, `is_admin()`, RLS só admin) + correções de fluxo: `v_saldo_bancario`/`v_fluxo_caixa` consideram `pago_parcial` e passam a usar `security_invoker` (isolamento por empresa) |
+| 20 | `v17_comandas.sql` | **Comanda / Pré-venda de balcão**: `aplicacao` no produto, tabelas `comandas`/`comanda_itens`, RPCs `enviar_comanda_caixa`/`faturar_comanda` (baixa estoque + financeiro + caixa, à vista e crediário)/`cancelar_comanda` |
 
 > ⚠️ **A ordem importa.** Cada script depende dos anteriores (funções, tabelas e colunas).
 > Os scripts são idempotentes (`IF NOT EXISTS` / `CREATE OR REPLACE`) — podem ser reexecutados sem erro.

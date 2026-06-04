@@ -8,7 +8,7 @@ import {
   ShoppingCart, FileInput, BarChart2, Settings, LogOut,
   Search, X, ChevronRight, Bell, Truck, Wallet,
   ArrowDownCircle, ArrowUpCircle, Landmark, Building2, Tags, Warehouse, Bike, Wrench, Scale, CreditCard,
-  FileBarChart, ShieldAlert, Menu
+  FileBarChart, ShieldAlert, Menu, Store
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Logo } from '@/components/ui/Logo';
@@ -51,6 +51,7 @@ const navSections: NavSection[] = [
   {
     label: 'COMERCIAL',
     items: [
+      { href: '/dashboard/balcao', label: 'Balcão', icon: Store, permission: 'operar_balcao' },
       { href: '/dashboard/orcamentos', label: 'Orçamentos', icon: FileText, permission: 'view_orcamentos' },
       { href: '/dashboard/aprovacoes', label: 'Aprovações', icon: CheckSquare, permission: 'approve_orcamentos' },
       { href: '/dashboard/pedidos', label: 'Pedidos', icon: ShoppingCart, permission: 'view_pedidos' },

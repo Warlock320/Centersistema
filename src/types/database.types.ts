@@ -102,6 +102,7 @@ export interface Produto {
   categoria: string | null;
   fornecedor_id: string | null;
   localizacao: string | null;
+  aplicacao: string | null;
   codigos_auxiliares: string[];
   preco: number;
   custo: number;
@@ -111,6 +112,42 @@ export interface Produto {
   created_at: string;
   updated_at: string;
   fornecedores?: { nome: string };
+}
+
+export type ComandaStatus = 'aberta' | 'aguardando_caixa' | 'faturada' | 'cancelada';
+
+export interface Comanda {
+  id: string;
+  empresa_id: string;
+  numero: number;
+  unidade_id: string | null;
+  vendedor_id: string | null;
+  cliente_id: string | null;
+  status: ComandaStatus;
+  total: number;
+  observacao: string | null;
+  caixa_id: string | null;
+  forma_pagamento: string | null;
+  faturada_em: string | null;
+  motivo_cancelamento: string | null;
+  created_at: string;
+  updated_at: string;
+  clientes?: { nome: string };
+  vendedores?: { nome: string };
+  comanda_itens?: ComandaItem[];
+}
+
+export interface ComandaItem {
+  id: string;
+  empresa_id: string;
+  comanda_id: string;
+  produto_id: string | null;
+  descricao: string;
+  quantidade: number;
+  preco_unitario: number;
+  desconto: number;
+  total: number;
+  created_at: string;
 }
 
 export interface MovimentacaoEstoque {

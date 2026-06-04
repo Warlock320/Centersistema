@@ -48,6 +48,7 @@ export default function RelatoriosPage() {
   const [formas, setFormas] = useState<{ forma: string; total: number }[]>([]);
   const [clientesRank, setClientesRank] = useState<{ nome: string; total: number }[]>([]);
   const [produtosRank, setProdutosRank] = useState<{ descricao: string; quantidade: number; total: number }[]>([]);
+  const [vendedoresRank, setVendedoresRank] = useState<{ nome: string; qtd: number; total: number }[]>([]);
   const [credito, setCredito] = useState({ concedido: 0, utilizado: 0, vencido: 0, inadimplentes: 0, scoreMedio: 0, clientes: 0 });
   const [aging, setAging] = useState<Record<string, number>>({});
   const [pedidos, setPedidos] = useState<Ped[]>([]);
@@ -60,7 +61,7 @@ export default function RelatoriosPage() {
     const fim = dataFim + 'T23:59:59';
     const fimDay = dataFim;
 
-    const [crR, cpR, pedR, credR, parcR, novosR, estoqueR] = await Promise.all([
+    const [crR, cpR, pedR, credR, parcR, novosR, estoqueR, comR] = await Promise.all([
       supabase.from('contas_receber').select('valor, valor_pago, status, data_pagamento, data_emissao, forma_pagamento, cliente_id, clientes(nome)'),
       supabase.from('contas_pagar').select('valor, valor_pago, status, data_pagamento'),
       supabase.from('pedidos').select('*, clientes(nome), pedido_itens(*)').eq('status', 'faturado').gte('created_at', ini).lte('created_at', fim).order('created_at', { ascending: false }),
@@ -68,6 +69,7 @@ export default function RelatoriosPage() {
       supabase.from('v_parcelas_cliente').select('saldo, faixa_atraso'),
       supabase.from('clientes').select('id', { count: 'exact', head: true }).gte('created_at', ini).lte('created_at', fim),
       supabase.from('v_produtos_abaixo_minimo').select('id', { count: 'exact', head: true }),
+      supabase.from('comandas').select('total, vendedor_id, usuarios:usuarios!comandas_vendedor_id_fkey(nome)').eq('status', 'faturada').gte('faturada_em', ini).lte('faturada_em', fim),
     ]);
 
     const cr = (crR.data as unknown as CR[]) || [];
@@ -145,6 +147,17 @@ export default function RelatoriosPage() {
     setFormas(Object.entries(formaMap).map(([forma, total]) => ({ forma, total })).sort((a, b) => b.total - a.total));
     setClientesRank(Object.values(cliMap).sort((a, b) => b.total - a.total).slice(0, 10));
     setProdutosRank(Object.values(prodMap).sort((a, b) => b.total - a.total).slice(0, 10));
+
+    // Vendas por vendedor (comandas faturadas no período)
+    type ComRow = { total: number; vendedor_id: string | null; usuarios?: { nome: string } };
+    const coms = (comR.data as unknown as ComRow[]) || [];
+    const vendMap: Record<string, { nome: string; qtd: number; total: number }> = {};
+    coms.forEach((c) => {
+      const k = c.vendedor_id || 'sem';
+      if (!vendMap[k]) vendMap[k] = { nome: c.usuarios?.nome || 'Sem vendedor', qtd: 0, total: 0 };
+      vendMap[k].qtd += 1; vendMap[k].total += Number(c.total);
+    });
+    setVendedoresRank(Object.values(vendMap).sort((a, b) => b.total - a.total));
     setCredito({ concedido, utilizado, vencido, inadimplentes, scoreMedio, clientes: comCredito.length });
     setAging(agingMap);
     setPedidos(peds);
@@ -351,6 +364,27 @@ export default function RelatoriosPage() {
               </div>
             </div>
           </div>
+
+          {/* Vendas por vendedor (balcão) */}
+          {vendedoresRank.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100">
+              <div className="px-6 py-4 border-b border-slate-100"><h2 className="font-semibold text-slate-900">Vendas por Vendedor (balcão)</h2></div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b border-slate-100">{['Vendedor', 'Pré-vendas', 'Total'].map((h) => <th key={h} className="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-400">{h}</th>)}</tr></thead>
+                  <tbody>
+                    {vendedoresRank.map((v, i) => (
+                      <tr key={i} className="border-b border-slate-50">
+                        <td className="px-6 py-3 font-medium text-slate-800">{v.nome}</td>
+                        <td className="px-6 py-3 text-slate-500">{v.qtd}</td>
+                        <td className="px-6 py-3 font-bold text-slate-900">{brl(v.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Pedidos faturados */}
           {pedidos.length > 0 && (

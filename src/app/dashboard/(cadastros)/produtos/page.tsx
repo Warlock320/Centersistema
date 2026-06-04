@@ -17,7 +17,7 @@ import { buscarCNPJ, isCNPJ, formatCpfCnpj } from '@/lib/brasilapi';
 
 const EMPTY: Partial<Produto> = {
   codigo: '', ref: '', nome: '', categoria: null, fornecedor_id: null,
-  localizacao: '', codigos_auxiliares: [], preco: 0, custo: 0, estoque: 0, estoque_minimo: 0,
+  localizacao: '', aplicacao: '', codigos_auxiliares: [], preco: 0, custo: 0, estoque: 0, estoque_minimo: 0,
 };
 
 export default function ProdutosPage() {
@@ -173,6 +173,7 @@ export default function ProdutosPage() {
       categoria: form.categoria || null,
       fornecedor_id: form.fornecedor_id || null,
       localizacao: form.localizacao || null,
+      aplicacao: form.aplicacao || null,
       codigos_auxiliares: codigosAux.map((c) => c.trim()).filter(Boolean),
       preco: Number(form.preco),
       custo: Number(form.custo),
@@ -380,6 +381,7 @@ export default function ProdutosPage() {
                   required placeholder="EX: FILTRO DE ÓLEO TOYOTA COROLLA" />
               </div>
               <Input label="Localização" value={form.localizacao || ''} onChange={set('localizacao')} placeholder="Ex: Prateleira A-12" />
+              <Input label="Aplicação" value={form.aplicacao || ''} onChange={set('aplicacao')} placeholder="Ex: Gol G5, Onix 1.0, universal" />
               <Combobox
                 label="Categoria"
                 value={form.categoria || ''}

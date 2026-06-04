@@ -13,9 +13,9 @@ import { usePermissions } from '@/components/PermissionsProvider';
 import {
   Plus, Lock, Unlock, ArrowDownCircle, ArrowUpCircle, RotateCcw, FileText,
   Smartphone, Banknote, CreditCard, Landmark, Wallet, Ban, CheckCircle2,
-  AlertTriangle, ArrowRightLeft, Printer,
+  AlertTriangle, ArrowRightLeft, Printer, ShoppingBag,
 } from 'lucide-react';
-import type { Caixa, MovimentoCaixa, Unidade, ReaberturaCaixa, MovimentoCategoria, ParcelaCliente, CreditoCliente } from '@/types/database.types';
+import type { Caixa, MovimentoCaixa, Unidade, ReaberturaCaixa, MovimentoCategoria, ParcelaCliente, CreditoCliente, Comanda, ComandaItem } from '@/types/database.types';
 
 function formatBRL(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 
@@ -94,6 +94,23 @@ export default function CaixaPage() {
   const [vcAprovMsg, setVcAprovMsg] = useState('');
   const [vcEmail, setVcEmail] = useState('');
   const [vcSenha, setVcSenha] = useState('');
+
+  // Receber pré-venda (comanda do balcão) pelo caixa
+  const [showPreVenda, setShowPreVenda] = useState(false);
+  const [pvNumero, setPvNumero] = useState('');
+  const [pvComanda, setPvComanda] = useState<Comanda | null>(null);
+  const [pvItens, setPvItens] = useState<ComandaItem[]>([]);
+  const [pvForma, setPvForma] = useState('dinheiro');
+  const [pvParcelas, setPvParcelas] = useState('1');
+  const [pvVenc, setPvVenc] = useState('');
+  const [pvBuscando, setPvBuscando] = useState(false);
+  const [comprovante, setComprovante] = useState<{ comanda: Comanda; itens: ComandaItem[]; forma: string; total: number } | null>(null);
+  // override crediário na pré-venda
+  const [pvAprov, setPvAprov] = useState(false);
+  const [pvAprovTipo, setPvAprovTipo] = useState<'acima_limite' | 'inadimplente'>('acima_limite');
+  const [pvAprovMsg, setPvAprovMsg] = useState('');
+  const [pvEmail, setPvEmail] = useState('');
+  const [pvSenha, setPvSenha] = useState('');
 
   // Conferência (envio)
   const [cInformado, setCInformado] = useState(0);
@@ -344,6 +361,72 @@ export default function CaixaPage() {
     }
   }
 
+  // ── Receber pré-venda (comanda do balcão) ──
+  async function buscarPreVenda() {
+    if (!pvNumero.trim()) return;
+    setPvBuscando(true);
+    const { data } = await supabase.from('comandas').select('*, clientes(nome)')
+      .eq('numero', Number(pvNumero)).eq('status', 'aguardando_caixa').maybeSingle();
+    if (!data) { setPvComanda(null); setPvItens([]); setPvBuscando(false); toast.error('Pré-venda não encontrada ou já faturada.'); return; }
+    const { data: its } = await supabase.from('comanda_itens').select('*').eq('comanda_id', (data as Comanda).id).order('created_at');
+    setPvComanda(data as Comanda); setPvItens((its as ComandaItem[]) || []);
+    setPvForma('dinheiro'); setPvParcelas('1'); setPvVenc('');
+    setPvBuscando(false);
+  }
+
+  const pvTotal = pvItens.reduce((s, i) => s + Number(i.total), 0);
+
+  async function executarFaturarPreVenda() {
+    if (!pvComanda || !caixa) return;
+    const ok = await rpc('faturar_comanda', {
+      p_comanda_id: pvComanda.id, p_forma: pvForma, p_caixa_id: caixa.id,
+      p_parcelas: pvForma === 'crediario' ? Math.max(1, parseInt(pvParcelas) || 1) : 1,
+      p_cliente_id: pvComanda.cliente_id, p_primeiro_venc: pvVenc || null,
+    }, 'Pré-venda faturada!');
+    if (ok) {
+      setComprovante({ comanda: pvComanda, itens: pvItens, forma: pvForma, total: pvTotal });
+      setShowPreVenda(false); setPvComanda(null); setPvItens([]); setPvNumero('');
+    }
+  }
+
+  async function faturarPreVenda(e: FormEvent) {
+    e.preventDefault();
+    if (!pvComanda) return;
+    if (pvForma === 'crediario') {
+      if (!pvComanda.cliente_id) { toast.error('Crediário exige cliente. Volte ao Balcão e vincule um cliente à comanda.'); return; }
+      const { data } = await supabase.from('v_credito_cliente').select('*').eq('cliente_id', pvComanda.cliente_id).single();
+      const cred = data as CreditoCliente | null;
+      if (cred && (cred.status_efetivo === 'bloqueado' || cred.status_efetivo === 'inadimplente')) {
+        setPvAprovTipo('inadimplente'); setPvAprovMsg(`Cliente ${cred.status_efetivo === 'bloqueado' ? 'BLOQUEADO' : 'INADIMPLENTE'}. Vencido: ${formatBRL(Number(cred.valor_vencido))}.`);
+        setPvEmail(''); setPvSenha(''); setPvAprov(true); return;
+      }
+      if (cred && pvTotal > Number(cred.limite_disponivel)) {
+        setPvAprovTipo('acima_limite'); setPvAprovMsg(`Disponível ${formatBRL(Number(cred.limite_disponivel))}; esta venda de ${formatBRL(pvTotal)} ultrapassa o limite.`);
+        setPvEmail(''); setPvSenha(''); setPvAprov(true); return;
+      }
+    }
+    await executarFaturarPreVenda();
+  }
+
+  async function pvAprovarFn(e: FormEvent) {
+    e.preventDefault();
+    if (!pvComanda || !pvComanda.cliente_id) return;
+    if (!pvEmail || !pvSenha) { toast.error('Informe e-mail e senha do gestor.'); return; }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/crediario/autorizar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clienteId: pvComanda.cliente_id, tipo: pvAprovTipo, valor: pvTotal, motivo: pvAprovMsg, gestorEmail: pvEmail, gestorPassword: pvSenha }),
+      });
+      const json = await res.json();
+      if (!res.ok) { toast.error(json.error || 'Erro na autorização.'); setSaving(false); return; }
+      setPvAprov(false); setSaving(false);
+      await executarFaturarPreVenda();
+    } catch {
+      toast.error('Falha de conexão na autorização.'); setSaving(false);
+    }
+  }
+
   // Atalhos de teclado estilo PDV. F1/F5/F11/F12 são reservadas pelo navegador — não usadas.
   // preventDefault anula qualquer ação padrão (ex.: F3=buscar). Só atuam com caixa aberto e sem modal.
   useEffect(() => {
@@ -387,6 +470,11 @@ export default function CaixaPage() {
           {!caixa && podeOperar && (
             <Button onClick={() => { setASaldo(0); setAUnidade(unidades.find((u) => u.padrao)?.id || ''); setShowAbrir(true); }}>
               <Unlock size={16} /> Abrir Caixa
+            </Button>
+          )}
+          {isAberto && podeOperar && !caixaDiaAnterior && (
+            <Button variant="secondary" size="sm" onClick={() => { setPvNumero(''); setPvComanda(null); setPvItens([]); setShowPreVenda(true); }}>
+              <ShoppingBag size={14} /> Receber pré-venda
             </Button>
           )}
           {isAberto && podeVender && !caixaDiaAnterior && (
@@ -630,6 +718,89 @@ export default function CaixaPage() {
             <Button type="button" variant="secondary" onClick={() => setShowReceb(false)}>Cancelar</Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Receber pré-venda (comanda do balcão) */}
+      <Modal open={showPreVenda} onClose={() => setShowPreVenda(false)} title="Receber pré-venda (balcão)" size="md">
+        <div className="space-y-4">
+          <form onSubmit={(e) => { e.preventDefault(); buscarPreVenda(); }} className="flex items-end gap-2">
+            <Input label="Nº da pré-venda" inputMode="numeric" value={pvNumero} onChange={(e) => setPvNumero(e.target.value.replace(/\D/g, ''))} placeholder="Ex: 154" autoFocus />
+            <Button type="submit" variant="secondary" loading={pvBuscando}>Buscar</Button>
+          </form>
+
+          {pvComanda && (
+            <>
+              <div className="border border-slate-100 rounded-lg divide-y divide-slate-50 max-h-44 overflow-y-auto">
+                {pvItens.map((it) => (
+                  <div key={it.id} className="px-3 py-2 flex justify-between text-sm">
+                    <span className="text-slate-700">{Number(it.quantidade)}x {it.descricao}</span>
+                    <span className="font-medium">{formatBRL(Number(it.total))}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Cliente: {pvComanda.clientes?.nome || '—'}</span>
+                <span className="font-bold text-slate-900">Total: {formatBRL(pvTotal)}</span>
+              </div>
+              <form onSubmit={faturarPreVenda} className="space-y-3">
+                <Select label="Forma de recebimento" value={pvForma} onChange={(e) => setPvForma(e.target.value)}
+                  options={[...FORMAS.map((f) => ({ value: f.value, label: f.label })), { value: 'crediario', label: 'Crediário (parcelado)' }]} />
+                {pvForma === 'crediario' && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input label="Nº de parcelas" inputMode="numeric" value={pvParcelas} onChange={(e) => setPvParcelas(e.target.value.replace(/\D/g, ''))} />
+                    <Input label="1º vencimento" type="date" value={pvVenc} onChange={(e) => setPvVenc(e.target.value)} />
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <Button type="submit" variant="success" loading={saving} className="flex-1"><CheckCircle2 size={14} /> Faturar pré-venda</Button>
+                  <Button type="button" variant="secondary" onClick={() => setShowPreVenda(false)}>Cancelar</Button>
+                </div>
+              </form>
+            </>
+          )}
+        </div>
+      </Modal>
+
+      {/* Override de gestor — pré-venda no crediário */}
+      <Modal open={pvAprov} onClose={() => setPvAprov(false)} title={pvAprovTipo === 'inadimplente' ? 'Cliente com pendências' : 'Venda acima do limite'} size="sm">
+        <form onSubmit={pvAprovarFn} className="space-y-4">
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{pvAprovMsg}</div>
+          <Input label="E-mail do gestor *" type="email" value={pvEmail} onChange={(e) => setPvEmail(e.target.value)} autoComplete="off" required />
+          <Input label="Senha do gestor *" type="password" value={pvSenha} onChange={(e) => setPvSenha(e.target.value)} autoComplete="off" required />
+          <div className="flex gap-3">
+            <Button type="submit" loading={saving} className="flex-1"><CheckCircle2 size={14} /> Autorizar e faturar</Button>
+            <Button type="button" variant="secondary" onClick={() => setPvAprov(false)}>Cancelar</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Comprovante da pré-venda faturada */}
+      <Modal open={!!comprovante} onClose={() => setComprovante(null)} title="Comprovante" size="sm">
+        {comprovante && (
+          <div className="space-y-4" id="comprovante-pv">
+            <div className="text-center">
+              <p className="font-bold text-slate-900">Pré-venda Nº {comprovante.comanda.numero}</p>
+              <p className="text-xs text-slate-400">{new Date().toLocaleString('pt-BR')}</p>
+              {comprovante.comanda.clientes?.nome && <p className="text-sm text-slate-600 mt-1">Cliente: {comprovante.comanda.clientes.nome}</p>}
+            </div>
+            <div className="border-t border-b border-slate-100 py-2 divide-y divide-slate-50">
+              {comprovante.itens.map((it) => (
+                <div key={it.id} className="py-1.5 flex justify-between text-sm">
+                  <span className="text-slate-700">{Number(it.quantidade)}x {it.descricao}</span>
+                  <span>{formatBRL(Number(it.total))}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500 capitalize">{comprovante.forma === 'crediario' ? 'Crediário' : comprovante.forma}</span>
+              <span className="font-bold text-lg text-slate-900">{formatBRL(comprovante.total)}</span>
+            </div>
+            <div className="flex gap-3">
+              <Button type="button" onClick={() => window.print()} className="flex-1"><Printer size={14} /> Imprimir</Button>
+              <Button type="button" variant="secondary" onClick={() => setComprovante(null)}>Fechar</Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Venda no crediário (gera parcelas em Contas a Receber) */}
