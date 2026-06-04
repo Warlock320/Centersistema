@@ -247,7 +247,7 @@ export default function ConfiguracoesPage() {
       const res = await fetch('/api/usuarios', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome: novoNome, email: novoEmail, password: novaSenha, roles: novoRoles }),
+        body: JSON.stringify({ nome: novoNome, login: novoEmail, password: novaSenha, roles: novoRoles }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Erro ao criar usuário');
@@ -538,7 +538,8 @@ export default function ConfiguracoesPage() {
           {cadastroErro && <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">{cadastroErro}</div>}
           {cadastroMsg && <div className="p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">{cadastroMsg}</div>}
           <Input label="Nome *" value={novoNome} onChange={(e) => setNovoNome(e.target.value)} required placeholder="Nome do colaborador" />
-          <Input label="E-mail *" type="email" value={novoEmail} onChange={(e) => setNovoEmail(e.target.value)} required placeholder="colaborador@empresa.com" />
+          <Input label="Login *" type="text" value={novoEmail} onChange={(e) => setNovoEmail(e.target.value)} required placeholder="ex: jean (ou e-mail completo)" />
+          <p className="-mt-2 text-xs text-slate-400">Pode ser um nome simples (ex: jean). Ele usa isso + a senha para entrar.</p>
           <Input label="Senha *" type="password" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)} required minLength={6}
             placeholder="Mínimo 6 caracteres" />
           <div>

@@ -79,6 +79,7 @@ export interface Usuario {
   empresa_id: string;
   nome: string;
   email: string;
+  login?: string | null;
   roles: UserRole[];
   /** @deprecated mantido para compatibilidade com dados legados */
   role?: UserRole | null;

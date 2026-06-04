@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Logo } from '@/components/ui/Logo';
 import { DEMO_MODE, DEMO_COOKIE } from '@/lib/demo';
+import { loginToEmail } from '@/lib/login';
 
 const DEMO_EMAIL = 'admin@demo.com';
 const DEMO_PASSWORD = 'admin123';
@@ -40,7 +41,7 @@ export default function LoginPage() {
     const supabase = createClient();
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email: loginToEmail(email), password });
       if (error) throw error;
       router.push('/dashboard');
       router.refresh();
@@ -89,13 +90,13 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
-              label="E-mail"
-              type="email"
+              label="Usuário ou e-mail"
+              type="text"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="seu@email.com"
+              placeholder="ex: jean (ou seu@email.com)"
               required
-              autoComplete="email"
+              autoComplete="username"
             />
             <Input
               label="Senha"

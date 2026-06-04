@@ -2,13 +2,18 @@ import { NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { createClient as createServerClient } from '@/lib/supabase/server';
 import { resolveRoles, can, ALL_ROLES, type UserRole } from '@/lib/permissions';
+import { loginToEmail } from '@/lib/login';
 
 export async function POST(request: Request) {
   try {
-    const { nome, email, password, roles } = await request.json();
+    const body = await request.json();
+    const { nome, password, roles } = body;
+    // Aceita "login" (ex: jean) ou "email"; sintetiza o e-mail interno quando for login simples
+    const loginInput: string = body.login || body.email || '';
+    const email = loginToEmail(loginInput);
 
     // Validação básica
-    if (!nome || !email || !password || !Array.isArray(roles) || roles.length === 0) {
+    if (!nome || !loginInput || !password || !Array.isArray(roles) || roles.length === 0) {
       return NextResponse.json({ error: 'Dados incompletos.' }, { status: 400 });
     }
     if (String(password).length < 6) {
@@ -62,6 +67,7 @@ export async function POST(request: Request) {
       empresa_id: (requester as { empresa_id: string }).empresa_id,
       nome,
       email,
+      login: loginInput.includes('@') ? loginInput : loginInput.toLowerCase().replace(/\s+/g, ''),
       role: validRoles[0],
       roles: validRoles,
     });
