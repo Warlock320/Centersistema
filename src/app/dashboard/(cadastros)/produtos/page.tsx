@@ -179,8 +179,8 @@ export default function ProdutosPage() {
       codigos_auxiliares: codigosAux.map((c) => c.trim()).filter(Boolean),
       preco: Number(form.preco),
       custo: Number(form.custo),
-      estoque: Number(form.estoque),
-      estoque_minimo: Number(form.estoque_minimo),
+      estoque: Number(String(form.estoque ?? '').replace(',', '.')) || 0,
+      estoque_minimo: Number(String(form.estoque_minimo ?? '').replace(',', '.')) || 0,
     };
 
     let produtoId = selected?.id;
@@ -523,8 +523,12 @@ export default function ProdutosPage() {
           <div>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Estoque</p>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Estoque Atual" type="number" step="0.001" min="0" value={form.estoque || 0} onChange={set('estoque')} />
-              <Input label="Estoque Mínimo (alerta)" type="number" step="0.001" min="0" value={form.estoque_minimo || 0} onChange={set('estoque_minimo')} />
+              <Input label="Estoque Atual" inputMode="decimal" value={form.estoque ?? ''}
+                onChange={(e) => setForm((p) => ({ ...p, estoque: e.target.value.replace(/[^\d.,]/g, '') as unknown as number }))}
+                placeholder="0" />
+              <Input label="Estoque Mínimo (alerta)" inputMode="decimal" value={form.estoque_minimo ?? ''}
+                onChange={(e) => setForm((p) => ({ ...p, estoque_minimo: e.target.value.replace(/[^\d.,]/g, '') as unknown as number }))}
+                placeholder="0" />
             </div>
           </div>
 
