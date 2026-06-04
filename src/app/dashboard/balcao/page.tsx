@@ -10,7 +10,7 @@ import { useToast } from '@/components/ui/Toast';
 import { usePermissions } from '@/components/PermissionsProvider';
 import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
 import {
-  Store, Plus, Search, Trash2, Check, X, MapPin, Package, ShoppingBag, CheckCircle2, Ban,
+  Store, Plus, Search, Trash2, Check, X, MapPin, Package, ShoppingBag, CheckCircle2, Ban, Printer,
 } from 'lucide-react';
 import type { Comanda, ComandaItem, Produto } from '@/types/database.types';
 
@@ -25,6 +25,10 @@ export default function BalcaoPage() {
   const podeOperar = can('operar_balcao');
 
   const [empresaId, setEmpresaId] = useState('');
+  const [empresa, setEmpresa] = useState<{ nome: string | null; razao_social: string | null; endereco: string | null; cidade: string | null; estado: string | null; cep: string | null; telefone: string | null } | null>(null);
+  const [meuNome, setMeuNome] = useState('');
+  const [unidadePadrao, setUnidadePadrao] = useState<string | null>(null);
+  const [cupom, setCupom] = useState<{ numero: number; cliente: string | null; itens: ComandaItem[]; total: number } | null>(null);
   const [abertas, setAbertas] = useState<Comanda[]>([]);
   const [pendentes, setPendentes] = useState<Comanda[]>([]);
   const [clientes, setClientes] = useState<ComboOption[]>([]);
@@ -52,12 +56,14 @@ export default function BalcaoPage() {
 
   const fetchBase = useCallback(async () => {
     setLoading(true);
-    const [ab, pe, cli, prod] = await Promise.all([
+    const [ab, pe, cli, prod, uni] = await Promise.all([
       supabase.from('comandas').select('*, clientes(nome)').eq('status', 'aberta').order('created_at', { ascending: false }),
       supabase.from('comandas').select('*, clientes(nome)').eq('status', 'aguardando_caixa').order('created_at', { ascending: false }),
       supabase.from('clientes').select('id, nome, telefone').eq('ativo', true).order('nome').limit(500),
       supabase.from('produtos').select('id, codigo, ref, nome, aplicacoes, localizacao, estoque, preco, codigos_auxiliares').eq('ativo', true).order('nome').limit(2000),
+      supabase.from('unidades').select('id').eq('ativo', true).order('padrao', { ascending: false }).limit(1),
     ]);
+    setUnidadePadrao(((uni.data as { id: string }[]) || [])[0]?.id || null);
     setAbertas((ab.data as Comanda[]) || []);
     setPendentes((pe.data as Comanda[]) || []);
     setClientes(((cli.data as { id: string; nome: string; telefone: string | null }[]) || []).map((c) => ({ value: c.id, label: c.nome, sublabel: c.telefone || undefined, keywords: `${c.nome} ${c.telefone || ''}` })));
@@ -65,7 +71,68 @@ export default function BalcaoPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { getEmpresaId(); fetchBase(); }, []);
+  useEffect(() => { getEmpresaId(); fetchBase(); fetchCabecalho(); }, []);
+
+  async function fetchCabecalho() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data: u } = await supabase.from('usuarios').select('nome, empresa_id').eq('id', user.id).single();
+    setMeuNome((u as { nome?: string })?.nome || '');
+    const eid = (u as { empresa_id?: string })?.empresa_id;
+    if (eid) {
+      const { data: e } = await supabase.from('empresas').select('nome, razao_social, endereco, cidade, estado, cep, telefone').eq('id', eid).single();
+      setEmpresa(e as typeof empresa);
+    }
+  }
+
+  // Monta o texto do cupom (80mm, ~48 colunas) e abre a janela de impressão
+  function montarCupom(numero: number, clienteNome: string | null, its: ComandaItem[], tot: number) {
+    const W = 48;
+    const linha = (c = '=') => c.repeat(W);
+    const dois = (a: string, b: string) => { const s = Math.max(1, W - a.length - b.length); return a + ' '.repeat(s) + b; };
+    const dinheiro = (v: number) => Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const L: string[] = [];
+    L.push((empresa?.razao_social || empresa?.nome || 'EMPRESA').toUpperCase());
+    if (empresa?.endereco) L.push(empresa.endereco.toUpperCase());
+    const loc = [empresa?.cep, [empresa?.cidade, empresa?.estado].filter(Boolean).join('/')].filter(Boolean).join(' - ');
+    if (loc) L.push(loc.toUpperCase());
+    if (empresa?.telefone) L.push('FONE: ' + empresa.telefone);
+    L.push(linha('='));
+    L.push(dois('ORCAMENTO / PRE-VENDA', new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })));
+    L.push(dois('NUMERO: PREV.' + String(numero).padStart(6, '0'), (meuNome || '').toUpperCase().slice(0, 18)));
+    L.push(linha('-'));
+    L.push('CLIENTE: ' + (clienteNome || 'CONSUMIDOR FINAL').toUpperCase());
+    L.push(linha('-'));
+    L.push('CODIGO PROD.  DESCRICAO DO PRODUTO');
+    L.push(linha('-'));
+    its.forEach((it) => {
+      const cod = produtos.find((p) => p.id === it.produto_id)?.codigo || '';
+      L.push(((cod ? cod + ' ' : '') + it.descricao.toUpperCase()).slice(0, W));
+      L.push(dois('', 'R$' + dinheiro(Number(it.preco_unitario)) + ' X ' + Number(it.quantidade) + ' UN = R$' + dinheiro(Number(it.total))));
+    });
+    L.push(linha('-'));
+    L.push(dois('', '$ TOTAL DA PRE-VENDA: ' + dinheiro(tot)));
+    L.push('');
+    L.push('ASSINATURA DO RECEBEDOR:');
+    L.push('');
+    L.push(linha('='));
+    return L.join('\n');
+  }
+
+  function imprimirCupom(texto: string) {
+    const w = window.open('', '_blank', 'width=400,height=640');
+    if (!w) { toast.error('Permita pop-ups para imprimir o cupom.'); return; }
+    const esc = texto.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    w.document.write(`<html><head><title>Cupom Pré-venda</title><style>
+      @page { size: 80mm auto; margin: 0; }
+      * { margin: 0; padding: 0; }
+      body { font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.3; width: 80mm; padding: 4px 6px; color: #000; }
+      pre { white-space: pre-wrap; word-break: break-word; font: inherit; }
+    </style></head><body><pre>${esc}</pre>
+    <script>window.onload=function(){window.print();setTimeout(function(){window.close();},300);};<\/script>
+    </body></html>`);
+    w.document.close();
+  }
 
   // Atalho F7 abre a busca de produto (quando há comanda aberta)
   useEffect(() => {
@@ -85,7 +152,7 @@ export default function BalcaoPage() {
     const eid = await getEmpresaId();
     const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase.from('comandas')
-      .insert({ empresa_id: eid, vendedor_id: user?.id || null, status: 'aberta' })
+      .insert({ empresa_id: eid, vendedor_id: user?.id || null, unidade_id: unidadePadrao, status: 'aberta' })
       .select('*, clientes(nome)').single();
     if (error) { toast.error('Erro ao abrir comanda: ' + error.message); return; }
     setComanda(data as Comanda); setItens([]); setUltima(null);
@@ -134,9 +201,12 @@ export default function BalcaoPage() {
     const { data, error } = await supabase.rpc('enviar_comanda_caixa', { p_comanda_id: comanda.id });
     setSaving(false);
     if (error) { toast.error(error.message); return; }
-    setUltima(Number(data));
+    const num = Number(data);
+    const clienteNome = clientes.find((c) => c.value === comanda.cliente_id)?.label || null;
+    setCupom({ numero: num, cliente: clienteNome, itens: [...itens], total });
+    setUltima(num);
     setComanda(null); setItens([]);
-    toast.success(`Pré-venda Nº ${data} enviada ao caixa!`);
+    toast.success(`Pré-venda Nº ${num} enviada ao caixa!`);
     fetchBase();
   }
 
@@ -177,9 +247,14 @@ export default function BalcaoPage() {
 
       {/* Mensagem da última pré-venda enviada */}
       {ultima !== null && (
-        <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl text-green-800">
+        <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl text-green-800 flex-wrap">
           <CheckCircle2 size={20} className="shrink-0" />
-          <p className="text-sm">Pré-venda <strong>Nº {ultima}</strong> enviada ao caixa. Informe esse número no caixa para receber.</p>
+          <p className="text-sm flex-1">Pré-venda <strong>Nº {ultima}</strong> enviada ao caixa. Informe esse número no caixa para receber.</p>
+          {cupom && (
+            <Button size="sm" variant="secondary" onClick={() => imprimirCupom(montarCupom(cupom.numero, cupom.cliente, cupom.itens, cupom.total))}>
+              <Printer size={14} /> Imprimir cupom
+            </Button>
+          )}
         </div>
       )}
 
