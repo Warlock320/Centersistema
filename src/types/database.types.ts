@@ -424,6 +424,7 @@ export interface ContaReceber {
   conciliado: boolean;
   conciliado_em: string | null;
   conciliado_por: string | null;
+  comanda_id?: string | null;
   created_at: string;
   updated_at: string;
   clientes?: Cliente;
@@ -564,6 +565,7 @@ export interface MovimentoCaixa {
   cancelado_por: string | null;
   cancelado_em: string | null;
   motivo_cancelamento: string | null;
+  comanda_id?: string | null;
   created_at: string;
   clientes?: Cliente;
   usuarios?: { nome: string };
