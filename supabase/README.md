@@ -34,6 +34,7 @@ Execute os scripts SQL **na ordem exata** abaixo, no **SQL Editor** do seu proje
 | 23 | `v20_login_usuario.sql` | **Login por nome de usuário** (ex: "jean"): coluna `usuarios.login` (e-mail do Auth é sintetizado) |
 | 24 | `v21_orcamento_balcao.sql` | **Orçamento no balcão**: status `orcamento` na comanda + RPCs `salvar_orcamento` e `enviar_comanda_caixa` (orçamento → venda) |
 | 25 | `v22_pagamento_multiplo.sql` | **Recebimento múltiplo**: status `em_atendimento_caixa`, tabela `comanda_pagamentos`, RPCs `abrir_atendimento_caixa`/`voltar_fila_caixa` e `faturar_comanda` (várias formas; Σ pagamentos = total; movimento por forma) |
+| 26 | `v23_papel_balconista.sql` | **Papel Balconista** nos CHECKs de usuários/convites/permissões (vende só no balcão) |
 
 > ⚠️ **A ordem importa.** Cada script depende dos anteriores (funções, tabelas e colunas).
 > Os scripts são idempotentes (`IF NOT EXISTS` / `CREATE OR REPLACE`) — podem ser reexecutados sem erro.

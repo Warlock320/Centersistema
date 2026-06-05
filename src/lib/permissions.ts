@@ -3,9 +3,9 @@
 // Um usuário pode ter MÚLTIPLOS papéis (roles: UserRole[]).
 // =====================================================================
 
-export type UserRole = 'admin' | 'gestor' | 'financeiro' | 'vendedor' | 'caixa';
+export type UserRole = 'admin' | 'gestor' | 'financeiro' | 'vendedor' | 'caixa' | 'balconista';
 
-export const ALL_ROLES: UserRole[] = ['admin', 'gestor', 'financeiro', 'vendedor', 'caixa'];
+export const ALL_ROLES: UserRole[] = ['admin', 'gestor', 'financeiro', 'vendedor', 'caixa', 'balconista'];
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Administrador',
@@ -13,6 +13,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   financeiro: 'Financeiro',
   vendedor: 'Vendedor',
   caixa: 'Operador de Caixa',
+  balconista: 'Balconista',
 };
 
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
@@ -21,6 +22,7 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   financeiro: 'Módulo financeiro completo, aprova contas a pagar',
   vendedor: 'Cadastra clientes, cria orçamentos, pedidos e OS',
   caixa: 'Balcão: opera o caixa, registra vendas e atende clientes',
+  balconista: 'Vende só no balcão (monta a pré-venda); não recebe valores',
 };
 
 export const ROLE_COLORS: Record<UserRole, string> = {
@@ -29,6 +31,7 @@ export const ROLE_COLORS: Record<UserRole, string> = {
   financeiro: 'bg-emerald-100 text-emerald-700',
   vendedor: 'bg-amber-100 text-amber-700',
   caixa: 'bg-pink-100 text-pink-700',
+  balconista: 'bg-cyan-100 text-cyan-700',
 };
 
 export type Permission =
@@ -129,6 +132,13 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'registrar_venda', 'operar_balcao',
     'operar_caixa',
   ],
+
+  // Balconista: vende só no balcão (monta a pré-venda). Não recebe, não vê o resto.
+  balconista: [
+    'operar_balcao',
+    'view_clientes', 'edit_clientes',
+    'view_produtos', 'view_estoque',
+  ],
 };
 
 /** Mapa de permissões usado pelos helpers standalone. Pode ser customizado por empresa. */
@@ -193,6 +203,7 @@ export const PERMISSION_GROUPS: { modulo: string; permissions: { key: Permission
 // Espelha grosso modo a ordem do menu — o caixa-only cai direto no Caixa Diário.
 export const HOME_ROUTE_PRIORITY: { href: string; permission: Permission }[] = [
   { href: '/dashboard', permission: 'view_dashboard' },
+  { href: '/dashboard/balcao', permission: 'operar_balcao' },
   { href: '/dashboard/financeiro/caixa', permission: 'operar_caixa' },
   { href: '/dashboard/financeiro/receber', permission: 'registrar_venda' },
   { href: '/dashboard/orcamentos', permission: 'view_orcamentos' },
@@ -244,7 +255,7 @@ export const ROUTE_PERMISSIONS: { prefix: string; perm: Permission | Permission[
 
 /** Constrói um mapa a partir de linhas {papel, permissao} (vindas do banco). Default para papéis sem linhas. */
 export function buildPermissionMap(rows: { papel: string; permissao: string }[]): RolePermissionMap {
-  const map: RolePermissionMap = { admin: [], gestor: [], financeiro: [], vendedor: [], caixa: [] };
+  const map: RolePermissionMap = { admin: [], gestor: [], financeiro: [], vendedor: [], caixa: [], balconista: [] };
   const seen = new Set<UserRole>();
   rows.forEach(({ papel, permissao }) => {
     if (ALL_ROLES.includes(papel as UserRole)) {

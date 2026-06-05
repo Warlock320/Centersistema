@@ -91,7 +91,7 @@ export default function ConfiguracoesPage() {
   // Cards de permissões expansíveis
   const [openRole, setOpenRole] = useState<UserRole | null>(null);
   const [permEdit, setPermEdit] = useState<Record<UserRole, Set<Permission>>>({
-    admin: new Set(), gestor: new Set(), financeiro: new Set(), vendedor: new Set(), caixa: new Set(),
+    admin: new Set(), gestor: new Set(), financeiro: new Set(), vendedor: new Set(), caixa: new Set(), balconista: new Set(),
   });
   const [savingPerms, setSavingPerms] = useState<UserRole | null>(null);
 
@@ -187,6 +187,7 @@ export default function ConfiguracoesPage() {
       financeiro: new Set(permMap.financeiro),
       vendedor: new Set(permMap.vendedor),
       caixa: new Set(permMap.caixa),
+      balconista: new Set(permMap.balconista),
     });
   }, [permMap]);
 
