@@ -77,7 +77,7 @@ export default function OrcamentosPage() {
     const [orcs, clis, prods, tabs, precos] = await Promise.all([
       supabase.from('orcamentos').select('*, clientes(nome), usuarios(nome), orcamento_itens(*)').order('numero', { ascending: false }),
       supabase.from('clientes').select('id, nome, cpf_cnpj').eq('ativo', true).order('nome'),
-      supabase.from('produtos').select('id, nome, codigo, ref, preco, estoque, codigos_auxiliares').eq('ativo', true).order('nome'),
+      supabase.from('produtos').select('id, nome, codigo, ref, preco, estoque, codigos_auxiliares, aplicacoes, localizacao').eq('ativo', true).order('nome'),
       supabase.from('tabelas_preco').select('*').eq('ativo', true).order('padrao', { ascending: false }).order('nome'),
       supabase.from('v_precos_produto').select('produto_id, tabela_preco_id, preco'),
     ]);
@@ -418,7 +418,7 @@ export default function OrcamentosPage() {
                           value: p.id,
                           label: p.nome,
                           sublabel: `${p.codigo ? `[${p.codigo}] ` : ''}${precoNaTabela(p.id, p.preco).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · est: ${Number(p.estoque).toFixed(0)}`,
-                          keywords: `${p.codigo || ''} ${p.ref || ''} ${(p.codigos_auxiliares || []).join(' ')}`,
+                          keywords: `${p.codigo || ''} ${p.ref || ''} ${(p.codigos_auxiliares || []).join(' ')} ${(p.aplicacoes || []).join(' ')} ${p.localizacao || ''}`,
                         }))}
                       />
                     </div>

@@ -73,7 +73,7 @@ export default function OrdemServicoPage() {
       supabase.from('ordens_servico').select('*, clientes(nome), veiculos(modelo, placa, marca)').order('numero', { ascending: false }),
       supabase.from('clientes').select('id, nome, cpf_cnpj').eq('ativo', true).order('nome'),
       supabase.from('veiculos').select('*, clientes(nome)').eq('ativo', true).order('modelo'),
-      supabase.from('produtos').select('id, nome, codigo, ref, preco, estoque, codigos_auxiliares').eq('ativo', true).order('nome'),
+      supabase.from('produtos').select('id, nome, codigo, ref, preco, estoque, codigos_auxiliares, aplicacoes, localizacao').eq('ativo', true).order('nome'),
       supabase.from('usuarios').select('id, nome, roles, role').eq('ativo', true).order('nome'),
     ]);
     setOrdens(os.data as OrdemServico[] || []);
@@ -342,7 +342,7 @@ export default function OrdemServicoPage() {
                         options={produtos.map((p) => ({
                           value: p.id, label: p.nome,
                           sublabel: `${p.codigo ? `[${p.codigo}] ` : ''}${brl(p.preco)} · est: ${Number(p.estoque).toFixed(0)}`,
-                          keywords: `${p.codigo || ''} ${p.ref || ''} ${(p.codigos_auxiliares || []).join(' ')}`,
+                          keywords: `${p.codigo || ''} ${p.ref || ''} ${(p.codigos_auxiliares || []).join(' ')} ${(p.aplicacoes || []).join(' ')} ${p.localizacao || ''}`,
                         }))} />
                     ) : (
                       <input value={item.descricao || ''} onChange={(e) => updItem(item._key, { descricao: e.target.value })}

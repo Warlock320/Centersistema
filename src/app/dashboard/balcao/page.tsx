@@ -9,6 +9,7 @@ import { Combobox, type ComboOption } from '@/components/ui/Combobox';
 import { useToast } from '@/components/ui/Toast';
 import { usePermissions } from '@/components/PermissionsProvider';
 import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
+import { matchBusca } from '@/lib/busca';
 import {
   Store, Plus, Search, Trash2, Check, X, MapPin, ShoppingBag, CheckCircle2, Ban, Printer, FileText, ArrowRight,
 } from 'lucide-react';
@@ -260,16 +261,10 @@ export default function BalcaoPage() {
 
   const total = itens.reduce((s, i) => s + Number(i.total), 0);
 
-  // Normaliza: minúsculas + remove acentos (oleo acha "Óleo", ignicao acha "Ignição")
-  const norm = (s: string) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   // Texto de busca unificado (nome+código+ref+aplicações+auxiliares+localização)
-  const textoBusca = (p: ProdBusca) => norm(`${p.nome} ${p.codigo || ''} ${p.ref || ''} ${(p.aplicacoes || []).join(' ')} ${(p.codigos_auxiliares || []).join(' ')} ${p.localizacao || ''}`);
-  const termos = norm(busca).trim().split(/\s+/).filter(Boolean);
-  // Busca por MÚLTIPLOS termos: o produto precisa conter TODOS (ex.: "gol amortece")
-  const prodFiltrados = termos.length === 0 ? produtos : produtos.filter((p) => {
-    const txt = textoBusca(p);
-    return termos.every((t) => txt.includes(t));
-  });
+  const textoBusca = (p: ProdBusca) => `${p.nome} ${p.codigo || ''} ${p.ref || ''} ${(p.aplicacoes || []).join(' ')} ${(p.codigos_auxiliares || []).join(' ')} ${p.localizacao || ''}`;
+  // Busca multi-termo + sem acento (mesma usada em todo o sistema)
+  const prodFiltrados = busca.trim() ? produtos.filter((p) => matchBusca(textoBusca(p), busca)) : produtos;
 
   // Código de barras / código exato → adiciona automaticamente (leitor de código de barras)
   useEffect(() => {

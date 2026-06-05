@@ -13,6 +13,7 @@ import { usePermissions } from '@/components/PermissionsProvider';
 import { Plus, Pencil, AlertTriangle, Tag, PackageX, X, MapPin, DollarSign, Trash2, Search, Loader2 } from 'lucide-react';
 import type { Produto, Categoria, Fornecedor, TabelaPreco, PrecoProduto } from '@/types/database.types';
 import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
+import { matchBusca } from '@/lib/busca';
 import { buscarCNPJ, isCNPJ, formatCpfCnpj } from '@/lib/brasilapi';
 
 const EMPTY: Partial<Produto> = {
@@ -121,13 +122,9 @@ export default function ProdutosPage() {
   }, []);
 
   useEffect(() => {
-    const q = search.toLowerCase();
     setFiltered(produtos.filter((p) => {
-      const matchQ = !q ||
-        p.nome.toLowerCase().includes(q) ||
-        (p.codigo || '').toLowerCase().includes(q) ||
-        (p.ref || '').toLowerCase().includes(q) ||
-        (p.codigos_auxiliares || []).some((c) => c.toLowerCase().includes(q));
+      const texto = `${p.nome} ${p.codigo || ''} ${p.ref || ''} ${(p.codigos_auxiliares || []).join(' ')} ${(p.aplicacoes || []).join(' ')} ${p.localizacao || ''}`;
+      const matchQ = matchBusca(texto, search);
       const matchBaixo = !soBaixoEstoque || (p.estoque_minimo > 0 && p.estoque < p.estoque_minimo);
       return matchQ && matchBaixo && (!filterCat || p.categoria === filterCat);
     }));

@@ -48,7 +48,7 @@ export default function EstoquePage() {
     setLoading(true);
     const [movsRes, prods] = await Promise.all([
       supabase.from('movimentacoes_estoque').select('*, produtos(nome, codigo)').order('created_at', { ascending: false }).limit(200),
-      supabase.from('produtos').select('id, nome, codigo, ref, estoque, custo, codigos_auxiliares').eq('ativo', true).order('nome'),
+      supabase.from('produtos').select('id, nome, codigo, ref, estoque, custo, codigos_auxiliares, aplicacoes, localizacao').eq('ativo', true).order('nome'),
     ]);
     setMovs(movsRes.data as (MovimentacaoEstoque & { produtos?: { nome: string; codigo: string | null } })[] || []);
     setProdutos(prods.data as Produto[] || []);
@@ -121,7 +121,7 @@ export default function EstoquePage() {
     value: p.id,
     label: p.nome,
     sublabel: `${p.codigo ? `[${p.codigo}] ` : ''}estoque: ${Number(p.estoque).toFixed(0)}`,
-    keywords: `${p.codigo || ''} ${p.ref || ''} ${(p.codigos_auxiliares || []).join(' ')}`,
+    keywords: `${p.codigo || ''} ${p.ref || ''} ${(p.codigos_auxiliares || []).join(' ')} ${(p.aplicacoes || []).join(' ')} ${p.localizacao || ''}`,
   }));
 
   const opInfo = {
