@@ -116,7 +116,19 @@ export interface Produto {
   fornecedores?: { nome: string };
 }
 
-export type ComandaStatus = 'aberta' | 'orcamento' | 'aguardando_caixa' | 'faturada' | 'cancelada';
+export type ComandaStatus = 'aberta' | 'orcamento' | 'aguardando_caixa' | 'em_atendimento_caixa' | 'faturada' | 'cancelada';
+
+export interface ComandaPagamento {
+  id: string;
+  empresa_id: string;
+  comanda_id: string;
+  forma: string;
+  valor: number;
+  parcelas: number;
+  primeiro_venc: string | null;
+  usuario_id: string | null;
+  created_at: string;
+}
 
 export interface Comanda {
   id: string;

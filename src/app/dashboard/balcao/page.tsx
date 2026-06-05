@@ -32,6 +32,8 @@ export default function BalcaoPage() {
   const [abertas, setAbertas] = useState<Comanda[]>([]);
   const [pendentes, setPendentes] = useState<Comanda[]>([]);
   const [orcamentos, setOrcamentos] = useState<Comanda[]>([]);
+  const [noCaixa, setNoCaixa] = useState<Comanda[]>([]);
+  const [concluidas, setConcluidas] = useState<Comanda[]>([]);
   const [clientes, setClientes] = useState<ComboOption[]>([]);
   const [produtos, setProdutos] = useState<ProdBusca[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,10 +60,13 @@ export default function BalcaoPage() {
   const fetchBase = useCallback(async () => {
     setLoading(true);
     const sel = '*, clientes(nome), vendedores:usuarios!comandas_vendedor_id_fkey(nome)';
-    const [ab, pe, orc, cli, prod, uni] = await Promise.all([
+    const hojeIni = new Date(); hojeIni.setHours(0, 0, 0, 0);
+    const [ab, pe, orc, nc, conc, cli, prod, uni] = await Promise.all([
       supabase.from('comandas').select(sel).eq('status', 'aberta').order('created_at', { ascending: false }),
       supabase.from('comandas').select(sel).eq('status', 'aguardando_caixa').order('created_at', { ascending: false }),
       supabase.from('comandas').select(sel).eq('status', 'orcamento').order('created_at', { ascending: false }),
+      supabase.from('comandas').select(sel).eq('status', 'em_atendimento_caixa').order('created_at', { ascending: false }),
+      supabase.from('comandas').select(sel).in('status', ['faturada', 'cancelada']).gte('updated_at', hojeIni.toISOString()).order('updated_at', { ascending: false }).limit(30),
       supabase.from('clientes').select('id, nome, telefone').eq('ativo', true).order('nome').limit(500),
       supabase.from('produtos').select('id, codigo, ref, nome, aplicacoes, localizacao, estoque, preco, codigos_auxiliares').eq('ativo', true).order('nome').limit(2000),
       supabase.from('unidades').select('id').eq('ativo', true).order('padrao', { ascending: false }).limit(1),
@@ -70,6 +75,8 @@ export default function BalcaoPage() {
     setAbertas((ab.data as unknown as Comanda[]) || []);
     setPendentes((pe.data as unknown as Comanda[]) || []);
     setOrcamentos((orc.data as unknown as Comanda[]) || []);
+    setNoCaixa((nc.data as unknown as Comanda[]) || []);
+    setConcluidas((conc.data as unknown as Comanda[]) || []);
     setClientes(((cli.data as { id: string; nome: string; telefone: string | null }[]) || []).map((c) => ({ value: c.id, label: c.nome, sublabel: c.telefone || undefined, keywords: `${c.nome} ${c.telefone || ''}` })));
     setProdutos((prod.data as ProdBusca[]) || []);
     setLoading(false);
@@ -389,6 +396,40 @@ export default function BalcaoPage() {
                   ))}
               </div>
             </div>
+
+            {/* No caixa agora (em atendimento) */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100">
+              <div className="px-5 py-3 border-b border-slate-100"><h2 className="font-semibold text-slate-900">No caixa agora ({noCaixa.length})</h2></div>
+              <div className="divide-y divide-slate-50">
+                {noCaixa.length === 0 ? <p className="px-5 py-6 text-center text-slate-400 text-sm">Ninguém em atendimento no caixa.</p> :
+                  noCaixa.map((c) => (
+                    <div key={c.id} className="px-5 py-3 flex items-center justify-between">
+                      <span className="text-sm">
+                        <strong>Nº {c.numero}</strong> {c.clientes?.nome ? `· ${c.clientes.nome}` : ''}
+                        <span className="block text-xs text-blue-500">recebendo no caixa…</span>
+                      </span>
+                      <span className="text-sm font-bold text-blue-600">{brl(Number(c.total))}</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            {/* Concluídas hoje */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100">
+              <div className="px-5 py-3 border-b border-slate-100"><h2 className="font-semibold text-slate-900">Concluídas hoje ({concluidas.length})</h2></div>
+              <div className="divide-y divide-slate-50 max-h-72 overflow-y-auto">
+                {concluidas.length === 0 ? <p className="px-5 py-6 text-center text-slate-400 text-sm">Nenhuma venda concluída hoje.</p> :
+                  concluidas.map((c) => (
+                    <div key={c.id} className="px-5 py-3 flex items-center justify-between">
+                      <span className="text-sm">
+                        <strong>Nº {c.numero}</strong> {c.clientes?.nome ? `· ${c.clientes.nome}` : ''}
+                        <span className={`block text-xs ${c.status === 'faturada' ? 'text-green-600' : 'text-red-500'}`}>{c.status === 'faturada' ? 'Faturada' : 'Cancelada'} · vend.: {c.vendedores?.nome || '—'}</span>
+                      </span>
+                      <span className={`text-sm font-bold ${c.status === 'faturada' ? 'text-green-600' : 'text-slate-400 line-through'}`}>{brl(Number(c.total))}</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
           </div>
         )
       )}
@@ -399,7 +440,11 @@ export default function BalcaoPage() {
           <div className="relative">
             <Search size={16} className="absolute left-3 top-3 text-slate-400" />
             <input autoFocus value={busca} onChange={(e) => setBusca(e.target.value)}
-              placeholder="Código, descrição, código de barras, referência ou aplicação..."
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); if (prodFiltrados[0]) addProduto(prodFiltrados[0]); }
+                if (e.key === 'Escape') { e.preventDefault(); setShowBusca(false); }
+              }}
+              placeholder="Código, descrição, código de barras, referência ou aplicação... (Enter adiciona, Esc fecha)"
               className="w-full pl-9 pr-9 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" />
             {busca && <button type="button" onClick={() => setBusca('')} className="absolute right-3 top-3 text-slate-400"><X size={14} /></button>}
           </div>

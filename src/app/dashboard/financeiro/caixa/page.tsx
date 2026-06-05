@@ -15,7 +15,7 @@ import {
   Smartphone, Banknote, CreditCard, Landmark, Wallet, Ban, CheckCircle2,
   AlertTriangle, ArrowRightLeft, Printer, ShoppingBag,
 } from 'lucide-react';
-import type { Caixa, MovimentoCaixa, Unidade, ReaberturaCaixa, MovimentoCategoria, ParcelaCliente, CreditoCliente, Comanda, ComandaItem } from '@/types/database.types';
+import type { Caixa, MovimentoCaixa, Unidade, ReaberturaCaixa, MovimentoCategoria, ParcelaCliente, CreditoCliente, Comanda, ComandaItem, ComandaPagamento } from '@/types/database.types';
 
 function formatBRL(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 
@@ -100,13 +100,16 @@ export default function CaixaPage() {
   const [pvNumero, setPvNumero] = useState('');
   const [pvComanda, setPvComanda] = useState<Comanda | null>(null);
   const [pvItens, setPvItens] = useState<ComandaItem[]>([]);
-  const [pvForma, setPvForma] = useState('dinheiro');
-  const [pvParcelas, setPvParcelas] = useState('1');
-  const [pvVenc, setPvVenc] = useState('');
   const [pvBuscando, setPvBuscando] = useState(false);
   const [pvPendentes, setPvPendentes] = useState<Comanda[]>([]);
-  const [comprovante, setComprovante] = useState<{ comanda: Comanda; itens: ComandaItem[]; forma: string; total: number } | null>(null);
-  // override crediário na pré-venda
+  const [pvPagamentos, setPvPagamentos] = useState<ComandaPagamento[]>([]);
+  const [comprovante, setComprovante] = useState<{ comanda: Comanda; itens: ComandaItem[]; pagamentos: ComandaPagamento[]; total: number } | null>(null);
+  // Nova linha de pagamento
+  const [npForma, setNpForma] = useState('dinheiro');
+  const [npValor, setNpValor] = useState(0);
+  const [npParcelas, setNpParcelas] = useState('1');
+  const [npVenc, setNpVenc] = useState('');
+  // override crediário (autoriza adicionar pagamento no crediário acima do limite)
   const [pvAprov, setPvAprov] = useState(false);
   const [pvAprovTipo, setPvAprovTipo] = useState<'acima_limite' | 'inadimplente'>('acima_limite');
   const [pvAprovMsg, setPvAprovMsg] = useState('');
@@ -371,54 +374,75 @@ export default function CaixaPage() {
     setPvPendentes((data as unknown as Comanda[]) || []);
   }
 
+  async function carregarPagamentos(comandaId: string) {
+    const { data } = await supabase.from('comanda_pagamentos').select('*').eq('comanda_id', comandaId).order('created_at');
+    setPvPagamentos((data as ComandaPagamento[]) || []);
+  }
+
   async function selecionarPendente(c: Comanda) {
+    // Trava como "em atendimento no caixa"
+    await supabase.rpc('abrir_atendimento_caixa', { p_comanda_id: c.id });
     const { data: its } = await supabase.from('comanda_itens').select('*').eq('comanda_id', c.id).order('created_at');
     setPvComanda(c); setPvItens((its as ComandaItem[]) || []);
-    setPvForma('dinheiro'); setPvParcelas('1'); setPvVenc('');
+    await carregarPagamentos(c.id);
+    setNpForma('dinheiro'); setNpParcelas('1'); setNpVenc('');
   }
 
   async function buscarPreVenda() {
     if (!pvNumero.trim()) return;
     setPvBuscando(true);
     const { data } = await supabase.from('comandas').select(PV_SEL)
-      .eq('numero', Number(pvNumero)).eq('status', 'aguardando_caixa').maybeSingle();
+      .eq('numero', Number(pvNumero)).in('status', ['aguardando_caixa', 'em_atendimento_caixa']).maybeSingle();
     if (!data) { setPvComanda(null); setPvItens([]); setPvBuscando(false); toast.error('Pré-venda não encontrada ou já faturada.'); return; }
     await selecionarPendente(data as unknown as Comanda);
     setPvBuscando(false);
   }
 
   const pvTotal = pvItens.reduce((s, i) => s + Number(i.total), 0);
+  const pvRecebido = pvPagamentos.reduce((s, p) => s + Number(p.valor), 0);
+  const pvFalta = Math.round((pvTotal - pvRecebido) * 100) / 100;
 
-  async function executarFaturarPreVenda() {
-    if (!pvComanda || !caixa) return;
-    const ok = await rpc('faturar_comanda', {
-      p_comanda_id: pvComanda.id, p_forma: pvForma, p_caixa_id: caixa.id,
-      p_parcelas: pvForma === 'crediario' ? Math.max(1, parseInt(pvParcelas) || 1) : 1,
-      p_cliente_id: pvComanda.cliente_id, p_primeiro_venc: pvVenc || null,
-    }, 'Pré-venda faturada!');
-    if (ok) {
-      setComprovante({ comanda: pvComanda, itens: pvItens, forma: pvForma, total: pvTotal });
-      setShowPreVenda(false); setPvComanda(null); setPvItens([]); setPvNumero('');
-    }
+  // Insere a linha de pagamento (após eventual override no crediário)
+  async function inserirPagamento() {
+    if (!pvComanda) return;
+    const eid = pvComanda.empresa_id;
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase.from('comanda_pagamentos').insert({
+      empresa_id: eid, comanda_id: pvComanda.id, forma: npForma, valor: npValor,
+      parcelas: npForma === 'crediario' ? Math.max(1, parseInt(npParcelas) || 1) : 1,
+      primeiro_venc: npForma === 'crediario' ? (npVenc || null) : null,
+      usuario_id: user?.id || null,
+    });
+    if (error) { toast.error(error.message); return; }
+    setNpValor(0); setNpParcelas('1'); setNpVenc('');
+    await carregarPagamentos(pvComanda.id);
   }
 
-  async function faturarPreVenda(e: FormEvent) {
+  async function addPagamento(e: FormEvent) {
     e.preventDefault();
     if (!pvComanda) return;
-    if (pvForma === 'crediario') {
-      if (!pvComanda.cliente_id) { toast.error('Crediário exige cliente. Volte ao Balcão e vincule um cliente à comanda.'); return; }
+    if (npValor <= 0) { toast.error('Informe o valor do pagamento.'); return; }
+    if (npValor > pvFalta + 0.005) { toast.error(`Valor maior que o que falta (${formatBRL(pvFalta)}).`); return; }
+    if (npForma === 'crediario') {
+      if (!pvComanda.cliente_id) { toast.error('Crediário exige cliente. Volte ao Balcão e vincule um cliente.'); return; }
       const { data } = await supabase.from('v_credito_cliente').select('*').eq('cliente_id', pvComanda.cliente_id).single();
       const cred = data as CreditoCliente | null;
       if (cred && (cred.status_efetivo === 'bloqueado' || cred.status_efetivo === 'inadimplente')) {
         setPvAprovTipo('inadimplente'); setPvAprovMsg(`Cliente ${cred.status_efetivo === 'bloqueado' ? 'BLOQUEADO' : 'INADIMPLENTE'}. Vencido: ${formatBRL(Number(cred.valor_vencido))}.`);
         setPvEmail(''); setPvSenha(''); setPvAprov(true); return;
       }
-      if (cred && pvTotal > Number(cred.limite_disponivel)) {
-        setPvAprovTipo('acima_limite'); setPvAprovMsg(`Disponível ${formatBRL(Number(cred.limite_disponivel))}; esta venda de ${formatBRL(pvTotal)} ultrapassa o limite.`);
+      if (cred && npValor > Number(cred.limite_disponivel)) {
+        setPvAprovTipo('acima_limite'); setPvAprovMsg(`Disponível ${formatBRL(Number(cred.limite_disponivel))}; este crediário de ${formatBRL(npValor)} ultrapassa o limite.`);
         setPvEmail(''); setPvSenha(''); setPvAprov(true); return;
       }
     }
-    await executarFaturarPreVenda();
+    await inserirPagamento();
+  }
+
+  async function removerPagamento(id: string) {
+    if (!pvComanda) return;
+    await supabase.from('comanda_pagamentos').delete().eq('id', id);
+    await carregarPagamentos(pvComanda.id);
   }
 
   async function pvAprovarFn(e: FormEvent) {
@@ -429,15 +453,32 @@ export default function CaixaPage() {
     try {
       const res = await fetch('/api/crediario/autorizar', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clienteId: pvComanda.cliente_id, tipo: pvAprovTipo, valor: pvTotal, motivo: pvAprovMsg, gestorEmail: pvEmail, gestorPassword: pvSenha }),
+        body: JSON.stringify({ clienteId: pvComanda.cliente_id, tipo: pvAprovTipo, valor: npValor, motivo: pvAprovMsg, gestorEmail: pvEmail, gestorPassword: pvSenha }),
       });
       const json = await res.json();
       if (!res.ok) { toast.error(json.error || 'Erro na autorização.'); setSaving(false); return; }
       setPvAprov(false); setSaving(false);
-      await executarFaturarPreVenda();
+      await inserirPagamento(); // libera e adiciona a linha de crediário
     } catch {
       toast.error('Falha de conexão na autorização.'); setSaving(false);
     }
+  }
+
+  async function faturarPreVenda() {
+    if (!pvComanda || !caixa) return;
+    if (Math.abs(pvFalta) > 0.005) { toast.error(`Faltam ${formatBRL(pvFalta)} para fechar a venda.`); return; }
+    const ok = await rpc('faturar_comanda', { p_comanda_id: pvComanda.id, p_caixa_id: caixa.id }, 'Pré-venda faturada!');
+    if (ok) {
+      setComprovante({ comanda: pvComanda, itens: pvItens, pagamentos: pvPagamentos, total: pvTotal });
+      setShowPreVenda(false); setPvComanda(null); setPvItens([]); setPvPagamentos([]); setPvNumero('');
+    }
+  }
+
+  async function fecharPreVenda() {
+    // Ao fechar sem faturar, devolve a pré-venda para a fila
+    if (pvComanda) await supabase.rpc('voltar_fila_caixa', { p_comanda_id: pvComanda.id });
+    setShowPreVenda(false); setPvComanda(null); setPvItens([]); setPvPagamentos([]); setPvNumero('');
+    fetchAll();
   }
 
   // Atalhos de teclado estilo PDV. F1/F5/F11/F12 são reservadas pelo navegador — não usadas.
@@ -734,62 +775,98 @@ export default function CaixaPage() {
       </Modal>
 
       {/* Receber pré-venda (comanda do balcão) */}
-      <Modal open={showPreVenda} onClose={() => setShowPreVenda(false)} title="Receber pré-venda (balcão)" size="md">
+      <Modal open={showPreVenda} onClose={fecharPreVenda} title="Receber pré-venda (balcão)" size="md">
         <div className="space-y-4">
-          <form onSubmit={(e) => { e.preventDefault(); buscarPreVenda(); }} className="flex items-end gap-2">
-            <Input label="Nº da pré-venda" inputMode="numeric" value={pvNumero} onChange={(e) => setPvNumero(e.target.value.replace(/\D/g, ''))} placeholder="Ex: 154" autoFocus />
-            <Button type="submit" variant="secondary" loading={pvBuscando}>Buscar</Button>
-          </form>
-
-          {/* Lista de pré-vendas pendentes (selecionar direto) */}
           {!pvComanda && (
-            <div>
-              <p className="text-xs font-semibold uppercase text-slate-400 mb-1.5">Pré-vendas pendentes ({pvPendentes.length})</p>
-              <div className="border border-slate-100 rounded-lg divide-y divide-slate-50 max-h-60 overflow-y-auto">
-                {pvPendentes.length === 0 ? (
-                  <p className="px-3 py-6 text-center text-slate-400 text-sm">Nenhuma pré-venda aguardando recebimento.</p>
-                ) : pvPendentes.map((c) => (
-                  <button key={c.id} type="button" onClick={() => selecionarPendente(c)}
-                    className="w-full px-3 py-2.5 flex items-center justify-between hover:bg-blue-50 text-left">
-                    <span className="text-sm">
-                      <strong>Nº {c.numero}</strong> {c.clientes?.nome ? `· ${c.clientes.nome}` : '· Consumidor'}
-                      <span className="block text-xs text-slate-400">vend.: {c.vendedores?.nome || '—'}</span>
-                    </span>
-                    <span className="text-sm font-bold text-amber-600">{formatBRL(Number(c.total))}</span>
-                  </button>
-                ))}
+            <>
+              <form onSubmit={(e) => { e.preventDefault(); buscarPreVenda(); }} className="flex items-end gap-2">
+                <Input label="Nº da pré-venda" inputMode="numeric" value={pvNumero} onChange={(e) => setPvNumero(e.target.value.replace(/\D/g, ''))} placeholder="Ex: 154" autoFocus />
+                <Button type="submit" variant="secondary" loading={pvBuscando}>Buscar</Button>
+              </form>
+              <div>
+                <p className="text-xs font-semibold uppercase text-slate-400 mb-1.5">Pré-vendas pendentes ({pvPendentes.length})</p>
+                <div className="border border-slate-100 rounded-lg divide-y divide-slate-50 max-h-60 overflow-y-auto">
+                  {pvPendentes.length === 0 ? (
+                    <p className="px-3 py-6 text-center text-slate-400 text-sm">Nenhuma pré-venda aguardando recebimento.</p>
+                  ) : pvPendentes.map((c) => (
+                    <button key={c.id} type="button" onClick={() => selecionarPendente(c)}
+                      className="w-full px-3 py-2.5 flex items-center justify-between hover:bg-blue-50 text-left">
+                      <span className="text-sm">
+                        <strong>Nº {c.numero}</strong> {c.clientes?.nome ? `· ${c.clientes.nome}` : '· Consumidor'}
+                        <span className="block text-xs text-slate-400">vend.: {c.vendedores?.nome || '—'}</span>
+                      </span>
+                      <span className="text-sm font-bold text-amber-600">{formatBRL(Number(c.total))}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            </>
           )}
 
           {pvComanda && (
             <>
-              <div className="border border-slate-100 rounded-lg divide-y divide-slate-50 max-h-44 overflow-y-auto">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Nº {pvComanda.numero} · {pvComanda.clientes?.nome || 'Consumidor'} · Vend.: {pvComanda.vendedores?.nome || '—'}</span>
+                <span className="font-bold text-slate-900">Total: {formatBRL(pvTotal)}</span>
+              </div>
+              <div className="border border-slate-100 rounded-lg divide-y divide-slate-50 max-h-32 overflow-y-auto">
                 {pvItens.map((it) => (
-                  <div key={it.id} className="px-3 py-2 flex justify-between text-sm">
+                  <div key={it.id} className="px-3 py-1.5 flex justify-between text-sm">
                     <span className="text-slate-700">{Number(it.quantidade)}x {it.descricao}</span>
                     <span className="font-medium">{formatBRL(Number(it.total))}</span>
                   </div>
                 ))}
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Nº {pvComanda.numero} · Cliente: {pvComanda.clientes?.nome || '—'} · Vend.: {pvComanda.vendedores?.nome || '—'}</span>
-                <span className="font-bold text-slate-900">Total: {formatBRL(pvTotal)}</span>
-              </div>
-              <form onSubmit={faturarPreVenda} className="space-y-3">
-                <Select label="Forma de recebimento" value={pvForma} onChange={(e) => setPvForma(e.target.value)}
-                  options={[...FORMAS.map((f) => ({ value: f.value, label: f.label })), { value: 'crediario', label: 'Crediário (parcelado)' }]} />
-                {pvForma === 'crediario' && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <Input label="Nº de parcelas" inputMode="numeric" value={pvParcelas} onChange={(e) => setPvParcelas(e.target.value.replace(/\D/g, ''))} />
-                    <Input label="1º vencimento" type="date" value={pvVenc} onChange={(e) => setPvVenc(e.target.value)} />
-                  </div>
-                )}
-                <div className="flex gap-3">
-                  <Button type="submit" variant="success" loading={saving} className="flex-1"><CheckCircle2 size={14} /> Faturar pré-venda</Button>
-                  <Button type="button" variant="secondary" onClick={() => setShowPreVenda(false)}>Cancelar</Button>
+
+              {/* Pagamentos adicionados */}
+              {pvPagamentos.length > 0 && (
+                <div className="border border-slate-100 rounded-lg divide-y divide-slate-50">
+                  {pvPagamentos.map((p) => (
+                    <div key={p.id} className="px-3 py-2 flex items-center justify-between text-sm">
+                      <span className="text-slate-700 capitalize">{FORMA_LABEL[p.forma] || (p.forma === 'crediario' ? `Crediário ${p.parcelas}x` : p.forma)}</span>
+                      <span className="flex items-center gap-2">
+                        <span className="font-medium">{formatBRL(Number(p.valor))}</span>
+                        <button type="button" onClick={() => removerPagamento(p.id)} className="text-slate-300 hover:text-red-500"><Ban size={14} /></button>
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              </form>
+              )}
+
+              {/* Recebido × Falta */}
+              <div className={`flex justify-between items-center rounded-lg p-3 text-sm ${pvFalta <= 0.005 ? 'bg-green-50' : 'bg-amber-50'}`}>
+                <span className="text-slate-600">Recebido: <strong>{formatBRL(pvRecebido)}</strong></span>
+                <span className={pvFalta <= 0.005 ? 'text-green-700 font-bold' : 'text-amber-700 font-bold'}>
+                  {pvFalta > 0.005 ? `Falta ${formatBRL(pvFalta)}` : '✓ Total recebido'}
+                </span>
+              </div>
+
+              {/* Adicionar pagamento */}
+              {pvFalta > 0.005 && (
+                <form onSubmit={addPagamento} className="space-y-2 border border-slate-100 rounded-lg p-3">
+                  <p className="text-xs font-semibold uppercase text-slate-400">Adicionar pagamento</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Select label="Forma" value={npForma} onChange={(e) => setNpForma(e.target.value)}
+                      options={[...FORMAS.map((f) => ({ value: f.value, label: f.label })), { value: 'crediario', label: 'Crediário' }]} />
+                    <Input label="Valor R$" inputMode="numeric" value={formatMoedaInput(npValor)} onChange={(e) => setNpValor(parseMoedaInput(e.target.value))} placeholder="0,00" />
+                  </div>
+                  {npForma === 'crediario' && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input label="Parcelas" inputMode="numeric" value={npParcelas} onChange={(e) => setNpParcelas(e.target.value.replace(/\D/g, ''))} />
+                      <Input label="1º vencimento" type="date" value={npVenc} onChange={(e) => setNpVenc(e.target.value)} />
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setNpValor(pvFalta)}>Valor restante</Button>
+                    <Button type="submit" size="sm" className="flex-1"><Plus size={14} /> Adicionar</Button>
+                  </div>
+                </form>
+              )}
+
+              <div className="flex gap-3">
+                <Button type="button" variant="success" onClick={faturarPreVenda} loading={saving} disabled={pvFalta > 0.005} className="flex-1"><CheckCircle2 size={14} /> Faturar</Button>
+                <Button type="button" variant="secondary" onClick={fecharPreVenda}>Voltar à fila</Button>
+              </div>
             </>
           )}
         </div>
@@ -825,9 +902,17 @@ export default function CaixaPage() {
                 </div>
               ))}
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-500 capitalize">{comprovante.forma === 'crediario' ? 'Crediário' : comprovante.forma}</span>
-              <span className="font-bold text-lg text-slate-900">{formatBRL(comprovante.total)}</span>
+            <div className="space-y-1 text-sm">
+              {comprovante.pagamentos.map((p) => (
+                <div key={p.id} className="flex justify-between">
+                  <span className="text-slate-500 capitalize">{FORMA_LABEL[p.forma] || (p.forma === 'crediario' ? `Crediário ${p.parcelas}x` : p.forma)}</span>
+                  <span>{formatBRL(Number(p.valor))}</span>
+                </div>
+              ))}
+              <div className="flex justify-between border-t border-slate-100 pt-1">
+                <span className="font-semibold text-slate-700">Total</span>
+                <span className="font-bold text-lg text-slate-900">{formatBRL(comprovante.total)}</span>
+              </div>
             </div>
             <div className="flex gap-3">
               <Button type="button" onClick={() => window.print()} className="flex-1"><Printer size={14} /> Imprimir</Button>
