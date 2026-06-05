@@ -260,10 +260,12 @@ export default function BalcaoPage() {
 
   const total = itens.reduce((s, i) => s + Number(i.total), 0);
 
+  // Normaliza: minúsculas + remove acentos (oleo acha "Óleo", ignicao acha "Ignição")
+  const norm = (s: string) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   // Texto de busca unificado (nome+código+ref+aplicações+auxiliares+localização)
-  const textoBusca = (p: ProdBusca) => `${p.nome} ${p.codigo || ''} ${p.ref || ''} ${(p.aplicacoes || []).join(' ')} ${(p.codigos_auxiliares || []).join(' ')} ${p.localizacao || ''}`.toLowerCase();
-  const termos = busca.toLowerCase().trim().split(/\s+/).filter(Boolean);
-  // Busca por MÚLTIPLOS termos: o produto precisa conter TODOS (ex.: "moura gol")
+  const textoBusca = (p: ProdBusca) => norm(`${p.nome} ${p.codigo || ''} ${p.ref || ''} ${(p.aplicacoes || []).join(' ')} ${(p.codigos_auxiliares || []).join(' ')} ${p.localizacao || ''}`);
+  const termos = norm(busca).trim().split(/\s+/).filter(Boolean);
+  // Busca por MÚLTIPLOS termos: o produto precisa conter TODOS (ex.: "gol amortece")
   const prodFiltrados = termos.length === 0 ? produtos : produtos.filter((p) => {
     const txt = textoBusca(p);
     return termos.every((t) => txt.includes(t));
