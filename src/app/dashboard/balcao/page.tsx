@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
@@ -47,6 +47,10 @@ export default function BalcaoPage() {
   // Busca de produto (F7)
   const [showBusca, setShowBusca] = useState(false);
   const [busca, setBusca] = useState('');
+  const [hl, setHl] = useState(0);                 // item destacado (navegação por setas)
+  const hlRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => { setHl(0); }, [busca, showBusca]); // reinicia o destaque ao digitar/abrir
+  useEffect(() => { hlRef.current?.scrollIntoView({ block: 'nearest' }); }, [hl]);
   // Crédito do cliente selecionado (aviso de inadimplência/limite)
   const [clienteCredito, setClienteCredito] = useState<CreditoCliente | null>(null);
 
@@ -476,8 +480,10 @@ export default function BalcaoPage() {
             <Search size={16} className="absolute left-3 top-3 text-slate-400" />
             <input autoFocus value={busca} onChange={(e) => setBusca(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && prodFiltrados[0]) { e.preventDefault(); addProduto(prodFiltrados[0], e.shiftKey); setBusca(''); }
-                if (e.key === 'Escape') { e.preventDefault(); setShowBusca(false); }
+                if (e.key === 'ArrowDown') { e.preventDefault(); setHl((i) => Math.min(i + 1, prodFiltrados.length - 1)); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); setHl((i) => Math.max(i - 1, 0)); }
+                else if (e.key === 'Enter') { const p = prodFiltrados[hl]; if (p) { e.preventDefault(); addProduto(p, e.shiftKey); setBusca(''); } }
+                else if (e.key === 'Escape') { e.preventDefault(); setShowBusca(false); }
               }}
               placeholder="Nome, código, código de barras, ref, aplicação ou localização... (ex: moura gol)"
               className="w-full pl-9 pr-9 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" />
@@ -485,14 +491,15 @@ export default function BalcaoPage() {
           </div>
           <p className="text-xs text-slate-400 flex items-center justify-between">
             <span>{prodFiltrados.length} produto(s){busca ? ` para "${busca}"` : ' no catálogo'}</span>
-            <span className="hidden sm:inline">Enter adiciona · Shift+Enter adiciona e continua · Esc fecha · código de barras adiciona sozinho</span>
+            <span className="hidden sm:inline">↑/↓ navega · Enter adiciona · Shift+Enter continua · Esc fecha · código de barras adiciona sozinho</span>
           </p>
           <div className="max-h-[65vh] overflow-y-auto divide-y divide-slate-50 border border-slate-100 rounded-lg">
             {prodFiltrados.length === 0 ? <p className="px-4 py-8 text-center text-slate-400 text-sm">Nenhum produto encontrado.</p> :
-              prodFiltrados.map((p) => {
+              prodFiltrados.map((p, idx) => {
                 const selo = seloEstoque(p);
+                const ativo = idx === hl;
                 return (
-                  <button key={p.id} type="button" onClick={() => addProduto(p)} className="w-full px-4 py-3 flex items-center justify-between hover:bg-blue-50 text-left gap-3">
+                  <button key={p.id} type="button" ref={ativo ? hlRef : undefined} onMouseEnter={() => setHl(idx)} onClick={() => addProduto(p)} className={`w-full px-4 py-3 flex items-center justify-between text-left gap-3 ${ativo ? 'bg-blue-100' : 'hover:bg-blue-50'}`}>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-slate-800 truncate">
                         {p.codigo && <span className="font-mono text-xs text-slate-400 mr-1.5">{p.codigo}</span>}{p.nome}
