@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Users, Package, FileText, CheckSquare,
   ShoppingCart, FileInput, BarChart2, Settings, LogOut,
-  Search, X, ChevronRight, Bell, Truck, Wallet,
+  Search, X, ChevronRight, ChevronDown, Bell, Truck, Wallet,
   ArrowDownCircle, ArrowUpCircle, Landmark, Building2, Tags, Warehouse, Bike, Wrench, Scale, CreditCard,
   FileBarChart, ShieldAlert, Menu, Store
 } from 'lucide-react';
@@ -126,15 +126,26 @@ export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario 
     .sort((a, b) => b.href.length - a.href.length)[0]?.href;
   const { can } = usePermissions();
 
+  // Seção (accordion) que contém a rota ativa
+  const activeSection = navSections.find((s) => s.items.some((it) => it.href === activeHref))?.label;
+
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [alertas, setAlertas] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false); // drawer no mobile
+  // Accordion: começa com a seção ativa aberta (determinístico → sem mismatch de hidratação)
+  const [openSections, setOpenSections] = useState<Set<string>>(() => new Set(activeSection ? [activeSection] : []));
   const searchRef = useRef<HTMLDivElement>(null);
+
+  const toggleSection = (label: string) => setOpenSections((prev) => {
+    const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n;
+  });
 
   // Fecha o menu mobile ao trocar de rota
   useEffect(() => { setSidebarOpen(false); }, [pathname]);
+  // Garante que a seção da rota atual fique aberta ao navegar
+  useEffect(() => { if (activeSection) setOpenSections((prev) => new Set(prev).add(activeSection)); }, [activeSection]);
 
   useEffect(() => {
     const loadAlertas = async () => {
@@ -240,10 +251,15 @@ export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario 
               Array.isArray(item.permission) ? item.permission.some((p) => can(p)) : can(item.permission)
             );
             if (sectionItems.length === 0) return null;
+            const aberta = openSections.has(section.label);
             return (
               <div key={section.label}>
-                <p className="px-3 mb-1 text-xs font-bold text-slate-600 tracking-widest">{section.label}</p>
-                <div className="space-y-0.5">
+                <button type="button" onClick={() => toggleSection(section.label)}
+                  className="w-full px-3 mb-1 flex items-center justify-between text-xs font-bold text-slate-600 tracking-widest hover:text-slate-300 transition-colors">
+                  <span>{section.label}</span>
+                  <ChevronDown size={13} className={`transition-transform ${aberta ? '' : '-rotate-90'}`} />
+                </button>
+                <div className={`space-y-0.5 ${aberta ? '' : 'hidden'}`}>
                   {sectionItems.map((item) => {
                     const isActive = item.href === activeHref;
                     const Icon = item.icon;
