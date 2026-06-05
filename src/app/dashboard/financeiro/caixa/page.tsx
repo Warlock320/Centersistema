@@ -104,6 +104,7 @@ export default function CaixaPage() {
   const [pvParcelas, setPvParcelas] = useState('1');
   const [pvVenc, setPvVenc] = useState('');
   const [pvBuscando, setPvBuscando] = useState(false);
+  const [pvPendentes, setPvPendentes] = useState<Comanda[]>([]);
   const [comprovante, setComprovante] = useState<{ comanda: Comanda; itens: ComandaItem[]; forma: string; total: number } | null>(null);
   // override crediário na pré-venda
   const [pvAprov, setPvAprov] = useState(false);
@@ -362,15 +363,27 @@ export default function CaixaPage() {
   }
 
   // ── Receber pré-venda (comanda do balcão) ──
+  const PV_SEL = '*, clientes(nome), vendedores:usuarios!comandas_vendedor_id_fkey(nome)';
+
+  async function carregarPendentes() {
+    const { data } = await supabase.from('comandas').select(PV_SEL)
+      .eq('status', 'aguardando_caixa').order('created_at', { ascending: false });
+    setPvPendentes((data as unknown as Comanda[]) || []);
+  }
+
+  async function selecionarPendente(c: Comanda) {
+    const { data: its } = await supabase.from('comanda_itens').select('*').eq('comanda_id', c.id).order('created_at');
+    setPvComanda(c); setPvItens((its as ComandaItem[]) || []);
+    setPvForma('dinheiro'); setPvParcelas('1'); setPvVenc('');
+  }
+
   async function buscarPreVenda() {
     if (!pvNumero.trim()) return;
     setPvBuscando(true);
-    const { data } = await supabase.from('comandas').select('*, clientes(nome)')
+    const { data } = await supabase.from('comandas').select(PV_SEL)
       .eq('numero', Number(pvNumero)).eq('status', 'aguardando_caixa').maybeSingle();
     if (!data) { setPvComanda(null); setPvItens([]); setPvBuscando(false); toast.error('Pré-venda não encontrada ou já faturada.'); return; }
-    const { data: its } = await supabase.from('comanda_itens').select('*').eq('comanda_id', (data as Comanda).id).order('created_at');
-    setPvComanda(data as Comanda); setPvItens((its as ComandaItem[]) || []);
-    setPvForma('dinheiro'); setPvParcelas('1'); setPvVenc('');
+    await selecionarPendente(data as unknown as Comanda);
     setPvBuscando(false);
   }
 
@@ -473,7 +486,7 @@ export default function CaixaPage() {
             </Button>
           )}
           {isAberto && podeOperar && !caixaDiaAnterior && (
-            <Button variant="secondary" size="sm" onClick={() => { setPvNumero(''); setPvComanda(null); setPvItens([]); setShowPreVenda(true); }}>
+            <Button variant="secondary" size="sm" onClick={() => { setPvNumero(''); setPvComanda(null); setPvItens([]); carregarPendentes(); setShowPreVenda(true); }}>
               <ShoppingBag size={14} /> Receber pré-venda
             </Button>
           )}
@@ -728,6 +741,27 @@ export default function CaixaPage() {
             <Button type="submit" variant="secondary" loading={pvBuscando}>Buscar</Button>
           </form>
 
+          {/* Lista de pré-vendas pendentes (selecionar direto) */}
+          {!pvComanda && (
+            <div>
+              <p className="text-xs font-semibold uppercase text-slate-400 mb-1.5">Pré-vendas pendentes ({pvPendentes.length})</p>
+              <div className="border border-slate-100 rounded-lg divide-y divide-slate-50 max-h-60 overflow-y-auto">
+                {pvPendentes.length === 0 ? (
+                  <p className="px-3 py-6 text-center text-slate-400 text-sm">Nenhuma pré-venda aguardando recebimento.</p>
+                ) : pvPendentes.map((c) => (
+                  <button key={c.id} type="button" onClick={() => selecionarPendente(c)}
+                    className="w-full px-3 py-2.5 flex items-center justify-between hover:bg-blue-50 text-left">
+                    <span className="text-sm">
+                      <strong>Nº {c.numero}</strong> {c.clientes?.nome ? `· ${c.clientes.nome}` : '· Consumidor'}
+                      <span className="block text-xs text-slate-400">vend.: {c.vendedores?.nome || '—'}</span>
+                    </span>
+                    <span className="text-sm font-bold text-amber-600">{formatBRL(Number(c.total))}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {pvComanda && (
             <>
               <div className="border border-slate-100 rounded-lg divide-y divide-slate-50 max-h-44 overflow-y-auto">
@@ -739,7 +773,7 @@ export default function CaixaPage() {
                 ))}
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Cliente: {pvComanda.clientes?.nome || '—'}</span>
+                <span className="text-slate-500">Nº {pvComanda.numero} · Cliente: {pvComanda.clientes?.nome || '—'} · Vend.: {pvComanda.vendedores?.nome || '—'}</span>
                 <span className="font-bold text-slate-900">Total: {formatBRL(pvTotal)}</span>
               </div>
               <form onSubmit={faturarPreVenda} className="space-y-3">

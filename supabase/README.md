@@ -32,6 +32,7 @@ Execute os scripts SQL **na ordem exata** abaixo, no **SQL Editor** do seu proje
 | 21 | `v18_aplicacoes.sql` | **Múltiplas aplicações por produto**: coluna `aplicacoes TEXT[]` (vários veículos/anos) + migração do campo único |
 | 22 | `v19_comanda_rastreio.sql` | **Rastreabilidade da pré-venda**: `comanda_id` em `contas_receber` e `movimentos_caixa` + `faturar_comanda` preenchendo (liga venda ↔ financeiro ↔ caixa) |
 | 23 | `v20_login_usuario.sql` | **Login por nome de usuário** (ex: "jean"): coluna `usuarios.login` (e-mail do Auth é sintetizado) |
+| 24 | `v21_orcamento_balcao.sql` | **Orçamento no balcão**: status `orcamento` na comanda + RPCs `salvar_orcamento` e `enviar_comanda_caixa` (orçamento → venda) |
 
 > ⚠️ **A ordem importa.** Cada script depende dos anteriores (funções, tabelas e colunas).
 > Os scripts são idempotentes (`IF NOT EXISTS` / `CREATE OR REPLACE`) — podem ser reexecutados sem erro.

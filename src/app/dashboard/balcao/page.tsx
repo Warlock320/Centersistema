@@ -10,7 +10,7 @@ import { useToast } from '@/components/ui/Toast';
 import { usePermissions } from '@/components/PermissionsProvider';
 import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
 import {
-  Store, Plus, Search, Trash2, Check, X, MapPin, Package, ShoppingBag, CheckCircle2, Ban, Printer,
+  Store, Plus, Search, Trash2, Check, X, MapPin, Package, ShoppingBag, CheckCircle2, Ban, Printer, FileText, ArrowRight,
 } from 'lucide-react';
 import type { Comanda, ComandaItem, Produto } from '@/types/database.types';
 
@@ -31,6 +31,7 @@ export default function BalcaoPage() {
   const [cupom, setCupom] = useState<{ numero: number; cliente: string | null; itens: ComandaItem[]; total: number } | null>(null);
   const [abertas, setAbertas] = useState<Comanda[]>([]);
   const [pendentes, setPendentes] = useState<Comanda[]>([]);
+  const [orcamentos, setOrcamentos] = useState<Comanda[]>([]);
   const [clientes, setClientes] = useState<ComboOption[]>([]);
   const [produtos, setProdutos] = useState<ProdBusca[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,16 +57,19 @@ export default function BalcaoPage() {
 
   const fetchBase = useCallback(async () => {
     setLoading(true);
-    const [ab, pe, cli, prod, uni] = await Promise.all([
-      supabase.from('comandas').select('*, clientes(nome)').eq('status', 'aberta').order('created_at', { ascending: false }),
-      supabase.from('comandas').select('*, clientes(nome)').eq('status', 'aguardando_caixa').order('created_at', { ascending: false }),
+    const sel = '*, clientes(nome), vendedores:usuarios!comandas_vendedor_id_fkey(nome)';
+    const [ab, pe, orc, cli, prod, uni] = await Promise.all([
+      supabase.from('comandas').select(sel).eq('status', 'aberta').order('created_at', { ascending: false }),
+      supabase.from('comandas').select(sel).eq('status', 'aguardando_caixa').order('created_at', { ascending: false }),
+      supabase.from('comandas').select(sel).eq('status', 'orcamento').order('created_at', { ascending: false }),
       supabase.from('clientes').select('id, nome, telefone').eq('ativo', true).order('nome').limit(500),
       supabase.from('produtos').select('id, codigo, ref, nome, aplicacoes, localizacao, estoque, preco, codigos_auxiliares').eq('ativo', true).order('nome').limit(2000),
       supabase.from('unidades').select('id').eq('ativo', true).order('padrao', { ascending: false }).limit(1),
     ]);
     setUnidadePadrao(((uni.data as { id: string }[]) || [])[0]?.id || null);
-    setAbertas((ab.data as Comanda[]) || []);
-    setPendentes((pe.data as Comanda[]) || []);
+    setAbertas((ab.data as unknown as Comanda[]) || []);
+    setPendentes((pe.data as unknown as Comanda[]) || []);
+    setOrcamentos((orc.data as unknown as Comanda[]) || []);
     setClientes(((cli.data as { id: string; nome: string; telefone: string | null }[]) || []).map((c) => ({ value: c.id, label: c.nome, sublabel: c.telefone || undefined, keywords: `${c.nome} ${c.telefone || ''}` })));
     setProdutos((prod.data as ProdBusca[]) || []);
     setLoading(false);
@@ -137,6 +141,7 @@ export default function BalcaoPage() {
   // Atalho F7 abre a busca de produto (quando há comanda aberta)
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if (e.key === 'F2' && !comanda) { e.preventDefault(); novaComanda(); }
       if (e.key === 'F7' && comanda && !showBusca) { e.preventDefault(); setBusca(''); setShowBusca(true); }
     }
     window.addEventListener('keydown', onKey);
@@ -153,9 +158,9 @@ export default function BalcaoPage() {
     const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase.from('comandas')
       .insert({ empresa_id: eid, vendedor_id: user?.id || null, unidade_id: unidadePadrao, status: 'aberta' })
-      .select('*, clientes(nome)').single();
+      .select('*, clientes(nome), vendedores:usuarios!comandas_vendedor_id_fkey(nome)').single();
     if (error) { toast.error('Erro ao abrir comanda: ' + error.message); return; }
-    setComanda(data as Comanda); setItens([]); setUltima(null);
+    setComanda(data as unknown as Comanda); setItens([]); setUltima(null);
     fetchBase();
   }
 
@@ -194,11 +199,13 @@ export default function BalcaoPage() {
     if (comanda) carregarItens(comanda.id);
   }
 
-  async function finalizar() {
+  // destino: 'venda' (vai ao caixa) ou 'orcamento' (fica guardado)
+  async function finalizar(destino: 'venda' | 'orcamento') {
     if (!comanda) return;
     if (itens.length === 0) { toast.error('Adicione ao menos um item.'); return; }
     setSaving(true);
-    const { data, error } = await supabase.rpc('enviar_comanda_caixa', { p_comanda_id: comanda.id });
+    const rpc = destino === 'venda' ? 'enviar_comanda_caixa' : 'salvar_orcamento';
+    const { data, error } = await supabase.rpc(rpc, { p_comanda_id: comanda.id });
     setSaving(false);
     if (error) { toast.error(error.message); return; }
     const num = Number(data);
@@ -206,7 +213,15 @@ export default function BalcaoPage() {
     setCupom({ numero: num, cliente: clienteNome, itens: [...itens], total });
     setUltima(num);
     setComanda(null); setItens([]);
-    toast.success(`Pré-venda Nº ${num} enviada ao caixa!`);
+    toast.success(destino === 'venda' ? `Pré-venda Nº ${num} enviada ao caixa!` : `Orçamento Nº ${num} salvo!`);
+    fetchBase();
+  }
+
+  // Converte um orçamento em venda (envia ao caixa)
+  async function enviarOrcamentoAoCaixa(c: Comanda) {
+    const { error } = await supabase.rpc('enviar_comanda_caixa', { p_comanda_id: c.id });
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Orçamento Nº ${c.numero} virou venda e foi ao caixa!`);
     fetchBase();
   }
 
@@ -242,7 +257,7 @@ export default function BalcaoPage() {
           <h1 className="text-2xl font-bold text-slate-900">Balcão</h1>
           <p className="text-slate-500 text-sm">Monte a pré-venda e envie ao caixa para o recebimento.</p>
         </div>
-        {!comanda && <Button onClick={novaComanda}><Plus size={16} /> Nova comanda</Button>}
+        {!comanda && <Button onClick={novaComanda}><Plus size={16} /> Nova venda <kbd className="ml-1 text-[10px] font-mono opacity-70">F2</kbd></Button>}
       </div>
 
       {/* Mensagem da última pré-venda enviada */}
@@ -262,7 +277,10 @@ export default function BalcaoPage() {
         /* ─── Comanda em edição ─── */
         <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 space-y-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <h2 className="font-semibold text-slate-900 flex items-center gap-2"><ShoppingBag size={18} /> Comanda Nº {comanda.numero}</h2>
+            <div>
+              <h2 className="font-semibold text-slate-900 flex items-center gap-2"><ShoppingBag size={18} /> Comanda Nº {comanda.numero}</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Vendedor: <strong className="text-slate-600">{comanda.vendedores?.nome || meuNome || '—'}</strong></p>
+            </div>
             <div className="flex gap-2">
               <Button variant="secondary" size="sm" onClick={() => { setBusca(''); setShowBusca(true); }}><Search size={14} /> Produto <kbd className="ml-1 text-[10px] font-mono opacity-60">F7</kbd></Button>
             </div>
@@ -308,16 +326,17 @@ export default function BalcaoPage() {
 
           <div className="flex items-center justify-between flex-wrap gap-3">
             <span className="text-lg font-bold text-slate-900">Total: {brl(total)}</span>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button variant="danger" size="sm" onClick={cancelar} loading={saving}><Ban size={14} /> Cancelar</Button>
-              <Button onClick={finalizar} loading={saving} disabled={itens.length === 0}><Check size={16} /> Finalizar atendimento</Button>
+              <Button variant="secondary" onClick={() => finalizar('orcamento')} loading={saving} disabled={itens.length === 0}><FileText size={15} /> Salvar Orçamento</Button>
+              <Button onClick={() => finalizar('venda')} loading={saving} disabled={itens.length === 0}><Check size={16} /> Enviar ao Caixa (Venda)</Button>
             </div>
           </div>
         </div>
       ) : (
         /* ─── Listas ─── */
         loading ? <div className="py-16 text-center text-slate-400">Carregando...</div> : (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             {/* Em atendimento (reabrir) */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-100">
               <div className="px-5 py-3 border-b border-slate-100"><h2 className="font-semibold text-slate-900">Em atendimento ({abertas.length})</h2></div>
@@ -325,12 +344,35 @@ export default function BalcaoPage() {
                 {abertas.length === 0 ? <p className="px-5 py-6 text-center text-slate-400 text-sm">Nenhuma comanda aberta.</p> :
                   abertas.map((c) => (
                     <button key={c.id} type="button" onClick={() => abrirComanda(c)} className="w-full px-5 py-3 flex items-center justify-between hover:bg-slate-50 text-left">
-                      <span className="text-sm"><strong>Nº {c.numero}</strong> {c.clientes?.nome ? `· ${c.clientes.nome}` : ''}</span>
+                      <span className="text-sm">
+                        <strong>Nº {c.numero}</strong> {c.clientes?.nome ? `· ${c.clientes.nome}` : ''}
+                        <span className="block text-xs text-slate-400">vend.: {c.vendedores?.nome || '—'}</span>
+                      </span>
                       <span className="text-sm font-bold text-slate-700">{brl(Number(c.total))}</span>
                     </button>
                   ))}
               </div>
             </div>
+
+            {/* Orçamentos (guardados — podem virar venda) */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100">
+              <div className="px-5 py-3 border-b border-slate-100"><h2 className="font-semibold text-slate-900 flex items-center gap-1.5"><FileText size={15} /> Orçamentos ({orcamentos.length})</h2></div>
+              <div className="divide-y divide-slate-50">
+                {orcamentos.length === 0 ? <p className="px-5 py-6 text-center text-slate-400 text-sm">Nenhum orçamento.</p> :
+                  orcamentos.map((c) => (
+                    <div key={c.id} className="px-5 py-3 flex items-center justify-between gap-2">
+                      <button type="button" onClick={() => abrirComanda(c)} className="text-sm text-left flex-1 hover:text-blue-600">
+                        <strong>Nº {c.numero}</strong> {c.clientes?.nome ? `· ${c.clientes.nome}` : ''}
+                        <span className="block text-xs text-slate-400">vend.: {c.vendedores?.nome || '—'} · {brl(Number(c.total))}</span>
+                      </button>
+                      <Button size="sm" variant="secondary" onClick={() => enviarOrcamentoAoCaixa(c)} title="Transformar em venda e enviar ao caixa">
+                        <ArrowRight size={13} /> Caixa
+                      </Button>
+                    </div>
+                  ))}
+              </div>
+            </div>
+
             {/* Aguardando caixa */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-100">
               <div className="px-5 py-3 border-b border-slate-100"><h2 className="font-semibold text-slate-900">Aguardando caixa ({pendentes.length})</h2></div>
@@ -338,7 +380,10 @@ export default function BalcaoPage() {
                 {pendentes.length === 0 ? <p className="px-5 py-6 text-center text-slate-400 text-sm">Nada aguardando recebimento.</p> :
                   pendentes.map((c) => (
                     <div key={c.id} className="px-5 py-3 flex items-center justify-between">
-                      <span className="text-sm"><strong>Nº {c.numero}</strong> {c.clientes?.nome ? `· ${c.clientes.nome}` : ''}</span>
+                      <span className="text-sm">
+                        <strong>Nº {c.numero}</strong> {c.clientes?.nome ? `· ${c.clientes.nome}` : ''}
+                        <span className="block text-xs text-slate-400">vend.: {c.vendedores?.nome || '—'}</span>
+                      </span>
                       <span className="text-sm font-bold text-amber-600">{brl(Number(c.total))}</span>
                     </div>
                   ))}

@@ -116,7 +116,7 @@ export interface Produto {
   fornecedores?: { nome: string };
 }
 
-export type ComandaStatus = 'aberta' | 'aguardando_caixa' | 'faturada' | 'cancelada';
+export type ComandaStatus = 'aberta' | 'orcamento' | 'aguardando_caixa' | 'faturada' | 'cancelada';
 
 export interface Comanda {
   id: string;
