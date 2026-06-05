@@ -10,13 +10,13 @@ import { useToast } from '@/components/ui/Toast';
 import { usePermissions } from '@/components/PermissionsProvider';
 import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
 import {
-  Store, Plus, Search, Trash2, Check, X, MapPin, Package, ShoppingBag, CheckCircle2, Ban, Printer, FileText, ArrowRight,
+  Store, Plus, Search, Trash2, Check, X, MapPin, ShoppingBag, CheckCircle2, Ban, Printer, FileText, ArrowRight,
 } from 'lucide-react';
-import type { Comanda, ComandaItem, Produto } from '@/types/database.types';
+import type { Comanda, ComandaItem, Produto, CreditoCliente } from '@/types/database.types';
 
 function brl(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 
-type ProdBusca = Pick<Produto, 'id' | 'codigo' | 'ref' | 'nome' | 'aplicacoes' | 'localizacao' | 'estoque' | 'preco' | 'codigos_auxiliares'>;
+type ProdBusca = Pick<Produto, 'id' | 'codigo' | 'ref' | 'nome' | 'aplicacoes' | 'localizacao' | 'estoque' | 'estoque_minimo' | 'preco' | 'codigos_auxiliares'>;
 
 export default function BalcaoPage() {
   const supabase = createClient();
@@ -47,6 +47,15 @@ export default function BalcaoPage() {
   // Busca de produto (F7)
   const [showBusca, setShowBusca] = useState(false);
   const [busca, setBusca] = useState('');
+  // Crédito do cliente selecionado (aviso de inadimplência/limite)
+  const [clienteCredito, setClienteCredito] = useState<CreditoCliente | null>(null);
+
+  useEffect(() => {
+    const cid = comanda?.cliente_id;
+    if (!cid) { setClienteCredito(null); return; }
+    supabase.from('v_credito_cliente').select('*').eq('cliente_id', cid).single()
+      .then(({ data }) => setClienteCredito((data as CreditoCliente) || null));
+  }, [comanda?.cliente_id]);
 
   const getEmpresaId = useCallback(async () => {
     if (empresaId) return empresaId;
@@ -67,8 +76,8 @@ export default function BalcaoPage() {
       supabase.from('comandas').select(sel).eq('status', 'orcamento').order('created_at', { ascending: false }),
       supabase.from('comandas').select(sel).eq('status', 'em_atendimento_caixa').order('created_at', { ascending: false }),
       supabase.from('comandas').select(sel).in('status', ['faturada', 'cancelada']).gte('updated_at', hojeIni.toISOString()).order('updated_at', { ascending: false }).limit(30),
-      supabase.from('clientes').select('id, nome, telefone').eq('ativo', true).order('nome').limit(500),
-      supabase.from('produtos').select('id, codigo, ref, nome, aplicacoes, localizacao, estoque, preco, codigos_auxiliares').eq('ativo', true).order('nome').limit(2000),
+      supabase.from('clientes').select('id, nome, telefone, cpf_cnpj').eq('ativo', true).order('nome').limit(500),
+      supabase.from('produtos').select('id, codigo, ref, nome, aplicacoes, localizacao, estoque, estoque_minimo, preco, codigos_auxiliares').eq('ativo', true).order('nome').limit(2000),
       supabase.from('unidades').select('id').eq('ativo', true).order('padrao', { ascending: false }).limit(1),
     ]);
     setUnidadePadrao(((uni.data as { id: string }[]) || [])[0]?.id || null);
@@ -77,7 +86,7 @@ export default function BalcaoPage() {
     setOrcamentos((orc.data as unknown as Comanda[]) || []);
     setNoCaixa((nc.data as unknown as Comanda[]) || []);
     setConcluidas((conc.data as unknown as Comanda[]) || []);
-    setClientes(((cli.data as { id: string; nome: string; telefone: string | null }[]) || []).map((c) => ({ value: c.id, label: c.nome, sublabel: c.telefone || undefined, keywords: `${c.nome} ${c.telefone || ''}` })));
+    setClientes(((cli.data as { id: string; nome: string; telefone: string | null; cpf_cnpj: string | null }[]) || []).map((c) => ({ value: c.id, label: c.nome, sublabel: [c.telefone, c.cpf_cnpj].filter(Boolean).join(' · ') || undefined, keywords: `${c.nome} ${c.telefone || ''} ${c.cpf_cnpj || ''}` })));
     setProdutos((prod.data as ProdBusca[]) || []);
     setLoading(false);
   }, []);
@@ -182,14 +191,15 @@ export default function BalcaoPage() {
     setComanda({ ...comanda, cliente_id: clienteId || null });
   }
 
-  async function addProduto(p: ProdBusca) {
+  async function addProduto(p: ProdBusca, keepOpen = false) {
     if (!comanda) return;
     const eid = await getEmpresaId();
     await supabase.from('comanda_itens').insert({
       empresa_id: eid, comanda_id: comanda.id, produto_id: p.id,
       descricao: p.nome, quantidade: 1, preco_unitario: Number(p.preco), desconto: 0, total: Number(p.preco),
     });
-    setShowBusca(false);
+    toast.success(`✓ ${p.nome} adicionada`);
+    if (!keepOpen) setShowBusca(false);
     await carregarItens(comanda.id);
   }
 
@@ -245,15 +255,30 @@ export default function BalcaoPage() {
   }
 
   const total = itens.reduce((s, i) => s + Number(i.total), 0);
-  const q = busca.toLowerCase().trim();
-  // Mostra TODO o catálogo e vai filtrando ao vivo conforme digita
-  const prodFiltrados = !q ? produtos : produtos.filter((p) =>
-    (p.nome || '').toLowerCase().includes(q) ||
-    (p.codigo || '').toLowerCase().includes(q) ||
-    (p.ref || '').toLowerCase().includes(q) ||
-    (p.aplicacoes || []).some((a) => a.toLowerCase().includes(q)) ||
-    (p.codigos_auxiliares || []).some((c) => c.toLowerCase().includes(q))
-  );
+
+  // Texto de busca unificado (nome+código+ref+aplicações+auxiliares+localização)
+  const textoBusca = (p: ProdBusca) => `${p.nome} ${p.codigo || ''} ${p.ref || ''} ${(p.aplicacoes || []).join(' ')} ${(p.codigos_auxiliares || []).join(' ')} ${p.localizacao || ''}`.toLowerCase();
+  const termos = busca.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  // Busca por MÚLTIPLOS termos: o produto precisa conter TODOS (ex.: "moura gol")
+  const prodFiltrados = termos.length === 0 ? produtos : produtos.filter((p) => {
+    const txt = textoBusca(p);
+    return termos.every((t) => txt.includes(t));
+  });
+
+  // Código de barras / código exato → adiciona automaticamente (leitor de código de barras)
+  useEffect(() => {
+    const v = busca.trim().toLowerCase();
+    if (!showBusca || !comanda || v.length < 6) return;
+    const exato = produtos.find((p) => (p.codigo || '').toLowerCase() === v || (p.codigos_auxiliares || []).some((c) => c.toLowerCase() === v));
+    if (exato) { setBusca(''); addProduto(exato, true); }
+  }, [busca, showBusca, comanda]);
+
+  function seloEstoque(p: ProdBusca) {
+    const e = Number(p.estoque), m = Number(p.estoque_minimo || 0);
+    if (e <= 0) return { txt: '🔴 Esgotado', cls: 'text-red-600' };
+    if (m > 0 && e <= m) return { txt: `🟡 Baixo (${e})`, cls: 'text-amber-600' };
+    return { txt: `🟢 ${e} un`, cls: 'text-green-600' };
+  }
 
   if (!podeOperar) return <div className="py-16 text-center text-slate-400 dark:text-slate-500">Você não tem permissão para o balcão.</div>;
 
@@ -293,8 +318,18 @@ export default function BalcaoPage() {
             </div>
           </div>
 
-          <div className="max-w-sm">
-            <Combobox label="Cliente (opcional — obrigatório no crediário)" value={comanda.cliente_id || ''} onChange={setCliente} options={clientes} placeholder="Buscar cliente..." />
+          <div className="max-w-sm space-y-1.5">
+            <Combobox label="Cliente (opcional — obrigatório no crediário)" value={comanda.cliente_id || ''} onChange={setCliente} options={clientes} placeholder="Buscar por nome, telefone ou CPF..." />
+            {clienteCredito && (
+              <div className={`text-xs rounded-lg p-2 ${
+                clienteCredito.status_efetivo === 'bloqueado' || clienteCredito.status_efetivo === 'inadimplente' ? 'bg-red-50 text-red-700'
+                : clienteCredito.status_efetivo === 'atraso' ? 'bg-amber-50 text-amber-700' : 'bg-green-50 text-green-700'}`}>
+                {clienteCredito.status_efetivo === 'inadimplente' && '🔴 Cliente com títulos vencidos. '}
+                {clienteCredito.status_efetivo === 'bloqueado' && '🔴 Cliente bloqueado. '}
+                {clienteCredito.status_efetivo === 'atraso' && '🟡 Cliente com parcela em atraso. '}
+                Limite {brl(Number(clienteCredito.limite_credito))} · disponível <strong>{brl(Number(clienteCredito.limite_disponivel))}</strong>
+              </div>
+            )}
           </div>
 
           {/* Itens */}
@@ -441,32 +476,36 @@ export default function BalcaoPage() {
             <Search size={16} className="absolute left-3 top-3 text-slate-400" />
             <input autoFocus value={busca} onChange={(e) => setBusca(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') { e.preventDefault(); if (prodFiltrados[0]) addProduto(prodFiltrados[0]); }
+                if (e.key === 'Enter' && prodFiltrados[0]) { e.preventDefault(); addProduto(prodFiltrados[0], e.shiftKey); setBusca(''); }
                 if (e.key === 'Escape') { e.preventDefault(); setShowBusca(false); }
               }}
-              placeholder="Código, descrição, código de barras, referência ou aplicação... (Enter adiciona, Esc fecha)"
+              placeholder="Nome, código, código de barras, ref, aplicação ou localização... (ex: moura gol)"
               className="w-full pl-9 pr-9 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" />
             {busca && <button type="button" onClick={() => setBusca('')} className="absolute right-3 top-3 text-slate-400"><X size={14} /></button>}
           </div>
-          <p className="text-xs text-slate-400">{prodFiltrados.length} produto(s){busca ? ` para "${busca}"` : ' no catálogo'}</p>
+          <p className="text-xs text-slate-400 flex items-center justify-between">
+            <span>{prodFiltrados.length} produto(s){busca ? ` para "${busca}"` : ' no catálogo'}</span>
+            <span className="hidden sm:inline">Enter adiciona · Shift+Enter adiciona e continua · Esc fecha · código de barras adiciona sozinho</span>
+          </p>
           <div className="max-h-[65vh] overflow-y-auto divide-y divide-slate-50 border border-slate-100 rounded-lg">
             {prodFiltrados.length === 0 ? <p className="px-4 py-8 text-center text-slate-400 text-sm">Nenhum produto encontrado.</p> :
               prodFiltrados.map((p) => {
-                const semEstoque = Number(p.estoque) <= 0;
+                const selo = seloEstoque(p);
                 return (
-                  <button key={p.id} type="button" onClick={() => addProduto(p)} className="w-full px-4 py-3 flex items-center justify-between hover:bg-blue-50 text-left">
+                  <button key={p.id} type="button" onClick={() => addProduto(p)} className="w-full px-4 py-3 flex items-center justify-between hover:bg-blue-50 text-left gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-800 truncate">{p.nome}</p>
+                      <p className="text-sm font-medium text-slate-800 truncate">
+                        {p.codigo && <span className="font-mono text-xs text-slate-400 mr-1.5">{p.codigo}</span>}{p.nome}
+                      </p>
                       <p className="text-xs text-slate-400 flex items-center gap-2 flex-wrap">
-                        {p.codigo && <span>cód {p.codigo}</span>}
-                        {p.ref && <span>ref {p.ref}</span>}
-                        {(p.aplicacoes || []).length > 0 && <span>· {p.aplicacoes.join(', ')}</span>}
                         {p.localizacao && <span className="flex items-center gap-0.5"><MapPin size={10} /> {p.localizacao}</span>}
+                        {p.ref && <span>ref {p.ref}</span>}
+                        {(p.aplicacoes || []).length > 0 && <span>🚗 {p.aplicacoes.join(', ')}</span>}
                       </p>
                     </div>
-                    <div className="text-right shrink-0 ml-3">
+                    <div className="text-right shrink-0">
                       <p className="text-sm font-bold text-slate-900">{brl(Number(p.preco))}</p>
-                      <p className={`text-xs ${semEstoque ? 'text-red-500' : 'text-slate-400'}`}><Package size={10} className="inline mr-0.5" />{Number(p.estoque).toFixed(0)} un</p>
+                      <p className={`text-xs font-medium ${selo.cls}`}>{selo.txt}</p>
                     </div>
                   </button>
                 );
