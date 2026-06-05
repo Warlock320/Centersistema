@@ -132,7 +132,8 @@ export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [alertas, setAlertas] = useState(0);
+  const [alertas, setAlertas] = useState(0);          // produtos abaixo do mínimo (estoque)
+  const [aprovPend, setAprovPend] = useState(0);      // orçamentos aguardando aprovação
   const [sidebarOpen, setSidebarOpen] = useState(false); // drawer no mobile
   // Accordion: começa com a seção ativa aberta (determinístico → sem mismatch de hidratação)
   const [openSections, setOpenSections] = useState<Set<string>>(() => new Set(activeSection ? [activeSection] : []));
@@ -149,10 +150,12 @@ export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario 
 
   useEffect(() => {
     const loadAlertas = async () => {
-      const { count } = await supabase
-        .from('v_produtos_abaixo_minimo')
-        .select('id', { count: 'exact', head: true });
-      setAlertas(count || 0);
+      const [{ count: estoque }, { count: aprov }] = await Promise.all([
+        supabase.from('v_produtos_abaixo_minimo').select('id', { count: 'exact', head: true }),
+        supabase.from('orcamentos').select('id', { count: 'exact', head: true }).eq('status', 'aguardando_aprovacao'),
+      ]);
+      setAlertas(estoque || 0);
+      setAprovPend(aprov || 0);
     };
     loadAlertas();
   }, []);
@@ -275,8 +278,13 @@ export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario 
                       >
                         <Icon size={16} className="shrink-0" />
                         {item.label}
-                        {item.href === '/dashboard/aprovacoes' && alertas > 0 && (
-                          <span className="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                        {item.href === '/dashboard/aprovacoes' && aprovPend > 0 && (
+                          <span className="ml-auto bg-amber-500 text-white text-xs rounded-full min-w-5 h-5 px-1 flex items-center justify-center" title="Orçamentos aguardando aprovação">
+                            {aprovPend > 9 ? '9+' : aprovPend}
+                          </span>
+                        )}
+                        {item.href === '/dashboard/estoque' && alertas > 0 && (
+                          <span className="ml-auto bg-red-500 text-white text-xs rounded-full min-w-5 h-5 px-1 flex items-center justify-center" title="Produtos abaixo do estoque mínimo">
                             {alertas > 9 ? '9+' : alertas}
                           </span>
                         )}

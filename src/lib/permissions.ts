@@ -213,6 +213,35 @@ export function resolveHomeRoute(map: RolePermissionMap, roles: UserRole[] | nul
   return hit?.href ?? '/dashboard';
 }
 
+// Mapa rota → permissão exigida (mais específicas primeiro).
+// Usado pelo guard de rota: sem a permissão, o acesso direto por URL é bloqueado.
+export const ROUTE_PERMISSIONS: { prefix: string; perm: Permission | Permission[] }[] = [
+  { prefix: '/dashboard/financeiro/caixa/relatorios', perm: ['view_financeiro', 'gerir_caixa'] },
+  { prefix: '/dashboard/financeiro/caixa', perm: 'operar_caixa' },
+  { prefix: '/dashboard/financeiro/receber', perm: ['view_financeiro', 'registrar_venda'] },
+  { prefix: '/dashboard/financeiro/conciliacao', perm: 'edit_financeiro' },
+  { prefix: '/dashboard/financeiro/bancos', perm: 'edit_financeiro' },
+  { prefix: '/dashboard/financeiro/categorias', perm: 'edit_financeiro' },
+  { prefix: '/dashboard/financeiro/pagar', perm: 'view_financeiro' },
+  { prefix: '/dashboard/financeiro', perm: 'view_financeiro' },
+  { prefix: '/dashboard/crediario', perm: ['view_financeiro', 'gerir_crediario'] },
+  { prefix: '/dashboard/balcao', perm: 'operar_balcao' },
+  { prefix: '/dashboard/clientes', perm: 'view_clientes' },
+  { prefix: '/dashboard/produtos', perm: 'view_produtos' },
+  { prefix: '/dashboard/estoque', perm: 'view_estoque' },
+  { prefix: '/dashboard/fornecedores', perm: 'view_fornecedores' },
+  { prefix: '/dashboard/veiculos', perm: 'view_veiculos' },
+  { prefix: '/dashboard/empresas', perm: 'manage_config' },
+  { prefix: '/dashboard/orcamentos', perm: 'view_orcamentos' },
+  { prefix: '/dashboard/aprovacoes', perm: 'approve_orcamentos' },
+  { prefix: '/dashboard/pedidos', perm: 'view_pedidos' },
+  { prefix: '/dashboard/os', perm: 'view_os' },
+  { prefix: '/dashboard/nfe', perm: 'view_nfe' },
+  { prefix: '/dashboard/relatorios', perm: 'view_relatorios' },
+  { prefix: '/dashboard/auditoria', perm: 'view_auditoria' },
+  { prefix: '/dashboard/configuracoes', perm: 'manage_config' },
+];
+
 /** Constrói um mapa a partir de linhas {papel, permissao} (vindas do banco). Default para papéis sem linhas. */
 export function buildPermissionMap(rows: { papel: string; permissao: string }[]): RolePermissionMap {
   const map: RolePermissionMap = { admin: [], gestor: [], financeiro: [], vendedor: [], caixa: [] };

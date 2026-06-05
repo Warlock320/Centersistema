@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { PermissionsProvider } from '@/components/PermissionsProvider';
 import { DashboardNav } from '@/components/DashboardNav';
+import { RouteGuard } from '@/components/RouteGuard';
 import { resolveRoles } from '@/lib/permissions';
 import type { Usuario } from '@/types/database.types';
 
@@ -23,6 +24,7 @@ export function DashboardShell({ usuario, children }: { usuario: Usuario; childr
 
   return (
     <PermissionsProvider roles={resolveRoles(usuario)} empresaId={usuario.empresa_id || null}>
+      <RouteGuard />
       <div className="flex min-h-screen bg-slate-50">
         <DashboardNav usuario={usuario} collapsed={collapsed} />
 
