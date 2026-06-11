@@ -101,6 +101,7 @@ export interface Produto {
   ref: string | null;
   nome: string;
   categoria: string | null;
+  ncm: string | null;
   fornecedor_id: string | null;
   localizacao: string | null;
   aplicacao: string | null;       // legado (campo único) — mantido por compat
