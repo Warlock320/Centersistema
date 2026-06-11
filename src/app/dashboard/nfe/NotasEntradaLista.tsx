@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { matchBusca } from '@/lib/busca';
-import { Download, Search, RefreshCw } from 'lucide-react';
+import { parseNfeXml } from '@/lib/nfe/parser';
+import { baixarDanfe } from '@/components/DanfePDF';
+import { Download, Search, RefreshCw, FileText } from 'lucide-react';
 
 interface NfeImportada {
   id: string;
@@ -41,9 +43,13 @@ export default function NotasEntradaLista({ refreshKey }: { refreshKey?: number 
     return matchQ && (!de || ref >= de) && (!ate || ref <= ate);
   });
 
+  async function obterXml(id: string): Promise<string | null> {
+    const { data } = await supabase.from('nfe_importadas').select('xml_conteudo').eq('id', id).single();
+    return (data as { xml_conteudo?: string } | null)?.xml_conteudo || null;
+  }
+
   async function baixarXml(n: NfeImportada) {
-    const { data } = await supabase.from('nfe_importadas').select('xml_conteudo').eq('id', n.id).single();
-    const xml = (data as { xml_conteudo?: string } | null)?.xml_conteudo;
+    const xml = await obterXml(n.id);
     if (!xml) return;
     const blob = new Blob([xml], { type: 'application/xml' });
     const url = URL.createObjectURL(blob);
@@ -52,6 +58,14 @@ export default function NotasEntradaLista({ refreshKey }: { refreshKey?: number 
     a.download = `NFe-${n.numero_nota}.xml`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function baixarPdf(n: NfeImportada) {
+    const xml = await obterXml(n.id);
+    if (!xml) return;
+    try {
+      await baixarDanfe(parseNfeXml(xml));
+    } catch { /* xml inválido — ignora */ }
   }
 
   return (
@@ -77,7 +91,7 @@ export default function NotasEntradaLista({ refreshKey }: { refreshKey?: number 
               <th className="text-left px-4 py-3">Fornecedor</th>
               <th className="text-left px-4 py-3">Importada em</th>
               <th className="text-right px-4 py-3">Valor</th>
-              <th className="text-right px-4 py-3">XML</th>
+              <th className="text-right px-4 py-3">Arquivos</th>
             </tr>
           </thead>
           <tbody>
@@ -89,8 +103,11 @@ export default function NotasEntradaLista({ refreshKey }: { refreshKey?: number 
                 <td className="px-4 py-3 text-slate-700">{n.emitente_nome}</td>
                 <td className="px-4 py-3 text-slate-600">{new Date(n.created_at).toLocaleDateString('pt-BR')}</td>
                 <td className="px-4 py-3 text-right text-slate-700">{moeda(n.valor_total)}</td>
-                <td className="px-4 py-3 text-right">
-                  <button onClick={() => baixarXml(n)} title="Baixar XML" className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"><Download size={16} /></button>
+                <td className="px-4 py-3">
+                  <div className="flex items-center justify-end gap-1">
+                    <button onClick={() => baixarPdf(n)} title="Baixar DANFE (PDF)" className="inline-flex items-center gap-1 px-2 py-1.5 text-red-600 hover:bg-red-50 rounded-lg text-xs font-medium"><FileText size={14} /> DANFE</button>
+                    <button onClick={() => baixarXml(n)} title="Baixar XML" className="inline-flex items-center gap-1 px-2 py-1.5 text-blue-600 hover:bg-blue-50 rounded-lg text-xs font-medium"><Download size={14} /> XML</button>
+                  </div>
                 </td>
               </tr>
             ))}

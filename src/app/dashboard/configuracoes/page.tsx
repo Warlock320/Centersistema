@@ -19,6 +19,7 @@ import {
   type UserRole, type Permission,
 } from '@/lib/permissions';
 import { DEMO_MODE } from '@/lib/demo';
+import CertificadoSection from './CertificadoSection';
 
 // ── Seletor de papéis (checkboxes) ─────────────────────────────────────────────
 function RoleSelector({ value, onChange }: { value: UserRole[]; onChange: (roles: UserRole[]) => void }) {
@@ -381,6 +382,9 @@ export default function ConfiguracoesPage() {
           {isAdmin && <Button type="submit" loading={saving}>Salvar Dados</Button>}
         </form>
       </div>
+
+      {/* Certificado Digital (NF-e) — só admin */}
+      {isAdmin && <CertificadoSection />}
 
       {/* Equipe */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-100">
