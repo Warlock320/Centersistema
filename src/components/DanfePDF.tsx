@@ -1,111 +1,267 @@
 'use client';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { Document, Page, View, Text, StyleSheet, pdf } = require('@react-pdf/renderer');
+const { Document, Page, View, Text, Image, StyleSheet, pdf } = require('@react-pdf/renderer');
+import JsBarcode from 'jsbarcode';
 import type { NfeData } from '@/lib/nfe/parser';
 
 const money = (v: number) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const dataBR = (s: string) => (s ? new Date(s).toLocaleDateString('pt-BR') : '—');
+const qtd = (v: number) => Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 4 });
+const dataBR = (s: string) => (s ? new Date(s).toLocaleDateString('pt-BR') : '');
+const horaBR = (s: string) => (s ? new Date(s).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '');
+const chaveFmt = (c: string) => (c || '').replace(/(\d{4})(?=\d)/g, '$1 ');
 
-const styles = StyleSheet.create({
-  page: { padding: 28, fontFamily: 'Helvetica', fontSize: 8, color: '#1e293b' },
-  head: { flexDirection: 'row', justifyContent: 'space-between', borderBottom: '2px solid #0f172a', paddingBottom: 8, marginBottom: 10 },
-  emit: { flex: 1 },
-  emitNome: { fontSize: 12, fontWeight: 'bold' },
-  small: { fontSize: 7.5, color: '#475569' },
-  box: { border: '1px solid #cbd5e1', borderRadius: 3, padding: 6, alignItems: 'center', width: 150 },
-  boxTitle: { fontSize: 7, color: '#64748b' },
-  boxBig: { fontSize: 13, fontWeight: 'bold' },
-  chave: { fontSize: 7, marginTop: 3 },
-  section: { marginBottom: 8 },
-  sectionTitle: { fontSize: 8, fontWeight: 'bold', color: '#475569', marginBottom: 3, backgroundColor: '#f1f5f9', padding: '3 5' },
+const FRETE: Record<string, string> = {
+  '0': '0 - Rem.', '1': '1 - Dest.', '2': '2 - Terceiros',
+  '3': '3 - Próprio Rem.', '4': '4 - Próprio Dest.', '9': '9 - Sem frete',
+};
+
+const s = StyleSheet.create({
+  page: { paddingVertical: 16, paddingHorizontal: 18, fontFamily: 'Helvetica', fontSize: 6.5, color: '#000' },
+  // canhoto
+  canhoto: { flexDirection: 'row', borderTop: 0.5, borderLeft: 0.5, borderColor: '#000' },
+  recebemos: { flex: 1, borderRight: 0.5, borderBottom: 0.5, borderColor: '#000', padding: 3 },
+  recRow: { flexDirection: 'row', marginTop: 4 },
+  nfBox: { width: 120, borderRight: 0.5, borderBottom: 0.5, borderColor: '#000', padding: 3, alignItems: 'center', justifyContent: 'center' },
+  dashed: { borderBottom: 0.7, borderColor: '#000', borderStyle: 'dashed', marginVertical: 4 },
+  // grade genérica
+  grid: { borderTop: 0.5, borderLeft: 0.5, borderColor: '#000' },
   row: { flexDirection: 'row' },
-  th: { flexDirection: 'row', backgroundColor: '#0f172a', color: '#fff', padding: '4 4' },
-  td: { flexDirection: 'row', padding: '3 4', borderBottom: '0.5px solid #e2e8f0' },
-  cCod: { width: 55 }, cDesc: { flex: 1 }, cNcm: { width: 50 }, cQtd: { width: 38, textAlign: 'right' },
-  cUn: { width: 50, textAlign: 'right' }, cTot: { width: 55, textAlign: 'right' },
-  totalBox: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 },
-  totalLabel: { fontWeight: 'bold', marginRight: 12 }, totalVal: { fontWeight: 'bold', fontSize: 12 },
-  dupRow: { flexDirection: 'row', justifyContent: 'space-between', borderBottom: '0.5px solid #e2e8f0', padding: '2 4' },
-  footer: { position: 'absolute', bottom: 16, left: 28, right: 28, textAlign: 'center', color: '#94a3b8', fontSize: 6.5 },
+  cell: { borderRight: 0.5, borderBottom: 0.5, borderColor: '#000', paddingHorizontal: 3, paddingVertical: 1.5, justifyContent: 'center' },
+  lbl: { fontSize: 5, color: '#333' },
+  val: { fontSize: 7 },
+  valB: { fontSize: 8, fontFamily: 'Helvetica-Bold' },
+  secTitle: { fontSize: 6, fontFamily: 'Helvetica-Bold', marginTop: 4, marginBottom: 1 },
+  center: { alignItems: 'center', textAlign: 'center' },
+  // cabeçalho
+  emit: { width: '38%', borderRight: 0.5, borderBottom: 0.5, borderColor: '#000', padding: 4, alignItems: 'center', textAlign: 'center', justifyContent: 'center' },
+  emitNome: { fontSize: 9, fontFamily: 'Helvetica-Bold' },
+  danfe: { width: '28%', borderRight: 0.5, borderBottom: 0.5, borderColor: '#000', padding: 3, alignItems: 'center', textAlign: 'center' },
+  danfeTit: { fontSize: 11, fontFamily: 'Helvetica-Bold' },
+  ent: { flexDirection: 'row', borderWidth: 0.5, borderColor: '#000', marginVertical: 2 },
+  entN: { fontSize: 10, fontFamily: 'Helvetica-Bold', paddingHorizontal: 4 },
+  chaveBox: { flex: 1, borderRight: 0.5, borderBottom: 0.5, borderColor: '#000', padding: 3, alignItems: 'center', textAlign: 'center', justifyContent: 'center' },
+  barcode: { height: 36, width: 230, marginBottom: 2 },
+  chaveTxt: { fontSize: 7, fontFamily: 'Helvetica-Bold' },
+  // produtos
+  th: { flexDirection: 'row', borderTop: 0.5, borderLeft: 0.5, borderColor: '#000', backgroundColor: '#eee' },
+  thc: { borderRight: 0.5, borderBottom: 0.5, borderColor: '#000', paddingHorizontal: 2, paddingVertical: 2, fontSize: 5, textAlign: 'center', fontFamily: 'Helvetica-Bold' },
+  tdc: { borderRight: 0.5, borderBottom: 0.5, borderColor: '#000', paddingHorizontal: 2, paddingVertical: 1.5, fontSize: 6 },
 });
 
-function DanfeDoc({ data }: { data: NfeData }) {
+// larguras das colunas de produto (em %)
+const P = { cod: '8%', desc: '30%', ncm: '7%', cst: '5%', cfop: '6%', un: '5%', qt: '8%', vu: '9%', vt: '9%', bc: '8%', vi: '8%', vipi: '7%' };
+
+function Cell({ label, value, w, bold, alignR }: { label: string; value: string; w?: string | number; bold?: boolean; alignR?: boolean }) {
+  return (
+    <View style={[s.cell, w ? { width: w } : { flex: 1 }]}>
+      <Text style={s.lbl}>{label}</Text>
+      <Text style={[bold ? s.valB : s.val, alignR ? { textAlign: 'right' } : {}]}>{value || ' '}</Text>
+    </View>
+  );
+}
+
+function DanfeDoc({ data, barcode }: { data: NfeData; barcode: string }) {
   const e = data.emitente;
+  const d = data.destinatario;
+  const t = data.totais;
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
-        <View style={styles.head}>
-          <View style={styles.emit}>
-            <Text style={styles.emitNome}>{e.nome || data.emitenteNome}</Text>
-            {e.razaoSocial && e.razaoSocial !== e.nome ? <Text style={styles.small}>{e.razaoSocial}</Text> : null}
-            <Text style={styles.small}>CNPJ: {e.cnpj}{e.ie ? `  IE: ${e.ie}` : ''}</Text>
-            {e.endereco ? <Text style={styles.small}>{e.endereco}</Text> : null}
-            <Text style={styles.small}>{[e.cidade, e.estado].filter(Boolean).join(' - ')}{e.cep ? `  CEP ${e.cep}` : ''}{e.telefone ? `  Tel ${e.telefone}` : ''}</Text>
-          </View>
-          <View style={styles.box}>
-            <Text style={styles.boxTitle}>DANFE</Text>
-            <Text style={styles.boxBig}>Nº {data.numeroNota}</Text>
-            <Text style={styles.small}>Emissão: {dataBR(data.dataEmissao)}</Text>
-            <Text style={styles.chave}>Chave: {data.chaveAcesso}</Text>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>DESTINATÁRIO</Text>
-          <Text>{data.destinatario.nome || '—'}{data.destinatario.doc ? `   —   ${data.destinatario.doc}` : ''}</Text>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>PRODUTOS / SERVIÇOS</Text>
-          <View style={styles.th}>
-            <Text style={styles.cCod}>Código</Text>
-            <Text style={styles.cDesc}>Descrição</Text>
-            <Text style={styles.cNcm}>NCM</Text>
-            <Text style={styles.cQtd}>Qtd</Text>
-            <Text style={styles.cUn}>V.Unit</Text>
-            <Text style={styles.cTot}>V.Total</Text>
-          </View>
-          {data.produtos.map((p, i) => (
-            <View style={styles.td} key={i}>
-              <Text style={styles.cCod}>{p.codigo || '—'}</Text>
-              <Text style={styles.cDesc}>{p.descricao}</Text>
-              <Text style={styles.cNcm}>{p.ncm || '—'}</Text>
-              <Text style={styles.cQtd}>{p.quantidade}</Text>
-              <Text style={styles.cUn}>{money(p.valorUnitario)}</Text>
-              <Text style={styles.cTot}>{money(p.valorTotal)}</Text>
+      <Page size="A4" style={s.page}>
+        {/* CANHOTO */}
+        <View style={s.canhoto}>
+          <View style={s.recebemos}>
+            <Text style={{ fontSize: 5.5 }}>
+              RECEBEMOS DE {e.razaoSocial || data.emitenteNome} OS PRODUTOS / SERVIÇOS CONSTANTES DA NOTA FISCAL INDICADA AO LADO
+            </Text>
+            <View style={s.recRow}>
+              <View style={[s.cell, { width: 90 }]}><Text style={s.lbl}>DATA DE RECEBIMENTO</Text><Text style={s.val}> </Text></View>
+              <View style={[s.cell, { flex: 1, borderRight: 0 }]}><Text style={s.lbl}>IDENTIFICAÇÃO E ASSINATURA DO RECEBEDOR</Text><Text style={s.val}> </Text></View>
             </View>
-          ))}
-          <View style={styles.totalBox}>
-            <Text style={styles.totalLabel}>TOTAL DA NOTA</Text>
-            <Text style={styles.totalVal}>R$ {money(data.valorTotal)}</Text>
+          </View>
+          <View style={s.nfBox}>
+            <Text style={{ fontSize: 9, fontFamily: 'Helvetica-Bold' }}>NF-e</Text>
+            <Text style={{ fontSize: 7 }}>Nº {String(data.numeroNota).padStart(9, '0')}</Text>
+            <Text style={{ fontSize: 7 }}>SÉRIE {data.serie}</Text>
+          </View>
+        </View>
+        <View style={s.dashed} />
+
+        {/* CABEÇALHO */}
+        <View style={s.grid}>
+          <View style={s.row}>
+            {/* Emitente */}
+            <View style={s.emit}>
+              <Text style={s.emitNome}>{e.nome || data.emitenteNome}</Text>
+              <Text>{e.endereco}</Text>
+              <Text>{e.bairro}</Text>
+              <Text>{[e.cidade, e.estado].filter(Boolean).join(' - ')}{e.cep ? ` - ${e.cep}` : ''}</Text>
+              {e.telefone ? <Text>Tel: {e.telefone}</Text> : null}
+            </View>
+            {/* DANFE */}
+            <View style={s.danfe}>
+              <Text style={s.danfeTit}>DANFE</Text>
+              <Text style={{ fontSize: 5.5 }}>Documento Auxiliar da{'\n'}Nota Fiscal Eletrônica</Text>
+              <View style={s.ent}>
+                <View style={{ alignItems: 'center', paddingHorizontal: 3, borderRight: 0.5, borderColor: '#000' }}>
+                  <Text style={{ fontSize: 5 }}>0-Entrada</Text>
+                  <Text style={{ fontSize: 5 }}>1-Saída</Text>
+                </View>
+                <Text style={s.entN}>{data.tipoNF}</Text>
+              </View>
+              <Text style={{ fontSize: 6 }}>Nº {String(data.numeroNota).padStart(9, '0')}</Text>
+              <Text style={{ fontSize: 6 }}>SÉRIE {data.serie}   FOLHA 1 de 1</Text>
+            </View>
+            {/* Chave / barcode */}
+            <View style={s.chaveBox}>
+              {barcode ? <Image src={barcode} style={s.barcode} /> : null}
+              <Text style={s.lbl}>CHAVE DE ACESSO</Text>
+              <Text style={s.chaveTxt}>{chaveFmt(data.chaveAcesso)}</Text>
+              <Text style={{ fontSize: 5, marginTop: 2 }}>Consulta de autenticidade no portal nacional da NF-e</Text>
+              <Text style={{ fontSize: 5 }}>www.nfe.fazenda.gov.br/portal</Text>
+            </View>
+          </View>
+          {/* Natureza / Protocolo */}
+          <View style={s.row}>
+            <Cell label="NATUREZA DA OPERAÇÃO" value={data.naturezaOperacao} w="50%" />
+            <Cell label="PROTOCOLO DE AUTORIZAÇÃO DE USO" value={data.protocolo.numero ? `${data.protocolo.numero}  ${dataBR(data.protocolo.data)} ${horaBR(data.protocolo.data)}` : ''} />
+          </View>
+          {/* IE / IE ST / CNPJ */}
+          <View style={s.row}>
+            <Cell label="INSCRIÇÃO ESTADUAL" value={e.ie} w="34%" />
+            <Cell label="INSC. ESTADUAL DO SUBST. TRIB." value="" w="33%" />
+            <Cell label="CNPJ" value={e.cnpj} />
           </View>
         </View>
 
-        {data.duplicatas.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>DUPLICATAS / FATURA</Text>
-            {data.duplicatas.map((d, i) => (
-              <View style={styles.dupRow} key={i}>
-                <Text>Parcela {d.numero || i + 1}</Text>
-                <Text>Venc.: {dataBR(d.vencimento)}</Text>
-                <Text>R$ {money(d.valor)}</Text>
-              </View>
-            ))}
+        {/* DESTINATÁRIO / REMETENTE */}
+        <Text style={s.secTitle}>DESTINATÁRIO / REMETENTE</Text>
+        <View style={s.grid}>
+          <View style={s.row}>
+            <Cell label="NOME / RAZÃO SOCIAL" value={d.nome} w="56%" />
+            <Cell label="CNPJ / CPF" value={d.doc} w="26%" />
+            <Cell label="DATA DA EMISSÃO" value={dataBR(data.dataEmissao)} />
           </View>
+          <View style={s.row}>
+            <Cell label="ENDEREÇO" value={d.endereco} w="40%" />
+            <Cell label="BAIRRO / DISTRITO" value={d.bairro} w="24%" />
+            <Cell label="CEP" value={d.cep} w="18%" />
+            <Cell label="DATA SAÍDA / ENTRADA" value="" />
+          </View>
+          <View style={s.row}>
+            <Cell label="MUNICÍPIO" value={d.municipio} w="28%" />
+            <Cell label="FONE / FAX" value={d.telefone} w="18%" />
+            <Cell label="UF" value={d.uf} w="8%" />
+            <Cell label="INSCRIÇÃO ESTADUAL" value={d.ie} w="28%" />
+            <Cell label="HORA SAÍDA" value="" />
+          </View>
+        </View>
+
+        {/* FATURA / DUPLICATAS */}
+        {data.duplicatas.length > 0 && (
+          <>
+            <Text style={s.secTitle}>FATURA / DUPLICATAS</Text>
+            <View style={s.grid}>
+              <View style={s.row}>
+                {data.duplicatas.slice(0, 6).map((dp, i) => (
+                  <Cell key={i} label={`PARC. ${dp.numero || i + 1}`} value={`${dataBR(dp.vencimento)}  R$ ${money(dp.valor)}`} />
+                ))}
+              </View>
+            </View>
+          </>
         )}
 
-        <Text style={styles.footer}>
-          Representação gerada pelo sistema a partir do XML da NF-e — documento auxiliar para conferência interna.
-        </Text>
+        {/* CÁLCULO DO IMPOSTO */}
+        <Text style={s.secTitle}>CÁLCULO DO IMPOSTO</Text>
+        <View style={s.grid}>
+          <View style={s.row}>
+            <Cell label="BASE DE CÁLCULO DO ICMS" value={money(t.baseIcms)} alignR />
+            <Cell label="VALOR DO ICMS" value={money(t.valorIcms)} alignR />
+            <Cell label="BASE CÁLCULO ICMS ST" value={money(t.baseIcmsSt)} alignR />
+            <Cell label="VALOR ICMS ST" value={money(t.valorIcmsSt)} alignR />
+            <Cell label="VALOR TOTAL PRODUTOS" value={money(t.valorProdutos)} alignR />
+          </View>
+          <View style={s.row}>
+            <Cell label="VALOR DO FRETE" value={money(t.valorFrete)} alignR />
+            <Cell label="VALOR DO SEGURO" value={money(t.valorSeguro)} alignR />
+            <Cell label="DESCONTO" value={money(t.desconto)} alignR />
+            <Cell label="OUTRAS DESPESAS" value={money(t.outrasDespesas)} alignR />
+            <Cell label="VALOR DO IPI" value={money(t.valorIpi)} alignR />
+            <Cell label="VALOR TOTAL DA NOTA" value={money(t.valorTotal)} bold alignR />
+          </View>
+        </View>
+
+        {/* TRANSPORTADOR */}
+        <Text style={s.secTitle}>TRANSPORTADOR / VOLUMES TRANSPORTADOS</Text>
+        <View style={s.grid}>
+          <View style={s.row}>
+            <Cell label="FRETE POR CONTA" value={FRETE[data.modalidadeFrete] || data.modalidadeFrete} w="20%" />
+            <Cell label="VALOR APROX. DOS TRIBUTOS" value={money(t.valorAproxTributos)} alignR />
+          </View>
+        </View>
+
+        {/* DADOS DOS PRODUTOS */}
+        <Text style={s.secTitle}>DADOS DOS PRODUTOS / SERVIÇOS</Text>
+        <View style={s.th}>
+          <Text style={[s.thc, { width: P.cod }]}>CÓD</Text>
+          <Text style={[s.thc, { width: P.desc }]}>DESCRIÇÃO</Text>
+          <Text style={[s.thc, { width: P.ncm }]}>NCM/SH</Text>
+          <Text style={[s.thc, { width: P.cst }]}>CST</Text>
+          <Text style={[s.thc, { width: P.cfop }]}>CFOP</Text>
+          <Text style={[s.thc, { width: P.un }]}>UN</Text>
+          <Text style={[s.thc, { width: P.qt }]}>QUANT</Text>
+          <Text style={[s.thc, { width: P.vu }]}>V.UNIT</Text>
+          <Text style={[s.thc, { width: P.vt }]}>V.TOTAL</Text>
+          <Text style={[s.thc, { width: P.bc }]}>BC ICMS</Text>
+          <Text style={[s.thc, { width: P.vi }]}>V.ICMS</Text>
+          <Text style={[s.thc, { width: P.vipi }]}>V.IPI</Text>
+        </View>
+        <View style={s.grid}>
+          {data.produtos.map((p, i) => (
+            <View style={s.row} key={i}>
+              <Text style={[s.tdc, { width: P.cod }]}>{p.codigo}</Text>
+              <Text style={[s.tdc, { width: P.desc }]}>{p.descricao}</Text>
+              <Text style={[s.tdc, { width: P.ncm }]}>{p.ncm}</Text>
+              <Text style={[s.tdc, { width: P.cst }]}>{p.cst}</Text>
+              <Text style={[s.tdc, { width: P.cfop }]}>{p.cfop}</Text>
+              <Text style={[s.tdc, { width: P.un }]}>{p.unidade}</Text>
+              <Text style={[s.tdc, { width: P.qt, textAlign: 'right' }]}>{qtd(p.quantidade)}</Text>
+              <Text style={[s.tdc, { width: P.vu, textAlign: 'right' }]}>{money(p.valorUnitario)}</Text>
+              <Text style={[s.tdc, { width: P.vt, textAlign: 'right' }]}>{money(p.valorTotal)}</Text>
+              <Text style={[s.tdc, { width: P.bc, textAlign: 'right' }]}>{money(p.baseIcms)}</Text>
+              <Text style={[s.tdc, { width: P.vi, textAlign: 'right' }]}>{money(p.valorIcms)}</Text>
+              <Text style={[s.tdc, { width: P.vipi, textAlign: 'right' }]}>{money(p.valorIpi)}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* DADOS ADICIONAIS */}
+        <Text style={s.secTitle}>DADOS ADICIONAIS</Text>
+        <View style={[s.grid, { minHeight: 40 }]}>
+          <View style={s.row}>
+            <Cell label="INFORMAÇÕES COMPLEMENTARES" value={data.informacoesComplementares} />
+          </View>
+        </View>
       </Page>
     </Document>
   );
 }
 
-/** Gera o PDF do DANFE e dispara o download no navegador. */
+function barcodeDataUrl(chave: string): string {
+  if (!chave) return '';
+  try {
+    const canvas = document.createElement('canvas');
+    JsBarcode(canvas, chave, { format: 'CODE128C', displayValue: false, height: 40, width: 1, margin: 0 });
+    return canvas.toDataURL('image/png');
+  } catch {
+    return '';
+  }
+}
+
+/** Gera o PDF do DANFE (layout oficial) e dispara o download no navegador. */
 export async function baixarDanfe(data: NfeData) {
-  const blob = await pdf(<DanfeDoc data={data} />).toBlob();
+  const barcode = barcodeDataUrl(data.chaveAcesso);
+  const blob = await pdf(<DanfeDoc data={data} barcode={barcode} />).toBlob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
