@@ -168,8 +168,25 @@ export default function NfePage() {
 
   async function criarCategoria(nome: string, aplicarItem?: number) {
     const nm = nome.trim();
-    if (!nm || !empresaId) return;
-    const { data } = await supabase.from('categorias').insert({ nome: nm, empresa_id: empresaId }).select().single();
+    if (!nm) { setError('Digite o nome da categoria antes de criar.'); return; }
+
+    // Garante a empresa mesmo se o estado ainda não tiver carregado
+    let eid = empresaId;
+    if (!eid) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: usr } = await supabase.from('usuarios').select('empresa_id').eq('id', user.id).single();
+        eid = (usr as Usuario)?.empresa_id || '';
+        if (eid) setEmpresaId(eid);
+      }
+    }
+    if (!eid) { setError('Não foi possível identificar a empresa para criar a categoria.'); return; }
+
+    setError('');
+    const { data, error: err } = await supabase.from('categorias')
+      .insert({ nome: nm, empresa_id: eid }).select().single();
+    if (err) { setError('Erro ao criar categoria: ' + err.message); return; }
+
     const { data: cats } = await supabase.from('categorias').select('*').order('nome');
     if (cats) setCategorias(cats as Categoria[]);
     const novaId = (data as Categoria)?.id;
