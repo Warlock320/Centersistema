@@ -118,7 +118,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'view_orcamentos', 'edit_orcamentos',
     'view_pedidos', 'edit_pedidos',
     'view_os', 'edit_os',
-    'view_nfe',
     'registrar_venda', 'operar_balcao',
     'operar_caixa',
   ],

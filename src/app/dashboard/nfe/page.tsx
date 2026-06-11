@@ -59,6 +59,13 @@ export default function NfePage() {
   const [categoriaGlobal, setCategoriaGlobal] = useState('');
   const [gerarContaPagar, setGerarContaPagar] = useState(true);
 
+  // fornecedor (emitente) — obrigatório estar cadastrado antes de importar
+  const [fornecedorId, setFornecedorId] = useState<string | null>(null);
+  const [fornecedorPendente, setFornecedorPendente] = useState(false);
+  const [fornModal, setFornModal] = useState(false);
+  const [fornForm, setFornForm] = useState({ nome: '', razao_social: '', cnpj_cpf: '', ie: '', telefone: '', endereco: '', cidade: '', estado: '', cep: '', prazo_padrao: 0 });
+  const [salvandoForn, setSalvandoForn] = useState(false);
+
   const [error, setError] = useState('');
   const [warning, setWarning] = useState('');
   const [importing, setImporting] = useState(false);
@@ -123,6 +130,7 @@ export default function NfePage() {
 
   async function processFile(file: File) {
     setError(''); setWarning(''); setSuccess(''); setNfeData(null); setItems([]);
+    setFornecedorId(null); setFornecedorPendente(false);
 
     if (!file.name.toLowerCase().endsWith('.xml')) {
       setError('Selecione um arquivo .xml de NF-e');
@@ -176,8 +184,57 @@ export default function NfePage() {
       })
     );
 
+    // Fornecedor (emitente): precisa estar cadastrado antes de importar
+    const cnpj = digits(parsed.emitente.cnpj);
+    if (cnpj) {
+      const { data: forn } = await supabase.from('fornecedores')
+        .select('id').eq('cnpj_cpf', cnpj).maybeSingle();
+      if (forn) {
+        setFornecedorId(forn.id);
+        setFornecedorPendente(false);
+      } else {
+        setFornecedorId(null);
+        setFornecedorPendente(true);
+        const e = parsed.emitente;
+        setFornForm({
+          nome: e.nome, razao_social: e.razaoSocial, cnpj_cpf: cnpj, ie: e.ie,
+          telefone: e.telefone, endereco: e.endereco, cidade: e.cidade, estado: e.estado, cep: e.cep,
+          prazo_padrao: 0,
+        });
+      }
+    }
+
     setNfeData({ ...parsed, xml_conteudo: text });
     setItems(novos);
+  }
+
+  async function salvarFornecedor() {
+    if (!empresaId || !fornForm.nome.trim()) return;
+    setSalvandoForn(true);
+    try {
+      const { data, error: err } = await supabase.from('fornecedores').insert({
+        empresa_id: empresaId,
+        nome: fornForm.nome.trim(),
+        razao_social: fornForm.razao_social || null,
+        cnpj_cpf: digits(fornForm.cnpj_cpf) || null,
+        tipo: 'juridica',
+        telefone: fornForm.telefone || null,
+        endereco: fornForm.endereco || null,
+        cidade: fornForm.cidade || null,
+        estado: fornForm.estado || null,
+        cep: digits(fornForm.cep) || null,
+        prazo_padrao: Number(fornForm.prazo_padrao) || 0,
+        ativo: true,
+      }).select('id').single();
+      if (err) throw err;
+      setFornecedorId(data!.id);
+      setFornecedorPendente(false);
+      setFornModal(false);
+    } catch (e) {
+      setError('Erro ao cadastrar fornecedor: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setSalvandoForn(false);
+    }
   }
 
   function handleFileDrop(e: React.DragEvent) {
@@ -192,27 +249,13 @@ export default function NfePage() {
 
   async function handleImport() {
     if (!nfeData || !empresaId) return;
+    if (fornecedorPendente) { setError('Cadastre o fornecedor da nota antes de importar.'); return; }
     const incluidos = items.filter((i) => i.incluir);
     if (incluidos.length === 0) { setError('Selecione ao menos um item para importar.'); return; }
 
     setImporting(true); setError('');
     try {
-      // 1) Fornecedor (emitente): busca por CNPJ, cria se não existir
-      let fornecedorId: string | null = null;
-      const cnpj = digits(nfeData.emitenteCnpj);
-      if (cnpj) {
-        const { data: forn } = await supabase.from('fornecedores')
-          .select('id').eq('empresa_id', empresaId).eq('cnpj_cpf', cnpj).maybeSingle();
-        if (forn) {
-          fornecedorId = forn.id;
-        } else {
-          const { data: novoForn } = await supabase.from('fornecedores').insert({
-            empresa_id: empresaId, nome: nfeData.emitenteNome, razao_social: nfeData.emitenteNome,
-            cnpj_cpf: cnpj, tipo: 'juridica', ativo: true,
-          }).select('id').single();
-          fornecedorId = novoForn?.id || null;
-        }
-      }
+      // Fornecedor já validado na leitura do XML (state fornecedorId, precisa estar cadastrado)
 
       // 2) Histórico da NF-e
       const { data: nfeRecord, error: nfeError } = await supabase.from('nfe_importadas').insert({
@@ -375,6 +418,25 @@ export default function NfePage() {
                 </div>
               </div>
             </div>
+
+            {/* Validação do fornecedor */}
+            {fornecedorPendente ? (
+              <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertCircle size={18} className="text-amber-600 shrink-0" />
+                <p className="text-sm text-amber-800 flex-1">
+                  O fornecedor <b>{nfeData.emitente.nome}</b> ainda não está cadastrado. Cadastre-o antes de importar.
+                </p>
+                <Button variant="secondary" onClick={() => setFornModal(true)}>Cadastrar fornecedor</Button>
+              </div>
+            ) : fornecedorId ? (
+              <div className="mt-3 flex items-center gap-2 p-2.5 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+                <CheckCircle size={16} /> Fornecedor cadastrado e vinculado.
+              </div>
+            ) : nfeData.emitenteCnpj ? null : (
+              <div className="mt-3 flex items-center gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-500">
+                <AlertCircle size={14} /> A nota não traz CNPJ do emitente — os produtos serão importados sem fornecedor.
+              </div>
+            )}
           </div>
 
           {/* Parâmetros globais */}
@@ -482,11 +544,84 @@ export default function NfePage() {
           </div>
 
           {/* Ações */}
-          <div className="flex flex-wrap gap-3 sticky bottom-0 bg-white/80 backdrop-blur py-3 -mx-4 px-4 border-t border-slate-100">
-            <Button onClick={handleImport} loading={importing}>Confirmar importação ({items.filter((i) => i.incluir).length})</Button>
+          <div className="flex flex-wrap items-center gap-3 sticky bottom-0 bg-white/80 backdrop-blur py-3 -mx-4 px-4 border-t border-slate-100">
+            <Button onClick={handleImport} loading={importing} disabled={fornecedorPendente}>
+              Confirmar importação ({items.filter((i) => i.incluir).length})
+            </Button>
             <Button variant="secondary" onClick={() => { setNfeData(null); setItems([]); }}>Cancelar</Button>
+            {fornecedorPendente && <span className="text-xs text-amber-600">Cadastre o fornecedor para liberar a importação.</span>}
           </div>
         </>
+      )}
+
+      {/* Modal: cadastro rápido do fornecedor (pré-preenchido com o XML) */}
+      {fornModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setFornModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+              <Building2 size={18} className="text-blue-500" />
+              <h2 className="font-semibold text-slate-900">Cadastrar fornecedor</h2>
+            </div>
+            <div className="px-6 py-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="text-sm sm:col-span-2">
+                <span className="text-slate-500 text-xs">Nome / Fantasia *</span>
+                <input value={fornForm.nome} onChange={(e) => setFornForm((p) => ({ ...p, nome: e.target.value }))}
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg" />
+              </label>
+              <label className="text-sm sm:col-span-2">
+                <span className="text-slate-500 text-xs">Razão social</span>
+                <input value={fornForm.razao_social} onChange={(e) => setFornForm((p) => ({ ...p, razao_social: e.target.value }))}
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg" />
+              </label>
+              <label className="text-sm">
+                <span className="text-slate-500 text-xs">CNPJ</span>
+                <input value={fornForm.cnpj_cpf} onChange={(e) => setFornForm((p) => ({ ...p, cnpj_cpf: e.target.value }))}
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg" />
+              </label>
+              <label className="text-sm">
+                <span className="text-slate-500 text-xs">Inscrição estadual</span>
+                <input value={fornForm.ie} onChange={(e) => setFornForm((p) => ({ ...p, ie: e.target.value }))}
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg" />
+              </label>
+              <label className="text-sm">
+                <span className="text-slate-500 text-xs">Telefone</span>
+                <input value={fornForm.telefone} onChange={(e) => setFornForm((p) => ({ ...p, telefone: e.target.value }))}
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg" />
+              </label>
+              <label className="text-sm">
+                <span className="text-slate-500 text-xs">Prazo padrão (dias)</span>
+                <input type="number" min={0} value={fornForm.prazo_padrao} onChange={(e) => setFornForm((p) => ({ ...p, prazo_padrao: Number(e.target.value) }))}
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg" />
+              </label>
+              <label className="text-sm sm:col-span-2">
+                <span className="text-slate-500 text-xs">Endereço</span>
+                <input value={fornForm.endereco} onChange={(e) => setFornForm((p) => ({ ...p, endereco: e.target.value }))}
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg" />
+              </label>
+              <label className="text-sm">
+                <span className="text-slate-500 text-xs">Cidade</span>
+                <input value={fornForm.cidade} onChange={(e) => setFornForm((p) => ({ ...p, cidade: e.target.value }))}
+                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg" />
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-sm">
+                  <span className="text-slate-500 text-xs">UF</span>
+                  <input maxLength={2} value={fornForm.estado} onChange={(e) => setFornForm((p) => ({ ...p, estado: e.target.value.toUpperCase() }))}
+                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg uppercase" />
+                </label>
+                <label className="text-sm">
+                  <span className="text-slate-500 text-xs">CEP</span>
+                  <input value={fornForm.cep} onChange={(e) => setFornForm((p) => ({ ...p, cep: e.target.value }))}
+                    className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg" />
+                </label>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-slate-100 flex gap-3">
+              <Button onClick={salvarFornecedor} loading={salvandoForn} disabled={!fornForm.nome.trim()}>Salvar fornecedor</Button>
+              <Button variant="secondary" onClick={() => setFornModal(false)}>Cancelar</Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

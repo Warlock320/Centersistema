@@ -15,11 +15,24 @@ export interface NfeProduto {
 
 export interface NfeDuplicata { numero: string; vencimento: string; valor: number }
 
+export interface NfeEmitente {
+  nome: string;        // fantasia (ou razão social, se não houver fantasia)
+  razaoSocial: string; // xNome
+  cnpj: string;
+  ie: string;
+  endereco: string;    // logradouro, nº
+  cidade: string;
+  estado: string;
+  cep: string;
+  telefone: string;
+}
+
 export interface NfeData {
   chaveAcesso: string;
   numeroNota: number;
   emitenteNome: string;
   emitenteCnpj: string;
+  emitente: NfeEmitente;
   valorTotal: number;
   dataEmissao: string;
   produtos: NfeProduto[];
@@ -84,11 +97,27 @@ export function parseNfeXml(xmlContent: string): NfeData {
     return { numero: String(dup?.nDup || ''), vencimento: String(dup?.dVenc || ''), valor: Number(dup?.vDup || 0) };
   });
 
+  const ender = (emit?.enderEmit || {}) as Record<string, unknown>;
+  const razao = String(emit?.xNome || '');
+  const logradouro = [ender.xLgr, ender.nro].filter(Boolean).join(', ');
+  const emitente: NfeEmitente = {
+    nome: String(emit?.xFant || razao),
+    razaoSocial: razao,
+    cnpj: String(emit?.CNPJ || ''),
+    ie: String(emit?.IE || ''),
+    endereco: logradouro,
+    cidade: String(ender.xMun || ''),
+    estado: String(ender.UF || ''),
+    cep: String(ender.CEP || ''),
+    telefone: String(ender.fone || ''),
+  };
+
   return {
     chaveAcesso: chave,
     numeroNota: Number(ide?.nNF || 0),
-    emitenteNome: String(emit?.xNome || ''),
+    emitenteNome: razao,
     emitenteCnpj: String(emit?.CNPJ || ''),
+    emitente,
     valorTotal: Number(total?.vNF || 0),
     dataEmissao: String(ide?.dhEmi || ide?.dEmi || ''),
     produtos,
