@@ -56,7 +56,7 @@ const navSections: NavSection[] = [
       { href: '/dashboard/aprovacoes', label: 'Aprovações', icon: CheckSquare, permission: 'approve_orcamentos' },
       { href: '/dashboard/pedidos', label: 'Pedidos', icon: ShoppingCart, permission: 'view_pedidos' },
       { href: '/dashboard/os', label: 'Ordens de Serviço', icon: Wrench, permission: 'view_os' },
-      { href: '/dashboard/nfe', label: 'Importar NF-e', icon: FileInput, permission: 'view_nfe' },
+      { href: '/dashboard/nfe', label: 'Notas Fiscais', icon: FileInput, permission: 'view_nfe' },
     ],
   },
   {

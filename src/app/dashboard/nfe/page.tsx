@@ -8,6 +8,8 @@ import { parseNfeXml, type NfeData } from '@/lib/nfe/parser';
 import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
 import { Upload, CheckCircle, XCircle, AlertCircle, FileText, Boxes, Building2, Receipt } from 'lucide-react';
 import type { Usuario, Categoria } from '@/types/database.types';
+import NotasSaida from './NotasSaida';
+import NotasEntradaLista from './NotasEntradaLista';
 
 type Arredondamento = 'nenhum' | '99' | 'inteiro';
 
@@ -64,6 +66,8 @@ interface NfeDraft {
 type FornForm = { nome: string; razao_social: string; cnpj_cpf: string; ie: string; telefone: string; endereco: string; cidade: string; estado: string; cep: string; prazo_padrao: number };
 
 export default function NfePage() {
+  const [aba, setAba] = useState<'entrada' | 'saida'>('entrada');
+  const [entradaRefresh, setEntradaRefresh] = useState(0);
   const [nfeData, setNfeData] = useState<(NfeData & { xml_conteudo: string }) | null>(null);
   const [items, setItems] = useState<ImportItem[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
@@ -458,6 +462,7 @@ export default function NfePage() {
       setNfeData(null); setItems([]);
       setFornecedorId(null); setFornecedorPendente(false);
       limparDraft();
+      setEntradaRefresh((k) => k + 1);
     } catch (e) {
       setError('Erro na importação: ' + (e instanceof Error ? e.message : String(e)));
     } finally {
@@ -470,10 +475,26 @@ export default function NfePage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Importar NF-e XML</h1>
-        <p className="text-slate-500 text-sm">Cadastra produtos, alimenta estoque e gera contas a pagar a partir da nota</p>
+        <h1 className="text-2xl font-bold text-slate-900">Notas Fiscais</h1>
+        <p className="text-slate-500 text-sm">Entrada (importação XML) e saída (notas emitidas por fora) — sempre separadas</p>
       </div>
 
+      {/* Abas */}
+      <div className="flex gap-1 border-b border-slate-200">
+        <button onClick={() => setAba('entrada')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${aba === 'entrada' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+          Entrada
+        </button>
+        <button onClick={() => setAba('saida')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${aba === 'saida' ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+          Saída
+        </button>
+      </div>
+
+      {aba === 'saida' && <NotasSaida empresaId={empresaId} />}
+
+      {aba === 'entrada' && (
+      <div className="space-y-4">
       {/* Rascunho de importação em andamento */}
       {!nfeData && draftInfo && (
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-xl">
@@ -666,6 +687,14 @@ export default function NfePage() {
         </>
       )}
 
+      {/* Consulta das notas de entrada já importadas */}
+      {!nfeData && (
+        <div className="pt-2">
+          <h3 className="text-sm font-semibold text-slate-700 mb-3">Notas de entrada importadas</h3>
+          <NotasEntradaLista refreshKey={entradaRefresh} />
+        </div>
+      )}
+
       {/* Modal: cadastro rápido do fornecedor (pré-preenchido com o XML) */}
       {fornModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setFornModal(false)}>
@@ -734,6 +763,8 @@ export default function NfePage() {
             </div>
           </div>
         </div>
+      )}
+      </div>
       )}
     </div>
   );

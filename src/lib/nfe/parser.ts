@@ -27,12 +27,15 @@ export interface NfeEmitente {
   telefone: string;
 }
 
+export interface NfeDestinatario { nome: string; doc: string }
+
 export interface NfeData {
   chaveAcesso: string;
   numeroNota: number;
   emitenteNome: string;
   emitenteCnpj: string;
   emitente: NfeEmitente;
+  destinatario: NfeDestinatario;
   valorTotal: number;
   dataEmissao: string;
   produtos: NfeProduto[];
@@ -65,6 +68,7 @@ export function parseNfeXml(xmlContent: string): NfeData {
 
   const ide = infNFe.ide;
   const emit = infNFe.emit;
+  const dest = infNFe.dest;
   const total = infNFe.total?.ICMSTot;
   const chave = String(infNFe['@_Id'] || '').replace('NFe', '');
 
@@ -112,12 +116,18 @@ export function parseNfeXml(xmlContent: string): NfeData {
     telefone: String(ender.fone || ''),
   };
 
+  const destinatario: NfeDestinatario = {
+    nome: String(dest?.xNome || ''),
+    doc: String(dest?.CNPJ || dest?.CPF || ''),
+  };
+
   return {
     chaveAcesso: chave,
     numeroNota: Number(ide?.nNF || 0),
     emitenteNome: razao,
     emitenteCnpj: String(emit?.CNPJ || ''),
     emitente,
+    destinatario,
     valorTotal: Number(total?.vNF || 0),
     dataEmissao: String(ide?.dhEmi || ide?.dEmi || ''),
     produtos,

@@ -349,6 +349,22 @@ export interface DashboardKpis {
 
 // ── Módulo Financeiro ──────────────────────────────────────────────────────────
 
+export interface NotaSaida {
+  id: string;
+  empresa_id: string;
+  chave_acesso: string | null;
+  numero_nota: string | null;
+  destinatario_nome: string | null;
+  destinatario_doc: string | null;
+  cliente_id: string | null;
+  valor_total: number | null;
+  data_emissao: string | null;
+  arquivo_path: string;
+  arquivo_nome: string;
+  arquivo_tipo: string | null;
+  created_at: string;
+}
+
 export interface Fornecedor {
   id: string;
   empresa_id: string;
