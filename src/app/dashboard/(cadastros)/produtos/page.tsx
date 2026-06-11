@@ -28,6 +28,7 @@ export default function ProdutosPage() {
   const [filtered, setFiltered] = useState<Produto[]>([]);
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState('');
+  const [filterForn, setFilterForn] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -126,9 +127,11 @@ export default function ProdutosPage() {
       const texto = `${p.nome} ${p.codigo || ''} ${p.ref || ''} ${(p.codigos_auxiliares || []).join(' ')} ${(p.aplicacoes || []).join(' ')} ${p.localizacao || ''}`;
       const matchQ = matchBusca(texto, search);
       const matchBaixo = !soBaixoEstoque || (p.estoque_minimo > 0 && p.estoque < p.estoque_minimo);
-      return matchQ && matchBaixo && (!filterCat || p.categoria === filterCat);
+      const matchCat = !filterCat || p.categoria === filterCat;
+      const matchForn = !filterForn || p.fornecedor_id === filterForn;
+      return matchQ && matchBaixo && matchCat && matchForn;
     }));
-  }, [search, filterCat, produtos, soBaixoEstoque]);
+  }, [search, filterCat, filterForn, produtos, soBaixoEstoque]);
 
   async function fetchData() {
     setLoading(true);
@@ -357,6 +360,11 @@ export default function ProdutosPage() {
             className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500">
             <option value="">Todas as categorias</option>
             {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+          </select>
+          <select value={filterForn} onChange={(e) => setFilterForn(e.target.value)}
+            className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500">
+            <option value="">Todos os fornecedores</option>
+            {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
           </select>
           <button type="button" onClick={() => setSoBaixoEstoque((v) => !v)}
             className={`px-3 py-2 text-sm rounded-lg border flex items-center gap-1.5 transition-colors ${
