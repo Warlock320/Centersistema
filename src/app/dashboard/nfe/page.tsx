@@ -146,21 +146,22 @@ export default function NfePage() {
       return;
     }
 
-    // Casamento de produtos: por código exato, depois por EAN
+    // Casamento de produtos (anti-duplicação): cada chave da nota (código e EAN)
+    // é comparada contra codigo, ref e codigos_auxiliares do produto.
     const novos: ImportItem[] = await Promise.all(
       parsed.produtos.map(async (p) => {
         let produtoId: string | undefined;
         let auxAtuais: string[] = [];
 
-        if (p.codigo) {
+        const keys = Array.from(new Set([p.codigo, p.ean].filter(Boolean)));
+        if (keys.length) {
+          const conds = keys.flatMap((k) => {
+            const q = String(k).replace(/["{}(),]/g, ''); // sanitiza p/ o filtro PostgREST
+            return [`codigo.eq."${q}"`, `ref.eq."${q}"`, `codigos_auxiliares.cs.{"${q}"}`];
+          });
           const { data } = await supabase.from('produtos')
-            .select('id, codigos_auxiliares').eq('codigo', p.codigo).maybeSingle();
-          if (data) { produtoId = data.id; auxAtuais = data.codigos_auxiliares || []; }
-        }
-        if (!produtoId && p.ean) {
-          const { data } = await supabase.from('produtos')
-            .select('id, codigos_auxiliares').contains('codigos_auxiliares', [p.ean]).limit(1).maybeSingle();
-          if (data) { produtoId = data.id; auxAtuais = data.codigos_auxiliares || []; }
+            .select('id, codigos_auxiliares').or(conds.join(',')).limit(1);
+          if (data && data.length) { produtoId = data[0].id; auxAtuais = data[0].codigos_auxiliares || []; }
         }
 
         const base: ImportItem = {
@@ -225,17 +226,22 @@ export default function NfePage() {
       if (nfeError) throw nfeError;
       const nfeId = nfeRecord?.id || null;
 
-      let criados = 0, atualizados = 0;
+      const criadosSet = new Set<string>();
+      const atualizadosSet = new Set<string>();
+      const mapRun = new Map<string, string>(); // chaves desta nota já resolvidas -> produtoId
 
       // 3) Produtos + entrada de estoque (com desmembramento)
       for (const it of incluidos) {
         const fator = Math.max(1, Math.floor(it.fator) || 1);
         const custoU = it.valorUnitario / fator;
         const qtdEntrada = it.quantidade * fator;
+        const keys = [it.codigo, it.ean].filter(Boolean) as string[];
 
-        let produtoId = it.produtoId;
+        // se um item anterior da MESMA nota já resolveu este produto, reaproveita
+        const jaNoRun = keys.map((k) => mapRun.get(k)).find(Boolean);
+        let produtoId = jaNoRun || it.produtoId;
 
-        if (it.novo) {
+        if (!produtoId) {
           const { data: novoProd, error: prodErr } = await supabase.from('produtos').insert({
             empresa_id: empresaId,
             codigo: it.codigo || null,
@@ -250,9 +256,9 @@ export default function NfePage() {
           }).select('id').single();
           if (prodErr) throw prodErr;
           produtoId = novoProd?.id;
-          criados++;
-        } else if (produtoId) {
-          const aux = new Set(it.auxAtuais);
+          if (produtoId) criadosSet.add(produtoId);
+        } else {
+          const aux = new Set(jaNoRun ? [] : it.auxAtuais);
           if (it.ean) aux.add(it.ean);
           const update: Record<string, unknown> = {
             custo: custoU,
@@ -263,10 +269,11 @@ export default function NfePage() {
           if (it.ncm) update.ncm = it.ncm;
           if (it.categoria) update.categoria = it.categoria;
           await supabase.from('produtos').update(update).eq('id', produtoId);
-          atualizados++;
+          if (!criadosSet.has(produtoId)) atualizadosSet.add(produtoId);
         }
 
         if (produtoId) {
+          keys.forEach((k) => mapRun.set(k, produtoId!));
           await supabase.from('movimentacoes_estoque').insert({
             empresa_id: empresaId,
             produto_id: produtoId,
@@ -307,7 +314,7 @@ export default function NfePage() {
         }
       }
 
-      const partes = [`${criados} criado(s)`, `${atualizados} atualizado(s)`];
+      const partes = [`${criadosSet.size} criado(s)`, `${atualizadosSet.size} atualizado(s)`];
       if (contasGeradas) partes.push(`${contasGeradas} conta(s) a pagar`);
       setSuccess(`NF-e #${nfeData.numeroNota} importada! ${partes.join(', ')}.`);
       setNfeData(null); setItems([]);
