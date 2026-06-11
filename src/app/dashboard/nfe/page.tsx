@@ -47,6 +47,22 @@ const custoUnit = (it: ImportItem) => (it.fator > 0 ? it.valorUnitario / it.fato
 const precoSugerido = (it: ImportItem, arred: Arredondamento) =>
   arredondar(custoUnit(it) * (1 + (it.markup || 0) / 100), arred);
 
+const DRAFT_KEY = 'nfe_import_draft';
+interface NfeDraft {
+  empresaId: string;
+  savedAt: string;
+  nfeData: NfeData & { xml_conteudo: string };
+  items: ImportItem[];
+  markupGlobal: number;
+  arred: Arredondamento;
+  categoriaGlobal: string;
+  gerarContaPagar: boolean;
+  fornecedorId: string | null;
+  fornecedorPendente: boolean;
+  fornForm: FornForm;
+}
+type FornForm = { nome: string; razao_social: string; cnpj_cpf: string; ie: string; telefone: string; endereco: string; cidade: string; estado: string; cep: string; prazo_padrao: number };
+
 export default function NfePage() {
   const [nfeData, setNfeData] = useState<(NfeData & { xml_conteudo: string }) | null>(null);
   const [items, setItems] = useState<ImportItem[]>([]);
@@ -63,8 +79,11 @@ export default function NfePage() {
   const [fornecedorId, setFornecedorId] = useState<string | null>(null);
   const [fornecedorPendente, setFornecedorPendente] = useState(false);
   const [fornModal, setFornModal] = useState(false);
-  const [fornForm, setFornForm] = useState({ nome: '', razao_social: '', cnpj_cpf: '', ie: '', telefone: '', endereco: '', cidade: '', estado: '', cep: '', prazo_padrao: 0 });
+  const [fornForm, setFornForm] = useState<FornForm>({ nome: '', razao_social: '', cnpj_cpf: '', ie: '', telefone: '', endereco: '', cidade: '', estado: '', cep: '', prazo_padrao: 0 });
   const [salvandoForn, setSalvandoForn] = useState(false);
+
+  // rascunho (cache) de importação em andamento
+  const [draftInfo, setDraftInfo] = useState<{ numeroNota: number; savedAt: string } | null>(null);
 
   const [error, setError] = useState('');
   const [warning, setWarning] = useState('');
@@ -85,6 +104,65 @@ export default function NfePage() {
       if (cats) setCategorias(cats as Categoria[]);
     })();
   }, [supabase]);
+
+  // Detecta rascunho de importação em andamento (não restaura sozinho — só sob clique)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw) as NfeDraft;
+      if (d?.nfeData) setDraftInfo({ numeroNota: d.nfeData.numeroNota, savedAt: d.savedAt });
+    } catch { /* ignora rascunho corrompido */ }
+  }, []);
+
+  // Persiste o rascunho a cada alteração enquanto houver nota carregada
+  useEffect(() => {
+    if (!nfeData || !empresaId) return;
+    const draft: NfeDraft = {
+      empresaId, savedAt: new Date().toISOString(),
+      nfeData, items, markupGlobal, arred, categoriaGlobal, gerarContaPagar,
+      fornecedorId, fornecedorPendente, fornForm,
+    };
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch { /* quota */ }
+  }, [nfeData, items, markupGlobal, arred, categoriaGlobal, gerarContaPagar, fornecedorId, fornecedorPendente, fornForm, empresaId]);
+
+  function limparDraft() {
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* noop */ }
+    setDraftInfo(null);
+  }
+
+  function restaurarDraft() {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw) as NfeDraft;
+      if (empresaId && d.empresaId && d.empresaId !== empresaId) {
+        setError('O rascunho pertence a outra empresa e não pôde ser restaurado.');
+        limparDraft();
+        return;
+      }
+      setNfeData(d.nfeData);
+      setItems(d.items || []);
+      setMarkupGlobal(d.markupGlobal ?? 30);
+      setArred(d.arred ?? 'nenhum');
+      setCategoriaGlobal(d.categoriaGlobal || '');
+      setGerarContaPagar(d.gerarContaPagar ?? true);
+      setFornecedorId(d.fornecedorId ?? null);
+      setFornecedorPendente(d.fornecedorPendente ?? false);
+      setFornForm(d.fornForm);
+      setDraftInfo(null);
+      setError(''); setWarning('');
+    } catch {
+      setError('Não foi possível restaurar o rascunho.');
+      limparDraft();
+    }
+  }
+
+  function cancelarImportacao() {
+    setNfeData(null); setItems([]);
+    setFornecedorId(null); setFornecedorPendente(false);
+    limparDraft();
+  }
 
   const catOptions = categorias.map((c) => ({ value: c.id, label: c.nome }));
 
@@ -361,6 +439,8 @@ export default function NfePage() {
       if (contasGeradas) partes.push(`${contasGeradas} conta(s) a pagar`);
       setSuccess(`NF-e #${nfeData.numeroNota} importada! ${partes.join(', ')}.`);
       setNfeData(null); setItems([]);
+      setFornecedorId(null); setFornecedorPendente(false);
+      limparDraft();
     } catch (e) {
       setError('Erro na importação: ' + (e instanceof Error ? e.message : String(e)));
     } finally {
@@ -376,6 +456,21 @@ export default function NfePage() {
         <h1 className="text-2xl font-bold text-slate-900">Importar NF-e XML</h1>
         <p className="text-slate-500 text-sm">Cadastra produtos, alimenta estoque e gera contas a pagar a partir da nota</p>
       </div>
+
+      {/* Rascunho de importação em andamento */}
+      {!nfeData && draftInfo && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+          <FileText size={20} className="text-blue-500 shrink-0" />
+          <p className="text-sm text-blue-800 flex-1">
+            Importação em andamento da <b>NF-e #{draftInfo.numeroNota}</b> não finalizada
+            <span className="text-blue-500"> · salva em {new Date(draftInfo.savedAt).toLocaleString('pt-BR')}</span>
+          </p>
+          <div className="flex gap-2">
+            <Button onClick={restaurarDraft}>Restaurar</Button>
+            <Button variant="secondary" onClick={limparDraft}>Descartar</Button>
+          </div>
+        </div>
+      )}
 
       {/* Drop Zone */}
       {!nfeData && (
@@ -548,7 +643,7 @@ export default function NfePage() {
             <Button onClick={handleImport} loading={importing} disabled={fornecedorPendente}>
               Confirmar importação ({items.filter((i) => i.incluir).length})
             </Button>
-            <Button variant="secondary" onClick={() => { setNfeData(null); setItems([]); }}>Cancelar</Button>
+            <Button variant="secondary" onClick={cancelarImportacao}>Cancelar</Button>
             {fornecedorPendente && <span className="text-xs text-amber-600">Cadastre o fornecedor para liberar a importação.</span>}
           </div>
         </>
