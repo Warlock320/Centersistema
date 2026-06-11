@@ -19,34 +19,34 @@ const FRETE: Record<string, string> = {
 const s = StyleSheet.create({
   page: { paddingVertical: 16, paddingHorizontal: 18, fontFamily: 'Helvetica', fontSize: 6.5, color: '#000' },
   // canhoto
-  canhoto: { flexDirection: 'row', borderTop: 0.5, borderLeft: 0.5, borderColor: '#000' },
-  recebemos: { flex: 1, borderRight: 0.5, borderBottom: 0.5, borderColor: '#000', padding: 3 },
+  canhoto: { flexDirection: 'row', borderTopWidth: 0.5, borderLeftWidth: 0.5, borderColor: '#000' },
+  recebemos: { flex: 1, borderRightWidth: 0.5, borderBottomWidth: 0.5, borderColor: '#000', padding: 3 },
   recRow: { flexDirection: 'row', marginTop: 4 },
-  nfBox: { width: 120, borderRight: 0.5, borderBottom: 0.5, borderColor: '#000', padding: 3, alignItems: 'center', justifyContent: 'center' },
-  dashed: { borderBottom: 0.7, borderColor: '#000', borderStyle: 'dashed', marginVertical: 4 },
+  nfBox: { width: 120, borderRightWidth: 0.5, borderBottomWidth: 0.5, borderColor: '#000', padding: 3, alignItems: 'center', justifyContent: 'center' },
+  dashed: { borderBottomWidth: 0.7, borderColor: '#000', borderStyle: 'dashed', marginVertical: 4 },
   // grade genérica
-  grid: { borderTop: 0.5, borderLeft: 0.5, borderColor: '#000' },
+  grid: { borderTopWidth: 0.5, borderLeftWidth: 0.5, borderColor: '#000' },
   row: { flexDirection: 'row' },
-  cell: { borderRight: 0.5, borderBottom: 0.5, borderColor: '#000', paddingHorizontal: 3, paddingVertical: 1.5, justifyContent: 'center' },
+  cell: { borderRightWidth: 0.5, borderBottomWidth: 0.5, borderColor: '#000', paddingHorizontal: 3, paddingVertical: 1.5, justifyContent: 'center' },
   lbl: { fontSize: 5, color: '#333' },
   val: { fontSize: 7 },
   valB: { fontSize: 8, fontFamily: 'Helvetica-Bold' },
   secTitle: { fontSize: 6, fontFamily: 'Helvetica-Bold', marginTop: 4, marginBottom: 1 },
   center: { alignItems: 'center', textAlign: 'center' },
   // cabeçalho
-  emit: { width: '38%', borderRight: 0.5, borderBottom: 0.5, borderColor: '#000', padding: 4, alignItems: 'center', textAlign: 'center', justifyContent: 'center' },
+  emit: { width: '38%', borderRightWidth: 0.5, borderBottomWidth: 0.5, borderColor: '#000', padding: 4, alignItems: 'center', textAlign: 'center', justifyContent: 'center' },
   emitNome: { fontSize: 9, fontFamily: 'Helvetica-Bold' },
-  danfe: { width: '28%', borderRight: 0.5, borderBottom: 0.5, borderColor: '#000', padding: 3, alignItems: 'center', textAlign: 'center' },
+  danfe: { width: '28%', borderRightWidth: 0.5, borderBottomWidth: 0.5, borderColor: '#000', padding: 3, alignItems: 'center', textAlign: 'center' },
   danfeTit: { fontSize: 11, fontFamily: 'Helvetica-Bold' },
   ent: { flexDirection: 'row', borderWidth: 0.5, borderColor: '#000', marginVertical: 2 },
   entN: { fontSize: 10, fontFamily: 'Helvetica-Bold', paddingHorizontal: 4 },
-  chaveBox: { flex: 1, borderRight: 0.5, borderBottom: 0.5, borderColor: '#000', padding: 3, alignItems: 'center', textAlign: 'center', justifyContent: 'center' },
+  chaveBox: { flex: 1, borderRightWidth: 0.5, borderBottomWidth: 0.5, borderColor: '#000', padding: 3, alignItems: 'center', textAlign: 'center', justifyContent: 'center' },
   barcode: { height: 36, width: 230, marginBottom: 2 },
   chaveTxt: { fontSize: 7, fontFamily: 'Helvetica-Bold' },
   // produtos
-  th: { flexDirection: 'row', borderTop: 0.5, borderLeft: 0.5, borderColor: '#000', backgroundColor: '#eee' },
-  thc: { borderRight: 0.5, borderBottom: 0.5, borderColor: '#000', paddingHorizontal: 2, paddingVertical: 2, fontSize: 5, textAlign: 'center', fontFamily: 'Helvetica-Bold' },
-  tdc: { borderRight: 0.5, borderBottom: 0.5, borderColor: '#000', paddingHorizontal: 2, paddingVertical: 1.5, fontSize: 6 },
+  th: { flexDirection: 'row', borderTopWidth: 0.5, borderLeftWidth: 0.5, borderColor: '#000', backgroundColor: '#eee' },
+  thc: { borderRightWidth: 0.5, borderBottomWidth: 0.5, borderColor: '#000', paddingHorizontal: 2, paddingVertical: 2, fontSize: 5, textAlign: 'center', fontFamily: 'Helvetica-Bold' },
+  tdc: { borderRightWidth: 0.5, borderBottomWidth: 0.5, borderColor: '#000', paddingHorizontal: 2, paddingVertical: 1.5, fontSize: 6 },
 });
 
 // larguras das colunas de produto (em %)
@@ -75,8 +75,8 @@ function DanfeDoc({ data, barcode }: { data: NfeData; barcode: string }) {
               RECEBEMOS DE {e.razaoSocial || data.emitenteNome} OS PRODUTOS / SERVIÇOS CONSTANTES DA NOTA FISCAL INDICADA AO LADO
             </Text>
             <View style={s.recRow}>
-              <View style={[s.cell, { width: 90 }]}><Text style={s.lbl}>DATA DE RECEBIMENTO</Text><Text style={s.val}> </Text></View>
-              <View style={[s.cell, { flex: 1, borderRight: 0 }]}><Text style={s.lbl}>IDENTIFICAÇÃO E ASSINATURA DO RECEBEDOR</Text><Text style={s.val}> </Text></View>
+              <View style={[s.cell, { width: 90, height: 20 }]}><Text style={s.lbl}>DATA DE RECEBIMENTO</Text><Text style={s.val}> </Text></View>
+              <View style={[s.cell, { flex: 1, height: 20, borderRightWidth: 0 }]}><Text style={s.lbl}>IDENTIFICAÇÃO E ASSINATURA DO RECEBEDOR</Text><Text style={s.val}> </Text></View>
             </View>
           </View>
           <View style={s.nfBox}>
@@ -103,7 +103,7 @@ function DanfeDoc({ data, barcode }: { data: NfeData; barcode: string }) {
               <Text style={s.danfeTit}>DANFE</Text>
               <Text style={{ fontSize: 5.5 }}>Documento Auxiliar da{'\n'}Nota Fiscal Eletrônica</Text>
               <View style={s.ent}>
-                <View style={{ alignItems: 'center', paddingHorizontal: 3, borderRight: 0.5, borderColor: '#000' }}>
+                <View style={{ alignItems: 'center', paddingHorizontal: 3, borderRightWidth: 0.5, borderColor: '#000' }}>
                   <Text style={{ fontSize: 5 }}>0-Entrada</Text>
                   <Text style={{ fontSize: 5 }}>1-Saída</Text>
                 </View>
