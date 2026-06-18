@@ -21,10 +21,22 @@ export interface Empresa {
   email: string | null;
   telefone: string | null;
   endereco: string | null;
+  numero: string | null;
+  bairro: string | null;
+  complemento: string | null;
   cidade: string | null;
   estado: string | null;
   cep: string | null;
   permite_estoque_negativo: boolean;
+  inscricao_estadual: string | null;
+  inscricao_municipal: string | null;
+  regime_tributario: number;
+  codigo_municipio: string | null;
+  codigo_uf: string | null;
+  cnae: string | null;
+  nfe_serie: number;
+  nfe_ambiente: number;
+  nfe_proximo_numero: number;
   created_at: string;
 }
 
@@ -104,14 +116,24 @@ export interface Produto {
   ncm: string | null;
   fornecedor_id: string | null;
   localizacao: string | null;
-  aplicacao: string | null;       // legado (campo único) — mantido por compat
-  aplicacoes: string[];           // lista de aplicações (vários veículos/anos)
+  aplicacao: string | null;
+  aplicacoes: string[];
   codigos_auxiliares: string[];
   preco: number;
   custo: number;
   estoque: number;
   estoque_minimo: number;
   ativo: boolean;
+  cfop_saida: string;
+  origem: number;
+  csosn: string | null;
+  cst_icms: string | null;
+  aliquota_icms: number;
+  cest: string | null;
+  cst_pis: string;
+  cst_cofins: string;
+  aliquota_pis: number;
+  aliquota_cofins: number;
   created_at: string;
   updated_at: string;
   fornecedores?: { nome: string };
@@ -196,6 +218,10 @@ export interface Cliente {
   estado: string | null;
   cep: string | null;
   observacoes: string | null;
+  codigo_municipio: string | null;
+  bairro: string | null;
+  complemento: string | null;
+  indicador_ie: number;
   limite_credito: number;
   status_credito: StatusCredito;
   ativo: boolean;
@@ -309,6 +335,7 @@ export interface Pedido {
   empresa_id: string;
   cliente_id: string;
   orcamento_id: string | null;
+  nfe_id: string | null;
   numero: number;
   status: PedidoStatus;
   observacoes: string | null;
@@ -317,6 +344,7 @@ export interface Pedido {
   updated_at: string;
   clientes?: Cliente;
   pedido_itens?: PedidoItem[];
+  nfe_emitidas?: NfeEmitida;
 }
 
 export interface Convite {
@@ -338,6 +366,28 @@ export interface NfeImportada {
   valor_total: number;
   xml_conteudo: string;
   created_at: string;
+}
+
+export type NfeEmitidaStatus = 'pendente' | 'processando' | 'autorizada' | 'rejeitada' | 'cancelada' | 'denegada';
+
+export interface NfeEmitida {
+  id: string;
+  empresa_id: string;
+  pedido_id: string | null;
+  numero: number;
+  serie: number;
+  chave_acesso: string;
+  protocolo_autorizacao: string | null;
+  status: NfeEmitidaStatus;
+  motivo: string | null;
+  xml_envio: string | null;
+  xml_autorizada: string | null;
+  destinatario_nome: string | null;
+  destinatario_doc: string | null;
+  valor_total: number | null;
+  data_emissao: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface DashboardKpis {

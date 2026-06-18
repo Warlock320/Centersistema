@@ -59,12 +59,12 @@ export const updateOrcamentoStatus = async (id: string, status: OrcamentoStatus,
 
 export const createPedidoFromOrcamento = async (orcamentoId: string) => {
   const supabase = createClient();
-  return await supabase.rpc('create_pedido_from_orcamento', { orcamento_id: orcamentoId });
+  return await supabase.rpc('create_pedido_from_orcamento', { p_orcamento_id: orcamentoId });
 };
 
 export const duplicateOrcamento = async (orcamentoId: string) => {
   const supabase = createClient();
-  return await supabase.rpc('duplicate_orcamento', { orcamento_id: orcamentoId });
+  return await supabase.rpc('duplicate_orcamento', { p_orcamento_id: orcamentoId });
 };
 
 // ── Pedidos ───────────────────────────────────────────────────────────────────

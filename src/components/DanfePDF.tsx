@@ -40,8 +40,8 @@ const s = StyleSheet.create({
   danfeTit: { fontSize: 11, fontFamily: 'Helvetica-Bold' },
   ent: { flexDirection: 'row', borderWidth: 0.5, borderColor: '#000', marginVertical: 2 },
   entN: { fontSize: 10, fontFamily: 'Helvetica-Bold', paddingHorizontal: 4 },
-  chaveBox: { flex: 1, borderRightWidth: 0.5, borderBottomWidth: 0.5, borderColor: '#000', padding: 3, alignItems: 'center', textAlign: 'center', justifyContent: 'center' },
-  barcode: { height: 36, width: 230, marginBottom: 2 },
+  chaveBox: { width: '34%', borderRightWidth: 0.5, borderBottomWidth: 0.5, borderColor: '#000', padding: 3, alignItems: 'center', textAlign: 'center', justifyContent: 'center', overflow: 'hidden' },
+  barcode: { height: 30, width: 180, marginBottom: 2 },
   chaveTxt: { fontSize: 7, fontFamily: 'Helvetica-Bold' },
   // produtos
   th: { flexDirection: 'row', borderTopWidth: 0.5, borderLeftWidth: 0.5, borderColor: '#000', backgroundColor: '#eee' },
@@ -251,7 +251,7 @@ function barcodeDataUrl(chave: string): string {
   if (!chave) return '';
   try {
     const canvas = document.createElement('canvas');
-    JsBarcode(canvas, chave, { format: 'CODE128C', displayValue: false, height: 40, width: 1, margin: 0 });
+    JsBarcode(canvas, chave, { format: 'CODE128C', displayValue: false, height: 50, width: 1.2, margin: 2 });
     return canvas.toDataURL('image/png');
   } catch {
     return '';

@@ -20,6 +20,7 @@ import {
 } from '@/lib/permissions';
 import { DEMO_MODE } from '@/lib/demo';
 import CertificadoSection from './CertificadoSection';
+import FiscalSection from './FiscalSection';
 
 // ── Seletor de papéis (checkboxes) ─────────────────────────────────────────────
 function RoleSelector({ value, onChange }: { value: UserRole[]; onChange: (roles: UserRole[]) => void }) {
@@ -385,6 +386,9 @@ export default function ConfiguracoesPage() {
 
       {/* Certificado Digital (NF-e) — só admin */}
       {isAdmin && <CertificadoSection />}
+
+      {/* Dados Fiscais (NF-e) — só admin */}
+      {isAdmin && <FiscalSection />}
 
       {/* Equipe */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-100">

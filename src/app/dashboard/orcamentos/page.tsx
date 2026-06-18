@@ -48,6 +48,7 @@ export default function OrcamentosPage() {
   const [editandoId, setEditandoId] = useState<string | null>(null);
 
   const [showDelete, setShowDelete] = useState(false);
+  const [confirmStatus, setConfirmStatus] = useState<{ status: OrcamentoStatus; label: string; msg: string } | null>(null);
 
   const [formClienteId, setFormClienteId] = useState('');
   const [formPrazo, setFormPrazo] = useState('');
@@ -260,7 +261,7 @@ export default function OrcamentosPage() {
     setActing(true);
     await supabase.from('orcamentos').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', selected.id);
     if (newStatus === 'aprovado') {
-      await supabase.rpc('create_pedido_from_orcamento', { orcamento_id: selected.id });
+      await supabase.rpc('create_pedido_from_orcamento', { p_orcamento_id: selected.id });
     }
     setActing(false);
     setShowDetail(false);
@@ -286,7 +287,7 @@ export default function OrcamentosPage() {
   async function handleDuplicate() {
     if (!selected) return;
     setActing(true);
-    await supabase.rpc('duplicate_orcamento', { orcamento_id: selected.id });
+    await supabase.rpc('duplicate_orcamento', { p_orcamento_id: selected.id });
     setActing(false);
     setShowDetail(false);
     fetchData();
@@ -608,7 +609,15 @@ export default function OrcamentosPage() {
             <div className="flex gap-2 flex-wrap items-center">
               {/* Botão de avanço de status (bloqueado em aguardando_aprovacao) */}
               {NEXT_STATUS[selected.status] && selected.status !== 'aguardando_aprovacao' && (
-                <Button onClick={() => handleStatusChange(NEXT_STATUS[selected.status]!)} loading={acting}>
+                <Button onClick={() => {
+                  const next = NEXT_STATUS[selected.status]!;
+                  const labels: Record<string, string> = { orcamento_enviado: 'Enviado', aguardando_aprovacao: 'Aguardando Aprovação' };
+                  const msgs: Record<string, string> = {
+                    orcamento_enviado: 'O orçamento será marcado como enviado ao cliente.',
+                    aguardando_aprovacao: 'O orçamento será enviado para a fila de aprovação de um gestor.',
+                  };
+                  setConfirmStatus({ status: next, label: labels[next] || next, msg: msgs[next] || `Deseja alterar o status para "${labels[next] || next}"?` });
+                }} loading={acting}>
                   <Send size={14} /> {NEXT_BTN[selected.status]}
                 </Button>
               )}
@@ -630,7 +639,11 @@ export default function OrcamentosPage() {
               </Button>
               {/* Cancelar — somente status permitidos */}
               {!['aprovado', 'aguardando_pecas', 'enviado', 'cancelado'].includes(selected.status) && (
-                <Button variant="danger" size="sm" onClick={() => handleStatusChange('cancelado')}>
+                <Button variant="danger" size="sm" onClick={() => setConfirmStatus({
+                  status: 'cancelado',
+                  label: 'Cancelado',
+                  msg: 'O orçamento será cancelado. Esta ação pode ser desfeita apenas duplicando o orçamento.',
+                })}>
                   Cancelar
                 </Button>
               )}
@@ -645,6 +658,17 @@ export default function OrcamentosPage() {
           </div>
         </Modal>
       )}
+
+      <Confirm
+        open={!!confirmStatus}
+        title={`Alterar status para "${confirmStatus?.label}"`}
+        message={`Deseja alterar o status do orçamento #${selected?.numero}? ${confirmStatus?.msg || ''}`}
+        confirmLabel="Sim, alterar"
+        variant={confirmStatus?.status === 'cancelado' ? 'danger' : 'primary'}
+        loading={acting}
+        onConfirm={() => { const s = confirmStatus!.status; setConfirmStatus(null); handleStatusChange(s); }}
+        onCancel={() => setConfirmStatus(null)}
+      />
 
       <Confirm
         open={showDelete}

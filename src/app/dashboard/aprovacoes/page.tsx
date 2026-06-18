@@ -43,8 +43,18 @@ export default function AprovacoesPage() {
   async function handleAprovar() {
     if (!selected) return;
     setActing(true);
-    await updateOrcamentoStatus(selected.id, 'aprovado', obs || undefined);
-    await createPedidoFromOrcamento(selected.id);
+    const { error: statusErr } = await updateOrcamentoStatus(selected.id, 'aprovado', obs || undefined);
+    if (statusErr) {
+      alert('Erro ao atualizar status: ' + statusErr.message);
+      setActing(false);
+      return;
+    }
+    const { error: pedidoErr } = await createPedidoFromOrcamento(selected.id);
+    if (pedidoErr) {
+      alert('Erro ao criar pedido: ' + pedidoErr.message);
+      setActing(false);
+      return;
+    }
     setSelected(null);
     setObs('');
     setActing(false);

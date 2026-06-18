@@ -3,15 +3,15 @@
 -- =====================================================================
 
 -- RPC: Criar pedido a partir de orçamento aprovado
-CREATE OR REPLACE FUNCTION public.create_pedido_from_orcamento(orcamento_id UUID)
+CREATE OR REPLACE FUNCTION public.create_pedido_from_orcamento(p_orcamento_id UUID)
 RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   v_pedido_id UUID;
   v_rec       RECORD;
 BEGIN
-  SELECT * INTO v_rec FROM public.orcamentos WHERE id = orcamento_id;
+  SELECT * INTO v_rec FROM public.orcamentos WHERE id = p_orcamento_id;
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'Orçamento não encontrado: %', orcamento_id;
+    RAISE EXCEPTION 'Orçamento não encontrado: %', p_orcamento_id;
   END IF;
 
   INSERT INTO public.pedidos (empresa_id, cliente_id, orcamento_id, total, status, observacoes)
@@ -26,14 +26,14 @@ BEGIN
          (preco_unitario * (1 - desconto / 100)),
          total
   FROM public.orcamento_itens
-  WHERE orcamento_id = $1;
+  WHERE orcamento_itens.orcamento_id = p_orcamento_id;
 
   RETURN v_pedido_id;
 END;
 $$;
 
 -- RPC: Duplicar orçamento para agilidade de vendas
-CREATE OR REPLACE FUNCTION public.duplicate_orcamento(orcamento_id UUID)
+CREATE OR REPLACE FUNCTION public.duplicate_orcamento(p_orcamento_id UUID)
 RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   v_novo_id UUID;
@@ -41,13 +41,13 @@ BEGIN
   INSERT INTO public.orcamentos (empresa_id, cliente_id, usuario_id, status, validade, observacoes, total)
   SELECT empresa_id, cliente_id, usuario_id, 'criado', validade, observacoes, total
   FROM public.orcamentos
-  WHERE id = orcamento_id
+  WHERE id = p_orcamento_id
   RETURNING id INTO v_novo_id;
 
   INSERT INTO public.orcamento_itens (orcamento_id, produto_id, descricao, quantidade, preco_unitario, desconto, total, ordem)
   SELECT v_novo_id, produto_id, descricao, quantidade, preco_unitario, desconto, total, ordem
   FROM public.orcamento_itens
-  WHERE orcamento_id = $1;
+  WHERE orcamento_itens.orcamento_id = p_orcamento_id;
 
   RETURN v_novo_id;
 END;
