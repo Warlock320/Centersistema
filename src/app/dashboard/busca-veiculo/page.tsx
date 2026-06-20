@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
-import { Car, Search, Package, ChevronRight, RotateCcw, ImageOff } from 'lucide-react';
+import { Car, Search, Package, ChevronRight, RotateCcw, ImageOff, ExternalLink } from 'lucide-react';
 import type { Produto } from '@/types/database.types';
 
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -131,6 +131,50 @@ export default function BuscaVeiculoPage() {
   }, [anoNome]);
 
   const selecoesTexto = [marcaNome, modeloNome, anoNome].filter(Boolean);
+  const veiculoTexto = selecoesTexto.join(' ');
+
+  const catalogos = [
+    {
+      nome: 'Auto Experts',
+      cor: 'bg-orange-500',
+      url: veiculoTexto
+        ? `https://www.google.com/search?q=${encodeURIComponent(`site:autoexperts.com.br ${veiculoTexto}`)}`
+        : 'https://www.autoexperts.com.br',
+    },
+    {
+      nome: 'Nakata',
+      cor: 'bg-red-600',
+      url: veiculoTexto
+        ? `https://www.google.com/search?q=${encodeURIComponent(`site:catalogo.nakata.com.br ${veiculoTexto}`)}`
+        : 'https://catalogo.nakata.com.br',
+    },
+    {
+      nome: 'Fras-le',
+      cor: 'bg-blue-700',
+      url: veiculoTexto
+        ? `https://www.google.com/search?q=${encodeURIComponent(`site:frasle.com ${veiculoTexto} catalogo`)}`
+        : 'https://www.frasle.com/catalogo',
+    },
+    {
+      nome: 'Cofap',
+      cor: 'bg-green-700',
+      url: veiculoTexto
+        ? `https://www.google.com/search?q=${encodeURIComponent(`site:cofap.com.br ${veiculoTexto} catalogo`)}`
+        : 'https://www.cofap.com.br',
+    },
+    {
+      nome: 'Monroe',
+      cor: 'bg-yellow-600',
+      url: veiculoTexto
+        ? `https://www.google.com/search?q=${encodeURIComponent(`site:monroe.com.br ${veiculoTexto} catalogo`)}`
+        : 'https://www.monroe.com.br',
+    },
+    {
+      nome: 'Google Peças',
+      cor: 'bg-slate-700',
+      url: `https://www.google.com/search?q=${encodeURIComponent(`${veiculoTexto || 'autopeças'} peças código original`)}`,
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -203,6 +247,24 @@ export default function BuscaVeiculoPage() {
           </div>
         )}
         {loadingFipe && <p className="text-xs text-slate-400">Carregando dados FIPE...</p>}
+      </div>
+
+      {/* Catálogos Externos */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
+        <h2 className="text-sm font-semibold text-slate-700 mb-1">Catálogos de Peças (externos)</h2>
+        <p className="text-xs text-slate-400 mb-3">
+          {veiculoTexto
+            ? `Consultar peças para "${veiculoTexto}" com códigos originais, imagens e referências`
+            : 'Selecione um veículo acima para buscar nos catálogos com o modelo preenchido'}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {catalogos.map((cat) => (
+            <a key={cat.nome} href={cat.url} target="_blank" rel="noopener noreferrer"
+              className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity ${cat.cor}`}>
+              <ExternalLink size={14} /> {cat.nome}
+            </a>
+          ))}
+        </div>
       </div>
 
       {/* Texto livre */}
