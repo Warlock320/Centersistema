@@ -134,6 +134,7 @@ export interface Produto {
   cst_cofins: string;
   aliquota_pis: number;
   aliquota_cofins: number;
+  imagem_url: string | null;
   created_at: string;
   updated_at: string;
   fornecedores?: { nome: string };

@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { Combobox } from '@/components/ui/Combobox';
 import { useToast } from '@/components/ui/Toast';
 import { usePermissions } from '@/components/PermissionsProvider';
-import { Plus, Pencil, AlertTriangle, Tag, PackageX, X, MapPin, DollarSign, Trash2, Search, Loader2 } from 'lucide-react';
+import { Plus, Pencil, AlertTriangle, Tag, PackageX, X, MapPin, DollarSign, Trash2, Search, Loader2, ImagePlus } from 'lucide-react';
 import type { Produto, Categoria, Fornecedor, TabelaPreco, PrecoProduto } from '@/types/database.types';
 import { formatMoedaInput, parseMoedaInput } from '@/lib/format';
 import { matchBusca } from '@/lib/busca';
@@ -42,6 +42,8 @@ export default function ProdutosPage() {
   const [form, setForm] = useState<Partial<Produto>>(EMPTY);
   const [codigosAux, setCodigosAux] = useState<string[]>([]);
   const [aplicacoes, setAplicacoes] = useState<string[]>([]);
+  const [imagemFile, setImagemFile] = useState<File | null>(null);
+  const [imagemPreview, setImagemPreview] = useState<string | null>(null);
   const [saveMsg, setSaveMsg] = useState('');
 
   const [novaCategoria, setNovaCategoria] = useState('');
@@ -154,6 +156,8 @@ export default function ProdutosPage() {
     setForm(produto ? { ...produto } : EMPTY);
     setCodigosAux(produto?.codigos_auxiliares || []);
     setAplicacoes(produto?.aplicacoes || []);
+    setImagemFile(null);
+    setImagemPreview(produto?.imagem_url || null);
     setSaveMsg('');
     setOverrides({});
     if (produto) {
@@ -196,6 +200,17 @@ export default function ProdutosPage() {
       const { data: novo, error } = await supabase.from('produtos').insert({ ...payload, empresa_id: empresaId }).select('id').single();
       if (error) { toast.error('Erro ao salvar: ' + error.message); setSaving(false); return; }
       produtoId = (novo as { id: string } | null)?.id;
+    }
+
+    // Upload de imagem
+    if (imagemFile && produtoId && empresaId) {
+      const ext = imagemFile.name.split('.').pop() || 'jpg';
+      const path = `${empresaId}/${produtoId}.${ext}`;
+      await supabase.storage.from('produto-imagens').upload(path, imagemFile, { upsert: true });
+      const { data: urlData } = supabase.storage.from('produto-imagens').getPublicUrl(path);
+      if (urlData?.publicUrl) {
+        await supabase.from('produtos').update({ imagem_url: urlData.publicUrl + '?t=' + Date.now() }).eq('id', produtoId);
+      }
     }
 
     // Salva overrides de preço por tabela
@@ -380,12 +395,34 @@ export default function ProdutosPage() {
       {/* Form Modal */}
       <Modal open={showForm} onClose={() => setShowForm(false)} title={selected ? 'Editar Produto' : 'Novo Produto'} size="lg">
         <form onSubmit={handleSave} className="space-y-5">
-          {/* Identificação */}
+          {/* Foto + Identificação */}
           <div>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Identificação</p>
+            <div className="flex gap-4 mb-4">
+              <div className="shrink-0">
+                <label className="cursor-pointer group">
+                  <div className="w-24 h-24 rounded-xl border-2 border-dashed border-slate-200 group-hover:border-blue-400 overflow-hidden flex items-center justify-center bg-slate-50 transition-colors">
+                    {(imagemPreview || imagemFile) ? (
+                      <img src={imagemFile ? URL.createObjectURL(imagemFile) : (imagemPreview || '')} alt="Foto" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="text-center"><ImagePlus size={24} className="text-slate-300 mx-auto mb-1" /><span className="text-[10px] text-slate-400">Adicionar foto</span></div>
+                    )}
+                  </div>
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) { setImagemFile(f); setImagemPreview(null); }
+                  }} />
+                </label>
+                {(imagemPreview || imagemFile) && (
+                  <button type="button" onClick={() => { setImagemFile(null); setImagemPreview(null); }} className="text-[10px] text-red-500 mt-1 block mx-auto hover:underline">Remover</button>
+                )}
+              </div>
+              <div className="flex-1 grid grid-cols-2 gap-4">
+                <Input label="Código" value={form.codigo || ''} onChange={set('codigo')} placeholder="SKU interno" />
+                <Input label="Referência (ref)" value={form.ref || ''} onChange={set('ref')} placeholder="Ref. do fabricante" />
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Código" value={form.codigo || ''} onChange={set('codigo')} placeholder="SKU interno" />
-              <Input label="Referência (ref)" value={form.ref || ''} onChange={set('ref')} placeholder="Ref. do fabricante" />
               <div className="col-span-2">
                 <Input label="Nome do Produto *" value={form.nome || ''}
                   onChange={(e) => setForm((p) => ({ ...p, nome: e.target.value.toUpperCase() }))}
