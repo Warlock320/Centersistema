@@ -96,10 +96,11 @@ export async function POST(request: Request) {
       };
     });
 
-    // 6. Obter próximo número e incrementar atomicamente
-    const numero = empresa.nfe_proximo_numero || 1;
+    // 6. Obter próximo número com incremento atômico (previne duplicatas)
     const serieFiscal = empresa.nfe_serie || 1;
-    await admin.from('empresas').update({ nfe_proximo_numero: numero + 1 }).eq('id', empresaId);
+    const { data: numData, error: numErr } = await admin.rpc('incrementar_nfe_numero', { p_empresa_id: empresaId });
+    if (numErr) return NextResponse.json({ error: 'Erro ao reservar número da NF-e: ' + numErr.message }, { status: 500 });
+    const numero = Number(numData) || (empresa.nfe_proximo_numero || 1);
 
     // 7. Gerar XML
     const ambienteEmissao = simulacao ? 2 : (empresa.nfe_ambiente || 2);

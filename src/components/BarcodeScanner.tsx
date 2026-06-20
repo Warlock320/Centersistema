@@ -78,7 +78,7 @@ export default function BarcodeScanner({ onScan, placeholder }: BarcodeScannerPr
       setShowCamera(true);
       scanLoop();
     } catch {
-      alert('Não foi possível acessar a câmera.');
+      setLastScan('Erro: não foi possível acessar a câmera.');
     }
   }
 
@@ -90,7 +90,7 @@ export default function BarcodeScanner({ onScan, placeholder }: BarcodeScannerPr
 
   async function scanLoop() {
     if (!('BarcodeDetector' in window)) {
-      alert('Seu navegador não suporta leitura de código de barras por câmera. Use Chrome ou Edge.');
+      setLastScan('Navegador não suporta leitura por câmera. Use Chrome ou Edge.');
       stopCamera();
       return;
     }

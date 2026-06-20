@@ -116,7 +116,7 @@ export default function GarantiasPage() {
     hoje.setHours(0, 0, 0, 0);
     const exp = new Date(dataExp + 'T00:00:00');
     const diff = Math.ceil((exp.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
-    return diff;
+    return Math.max(0, diff);
   };
 
   const filtered = garantias.filter((g) => {
@@ -279,7 +279,8 @@ export default function GarantiasPage() {
               label="Motivo do acionamento *"
               placeholder="Descreva o defeito ou problema relatado pelo cliente..."
               value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
+              onChange={(e) => setMotivo(e.target.value.slice(0, 500))}
+              maxLength={500}
             />
 
             <div className="flex gap-3 pt-2">

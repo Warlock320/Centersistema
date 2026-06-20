@@ -51,6 +51,15 @@ async function buscarAutoExperts(marca: string, modelo: string, ano: string): Pr
   return [];
 }
 
+function sanitizeUrl(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') return parsed.href;
+  } catch { /* URL inválida */ }
+  return null;
+}
+
 function parseHtmlProducts(html: string): PecaCatalogo[] {
   const pecas: PecaCatalogo[] = [];
   // Tenta extrair dados de produtos de HTML genérico de catálogos
@@ -69,10 +78,10 @@ function parseHtmlProducts(html: string): PecaCatalogo[] {
 
     if (title || code) {
       pecas.push({
-        codigo: code?.[1] || '',
-        descricao: (title?.[1] || '').trim(),
+        codigo: (code?.[1] || '').replace(/[<>"'&]/g, ''),
+        descricao: (title?.[1] || '').trim().replace(/[<>"'&]/g, ''),
         marca: '',
-        imagem: img?.[1] || null,
+        imagem: sanitizeUrl(img?.[1] || null),
         sistema: null,
       });
     }

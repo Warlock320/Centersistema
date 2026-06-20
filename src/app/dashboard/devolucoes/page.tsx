@@ -186,79 +186,61 @@ export default function DevolucoesPage() {
   }
 
   async function handleAprovar(dev: Devolucao) {
+    if (!confirm(`Confirma a aprovação desta ${tipoLabels[dev.tipo].toLowerCase()}? O estoque dos itens será estornado.`)) return;
     setActing(true);
+    try {
+      const { data: me } = await supabase.from('usuarios').select('id, empresa_id').limit(1).single();
+      if (!me) throw new Error('Usuário não encontrado');
 
-    // Buscar user
-    const { data: me } = await supabase.from('usuarios').select('id, empresa_id').limit(1).single();
-    if (!me) { setActing(false); return; }
+      const { data: itens } = await supabase.from('devolucao_itens').select('*').eq('devolucao_id', dev.id);
 
-    // Atualizar status
-    await supabase
-      .from('devolucoes')
-      .update({ status: 'aprovada', aprovado_por: me.id })
-      .eq('id', dev.id);
-
-    // Buscar itens para estorno de estoque
-    const { data: itens } = await supabase
-      .from('devolucao_itens')
-      .select('*')
-      .eq('devolucao_id', dev.id);
-
-    // Estorno de estoque: entrada para cada item com produto_id
-    if (itens && itens.length > 0) {
-      const movimentacoes = itens
+      // Estorno atômico via RPC
+      const itensEstorno = (itens || [])
         .filter((it: DevolucaoItem) => it.produto_id)
         .map((it: DevolucaoItem) => ({
-          empresa_id: me.empresa_id,
-          produto_id: it.produto_id!,
-          tipo: 'entrada' as const,
+          produto_id: it.produto_id,
           quantidade: it.quantidade,
-          custo_unitario: it.valor_unitario,
-          referencia_tipo: 'devolucao',
-          referencia_id: dev.id,
-          observacao: `Estorno por ${tipoLabels[dev.tipo].toLowerCase()} #${dev.id.slice(0, 8)}`,
+          descricao: it.descricao,
         }));
 
-      if (movimentacoes.length > 0) {
-        await supabase.from('movimentacao_estoque').insert(movimentacoes);
-
-        // Atualizar estoque dos produtos
-        for (const mov of movimentacoes) {
-          await supabase.rpc('increment_estoque', {
-            p_produto_id: mov.produto_id,
-            p_quantidade: mov.quantidade,
-          }).then(({ error }) => {
-            // Se a RPC não existir, faz update manual
-            if (error) {
-              supabase
-                .from('produtos')
-                .select('estoque')
-                .eq('id', mov.produto_id)
-                .single()
-                .then(({ data: prod }) => {
-                  if (prod) {
-                    supabase
-                      .from('produtos')
-                      .update({ estoque: prod.estoque + mov.quantidade })
-                      .eq('id', mov.produto_id);
-                  }
-                });
-            }
-          });
+      if (itensEstorno.length > 0) {
+        const { error: estErr } = await supabase.rpc('estornar_estoque_devolucao', {
+          p_empresa_id: me.empresa_id,
+          p_itens: itensEstorno,
+        });
+        if (estErr) {
+          // Fallback: inserir movimentações uma a uma
+          for (const it of itensEstorno) {
+            await supabase.from('movimentacoes_estoque').insert({
+              empresa_id: me.empresa_id,
+              produto_id: it.produto_id,
+              tipo: 'entrada',
+              quantidade: it.quantidade,
+              custo_unitario: 0,
+              referencia_tipo: 'devolucao',
+              referencia_id: dev.id,
+              observacao: `Estorno — ${it.descricao}`,
+            });
+          }
         }
       }
+
+      const { error: upErr } = await supabase.from('devolucoes')
+        .update({ status: 'concluida', aprovado_por: me.id }).eq('id', dev.id);
+      if (upErr) throw upErr;
+    } catch (err) {
+      alert('Erro ao aprovar: ' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setActing(false);
+      fetchDevolucoes();
     }
-
-    // Marcar como concluída
-    await supabase.from('devolucoes').update({ status: 'concluida' }).eq('id', dev.id);
-
-    setActing(false);
-    fetchDevolucoes();
   }
 
   async function handleCancelar(dev: Devolucao) {
+    if (!confirm('Cancelar esta devolução? Esta ação não pode ser desfeita.')) return;
     setActing(true);
-    await supabase.from('devolucoes').update({ status: 'cancelada' }).eq('id', dev.id);
+    const { error } = await supabase.from('devolucoes').update({ status: 'cancelada' }).eq('id', dev.id);
+    if (error) alert('Erro: ' + error.message);
     setActing(false);
     fetchDevolucoes();
   }

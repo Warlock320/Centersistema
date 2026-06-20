@@ -169,7 +169,7 @@ export default function ComissoesPage() {
 
   function handlePercentChange(userId: string, val: string) {
     const num = parseFloat(val);
-    if (isNaN(num)) return;
+    if (isNaN(num) || num < 0 || num > 100) return;
     setVendedores((prev) =>
       prev.map((v) => v.usuario_id === userId ? { ...v, percentual: num } : v)
     );
