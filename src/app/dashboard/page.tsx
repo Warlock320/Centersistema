@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { DollarSign, ShoppingCart, Users, AlertTriangle, TrendingUp, Package, CreditCard, CalendarClock } from 'lucide-react';
+import { DollarSign, ShoppingCart, Users, AlertTriangle, TrendingUp, Package, CreditCard, CalendarClock, BarChart3 } from 'lucide-react';
 import type { Produto, Pedido } from '@/types/database.types';
 import { DEMO_MODE } from '@/lib/demo';
 import { resolveRoles, buildPermissionMap, canWith, resolveHomeRoute, DEFAULT_ROLE_PERMISSIONS } from '@/lib/permissions';
@@ -33,8 +33,25 @@ const statusColor: Record<string, string> = {
   faturado: 'bg-green-100 text-green-700', cancelado: 'bg-red-100 text-red-700',
 };
 
+function MiniBar({ data, color = 'bg-blue-500' }: { data: { label: string; value: number }[]; color?: string }) {
+  const max = Math.max(1, ...data.map((d) => d.value));
+  return (
+    <div className="flex items-end gap-1 h-28">
+      {data.map((d, i) => (
+        <div key={i} className="flex-1 flex flex-col items-center gap-1">
+          <div className="w-full flex flex-col justify-end" style={{ height: '80px' }}>
+            <div className={`w-full ${color} rounded-t-sm transition-all`} style={{ height: `${Math.max(2, (d.value / max) * 80)}px` }} />
+          </div>
+          <span className="text-[9px] text-slate-400 truncate w-full text-center">{d.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function DashboardUI({
   totalMes, pedidosAbertos, clientesAtivos, alertas, pedidos, crediario,
+  faturamentoDiario, topProdutos, mesAnterior,
 }: {
   totalMes: number;
   pedidosAbertos: number;
@@ -42,8 +59,12 @@ function DashboardUI({
   alertas: Produto[];
   pedidos: Pedido[];
   crediario: { venceHoje: number; inadimplentes: number; totalAtraso: number };
+  faturamentoDiario: { label: string; value: number }[];
+  topProdutos: { nome: string; total: number; qtd: number }[];
+  mesAnterior: number;
 }) {
   const mes = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  const variacao = mesAnterior > 0 ? ((totalMes - mesAnterior) / mesAnterior) * 100 : 0;
 
   return (
     <div className="space-y-6">
@@ -107,6 +128,57 @@ function DashboardUI({
           color={alertas.length > 0 ? 'bg-red-500' : 'bg-slate-400'}
           href="/dashboard/produtos?estoque=baixo"
         />
+      </div>
+
+      {/* Gráficos */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Faturamento últimos 7 dias */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-slate-900 flex items-center gap-2">
+              <BarChart3 size={18} className="text-blue-500" />
+              Faturamento (últimos 7 dias)
+            </h2>
+            {variacao !== 0 && (
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${variacao > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                {variacao > 0 ? '+' : ''}{variacao.toFixed(1)}% vs mês anterior
+              </span>
+            )}
+          </div>
+          {faturamentoDiario.length > 0 ? (
+            <MiniBar data={faturamentoDiario} color="bg-blue-500" />
+          ) : (
+            <p className="text-sm text-slate-400 text-center py-8">Sem dados no período</p>
+          )}
+        </div>
+
+        {/* Top 5 produtos vendidos no mês */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+          <h2 className="font-semibold text-slate-900 flex items-center gap-2 mb-4">
+            <TrendingUp size={18} className="text-green-500" />
+            Top Produtos (mês)
+          </h2>
+          {topProdutos.length > 0 ? (
+            <div className="space-y-3">
+              {topProdutos.map((p, i) => {
+                const maxVal = topProdutos[0]?.total || 1;
+                return (
+                  <div key={i}>
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span className="text-slate-700 truncate flex-1">{i + 1}. {p.nome}</span>
+                      <span className="text-slate-500 shrink-0 ml-2">{p.qtd}un · {Number(p.total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-green-500 rounded-full" style={{ width: `${(p.total / maxVal) * 100}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400 text-center py-8">Nenhuma venda neste mês</p>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -202,7 +274,8 @@ function DashboardUI({
 export default async function DashboardPage() {
   if (DEMO_MODE) {
     return <DashboardUI totalMes={0} pedidosAbertos={0} clientesAtivos={0} alertas={[]} pedidos={[]}
-      crediario={{ venceHoje: 0, inadimplentes: 0, totalAtraso: 0 }} />;
+      crediario={{ venceHoje: 0, inadimplentes: 0, totalAtraso: 0 }}
+      faturamentoDiario={[]} topProdutos={[]} mesAnterior={0} />;
   }
 
   const supabase = await createClient();
@@ -228,24 +301,59 @@ export default async function DashboardPage() {
     if (home !== '/dashboard') redirect(home); // evita loop se nenhuma rota casar
   }
 
-  const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toLocaleDateString('en-CA');
+  const now = new Date();
+  const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString('en-CA');
+  const inicioMesAnterior = new Date(now.getFullYear(), now.getMonth() - 1, 1).toLocaleDateString('en-CA');
+  const fimMesAnterior = new Date(now.getFullYear(), now.getMonth(), 0).toLocaleDateString('en-CA');
+  const seteDiasAtras = new Date(now.getTime() - 7 * 86400000).toLocaleDateString('en-CA');
+  const hojeStr = now.toLocaleDateString('en-CA');
 
-  const hojeStr = new Date().toLocaleDateString('en-CA');
-
-  const [faturamento, pedidosAbertos, clientesAtivos, alertasEstoque, recentePedidos, parcelasAbertas, creditoCli] =
+  const [faturamento, fatMesAnt, pedidosAbertos, clientesAtivos, alertasEstoque, recentePedidos, parcelasAbertas, creditoCli, fatDiario, topProdR] =
     await Promise.all([
-      // Receita real do mês = tudo que foi recebido (balcão + pedidos + OS passam por contas_receber)
       supabase.from('contas_receber').select('valor, valor_pago').eq('status', 'pago')
         .gte('data_pagamento', inicioMes),
+      supabase.from('contas_receber').select('valor, valor_pago').eq('status', 'pago')
+        .gte('data_pagamento', inicioMesAnterior).lte('data_pagamento', fimMesAnterior),
       supabase.from('pedidos').select('id', { count: 'exact', head: true }).in('status', ['aberto', 'em_andamento']),
       supabase.from('clientes').select('id', { count: 'exact', head: true }).eq('ativo', true),
       supabase.from('v_produtos_abaixo_minimo').select('id, nome, estoque, estoque_minimo'),
       supabase.from('pedidos').select('*, clientes(nome)').order('created_at', { ascending: false }).limit(8),
       supabase.from('v_parcelas_cliente').select('data_vencimento, saldo, dias_atraso'),
       supabase.from('v_credito_cliente').select('status_efetivo'),
+      supabase.from('contas_receber').select('data_pagamento, valor_pago').eq('status', 'pago')
+        .gte('data_pagamento', seteDiasAtras),
+      supabase.from('pedidos').select('pedido_itens(descricao, quantidade, total)')
+        .eq('status', 'faturado').gte('created_at', inicioMes),
     ]);
 
   const totalMes = (faturamento.data || []).reduce((s, p) => s + Number(p.valor_pago ?? p.valor), 0);
+  const mesAnterior = (fatMesAnt.data || []).reduce((s, p) => s + Number(p.valor_pago ?? p.valor), 0);
+
+  // Faturamento diário (últimos 7 dias)
+  const diaMap: Record<string, number> = {};
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 86400000).toLocaleDateString('en-CA');
+    diaMap[d] = 0;
+  }
+  (fatDiario.data || []).forEach((r: { data_pagamento: string; valor_pago: number }) => {
+    const d = String(r.data_pagamento).slice(0, 10);
+    if (diaMap[d] !== undefined) diaMap[d] += Number(r.valor_pago || 0);
+  });
+  const faturamentoDiario = Object.entries(diaMap).map(([d, v]) => ({
+    label: d.slice(8, 10) + '/' + d.slice(5, 7), value: v,
+  }));
+
+  // Top 5 produtos vendidos no mês
+  const prodMap: Record<string, { nome: string; total: number; qtd: number }> = {};
+  type PedWithItems = { pedido_itens?: { descricao: string; quantidade: number; total: number }[] };
+  ((topProdR.data || []) as PedWithItems[]).forEach((p) => {
+    (p.pedido_itens || []).forEach((it) => {
+      if (!prodMap[it.descricao]) prodMap[it.descricao] = { nome: it.descricao, total: 0, qtd: 0 };
+      prodMap[it.descricao].total += Number(it.total);
+      prodMap[it.descricao].qtd += Number(it.quantidade);
+    });
+  });
+  const topProdutos = Object.values(prodMap).sort((a, b) => b.total - a.total).slice(0, 5);
 
   const parcelas = (parcelasAbertas.data as { data_vencimento: string; saldo: number; dias_atraso: number }[]) || [];
   const crediario = {
@@ -262,6 +370,9 @@ export default async function DashboardPage() {
       alertas={alertasEstoque.data as Produto[] || []}
       pedidos={recentePedidos.data as Pedido[] || []}
       crediario={crediario}
+      faturamentoDiario={faturamentoDiario}
+      topProdutos={topProdutos}
+      mesAnterior={mesAnterior}
     />
   );
 }

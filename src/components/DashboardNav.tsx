@@ -8,7 +8,7 @@ import {
   ShoppingCart, FileInput, BarChart2, Settings, LogOut,
   Search, X, ChevronRight, ChevronDown, Bell, Truck, Wallet,
   ArrowDownCircle, ArrowUpCircle, Landmark, Building2, Tags, Warehouse, Bike, Wrench, Scale, CreditCard,
-  FileBarChart, ShieldAlert, Menu, Store
+  FileBarChart, ShieldAlert, Menu, Store, Car, AlertTriangle, ShieldCheck, RotateCcw, Percent, Share2
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Logo } from '@/components/ui/Logo';
@@ -52,11 +52,15 @@ const navSections: NavSection[] = [
     label: 'COMERCIAL',
     items: [
       { href: '/dashboard/balcao', label: 'Balcão', icon: Store, permission: 'operar_balcao' },
+      { href: '/dashboard/busca-veiculo', label: 'Busca por Veículo', icon: Car, permission: 'view_produtos' },
       { href: '/dashboard/orcamentos', label: 'Orçamentos', icon: FileText, permission: 'view_orcamentos' },
       { href: '/dashboard/aprovacoes', label: 'Aprovações', icon: CheckSquare, permission: 'approve_orcamentos' },
       { href: '/dashboard/pedidos', label: 'Pedidos', icon: ShoppingCart, permission: 'view_pedidos' },
       { href: '/dashboard/os', label: 'Ordens de Serviço', icon: Wrench, permission: 'view_os' },
       { href: '/dashboard/nfe', label: 'Notas Fiscais', icon: FileInput, permission: 'view_nfe' },
+      { href: '/dashboard/catalogo', label: 'Catálogo WhatsApp', icon: Share2, permission: 'view_produtos' },
+      { href: '/dashboard/garantias', label: 'Garantias', icon: ShieldCheck, permission: 'view_pedidos' },
+      { href: '/dashboard/devolucoes', label: 'Devoluções', icon: RotateCcw, permission: 'view_pedidos' },
     ],
   },
   {
@@ -76,12 +80,14 @@ const navSections: NavSection[] = [
       { href: '/dashboard/financeiro/bancos', label: 'Contas Bancárias', icon: Landmark, permission: 'edit_financeiro' },
       { href: '/dashboard/financeiro/conciliacao', label: 'Conciliação', icon: Scale, permission: 'edit_financeiro' },
       { href: '/dashboard/financeiro/categorias', label: 'Categorias', icon: Tags, permission: 'edit_financeiro' },
+      { href: '/dashboard/comissoes', label: 'Comissões', icon: Percent, permission: 'view_financeiro' },
     ],
   },
   {
     label: 'GESTÃO',
     items: [
       { href: '/dashboard/relatorios', label: 'Relatórios', icon: BarChart2, permission: 'view_relatorios' },
+      { href: '/dashboard/etiquetas', label: 'Etiquetas', icon: Tags, permission: 'view_produtos' },
       { href: '/dashboard/auditoria', label: 'Auditoria', icon: ShieldAlert, permission: 'view_auditoria' },
       { href: '/dashboard/configuracoes', label: 'Configurações', icon: Settings, permission: 'manage_config' },
     ],
@@ -103,6 +109,13 @@ function HeaderClock() {
       <span className="text-[11px] text-slate-400 capitalize">{now.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}</span>
     </div>
   );
+}
+
+interface Notification {
+  type: 'estoque' | 'conta_pagar' | 'pedido_parado';
+  label: string;
+  sublabel: string;
+  href: string;
 }
 
 interface SearchResult {
@@ -135,9 +148,12 @@ export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario 
   const [alertas, setAlertas] = useState(0);          // produtos abaixo do mínimo (estoque)
   const [aprovPend, setAprovPend] = useState(0);      // orçamentos aguardando aprovação
   const [sidebarOpen, setSidebarOpen] = useState(false); // drawer no mobile
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifOpen, setNotifOpen] = useState(false);
   // Accordion: começa com a seção ativa aberta (determinístico → sem mismatch de hidratação)
   const [openSections, setOpenSections] = useState<Set<string>>(() => new Set(activeSection ? [activeSection] : []));
   const searchRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
 
   const toggleSection = (label: string) => setOpenSections((prev) => {
     const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n;
@@ -150,14 +166,84 @@ export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario 
 
   useEffect(() => {
     const loadAlertas = async () => {
+      // Contadores para badges na sidebar
       const [{ count: estoque }, { count: aprov }] = await Promise.all([
         supabase.from('v_produtos_abaixo_minimo').select('id', { count: 'exact', head: true }),
         supabase.from('orcamentos').select('id', { count: 'exact', head: true }).eq('status', 'aguardando_aprovacao'),
       ]);
       setAlertas(estoque || 0);
       setAprovPend(aprov || 0);
+
+      // Notificações detalhadas para o sino
+      const notifs: Notification[] = [];
+
+      // 1. Produtos abaixo do estoque mínimo
+      const { data: prodBaixo } = await supabase
+        .from('v_produtos_abaixo_minimo')
+        .select('id, nome, estoque, estoque_minimo')
+        .limit(10);
+      if (prodBaixo) {
+        for (const p of prodBaixo) {
+          notifs.push({
+            type: 'estoque',
+            label: p.nome,
+            sublabel: `Estoque: ${p.estoque} (min: ${p.estoque_minimo})`,
+            href: '/dashboard/estoque',
+          });
+        }
+      }
+
+      // 2. Contas a pagar vencendo em até 3 dias
+      const tresDias = new Date();
+      tresDias.setDate(tresDias.getDate() + 3);
+      const limitDate = tresDias.toISOString().split('T')[0];
+      const { data: contasVenc } = await supabase
+        .from('contas_pagar')
+        .select('id, descricao, valor, data_vencimento')
+        .in('status', ['pendente', 'aprovado'])
+        .lte('data_vencimento', limitDate)
+        .order('data_vencimento')
+        .limit(10);
+      if (contasVenc) {
+        for (const c of contasVenc) {
+          const dt = new Date(c.data_vencimento + 'T00:00:00');
+          notifs.push({
+            type: 'conta_pagar',
+            label: c.descricao,
+            sublabel: `R$ ${Number(c.valor).toFixed(2)} - vence ${dt.toLocaleDateString('pt-BR')}`,
+            href: '/dashboard/financeiro/pagar',
+          });
+        }
+      }
+
+      // 3. Pedidos parados há mais de 3 dias
+      const tresDiasAtras = new Date();
+      tresDiasAtras.setDate(tresDiasAtras.getDate() - 3);
+      const limitPedido = tresDiasAtras.toISOString();
+      const { data: pedidosParados } = await supabase
+        .from('pedidos')
+        .select('id, numero, status, updated_at')
+        .in('status', ['aberto', 'em_andamento'])
+        .lte('updated_at', limitPedido)
+        .order('updated_at')
+        .limit(10);
+      if (pedidosParados) {
+        for (const p of pedidosParados) {
+          const dias = Math.floor((Date.now() - new Date(p.updated_at).getTime()) / 86400000);
+          notifs.push({
+            type: 'pedido_parado',
+            label: `Pedido #${p.numero}`,
+            sublabel: `${p.status === 'aberto' ? 'Aberto' : 'Em andamento'} há ${dias} dias`,
+            href: '/dashboard/pedidos',
+          });
+        }
+      }
+
+      setNotifications(notifs);
     };
     loadAlertas();
+    const interval = setInterval(loadAlertas, 5 * 60 * 1000); // refresh a cada 5 min
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -199,6 +285,9 @@ export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario 
     const handleClick = (e: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
         setSearchOpen(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClick);
@@ -380,18 +469,105 @@ export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario 
               DEMO
             </span>
           )}
-          {alertas > 0 && (
-            <Link
-              href="/dashboard"
+          <div ref={notifRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setNotifOpen((o) => !o)}
               className="relative p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-              title="Alertas de estoque"
+              title="Notificações"
             >
               <Bell size={20} />
-              <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                {alertas > 9 ? '9+' : alertas}
-              </span>
-            </Link>
-          )}
+              {notifications.length > 0 && (
+                <span className="absolute top-1 right-1 min-w-4 h-4 px-0.5 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
+                  {notifications.length > 99 ? '99+' : notifications.length}
+                </span>
+              )}
+            </button>
+
+            {notifOpen && (
+              <div className="absolute right-0 top-full mt-2 w-96 max-h-[28rem] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50">
+                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-slate-800">Notificações</h3>
+                  {notifications.length > 0 && (
+                    <span className="text-xs text-slate-400">{notifications.length} alerta{notifications.length !== 1 ? 's' : ''}</span>
+                  )}
+                </div>
+
+                {notifications.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-slate-400">Nenhuma notificação no momento.</div>
+                ) : (
+                  <div className="overflow-y-auto max-h-[24rem] divide-y divide-slate-50">
+                    {/* Estoque baixo */}
+                    {notifications.some((n) => n.type === 'estoque') && (
+                      <div>
+                        <div className="px-4 py-2 bg-red-50 text-xs font-bold text-red-700 flex items-center gap-1.5">
+                          <Package size={12} /> Estoque Baixo
+                        </div>
+                        {notifications.filter((n) => n.type === 'estoque').map((n, i) => (
+                          <Link
+                            key={`est-${i}`}
+                            href={n.href}
+                            onClick={() => setNotifOpen(false)}
+                            className="flex items-start gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors"
+                          >
+                            <AlertTriangle size={14} className="text-red-400 mt-0.5 shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-sm text-slate-700 truncate">{n.label}</p>
+                              <p className="text-xs text-slate-400">{n.sublabel}</p>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                    {/* Contas a pagar */}
+                    {notifications.some((n) => n.type === 'conta_pagar') && (
+                      <div>
+                        <div className="px-4 py-2 bg-amber-50 text-xs font-bold text-amber-700 flex items-center gap-1.5">
+                          <Wallet size={12} /> Contas a Pagar
+                        </div>
+                        {notifications.filter((n) => n.type === 'conta_pagar').map((n, i) => (
+                          <Link
+                            key={`cp-${i}`}
+                            href={n.href}
+                            onClick={() => setNotifOpen(false)}
+                            className="flex items-start gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors"
+                          >
+                            <ArrowUpCircle size={14} className="text-amber-400 mt-0.5 shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-sm text-slate-700 truncate">{n.label}</p>
+                              <p className="text-xs text-slate-400">{n.sublabel}</p>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                    {/* Pedidos parados */}
+                    {notifications.some((n) => n.type === 'pedido_parado') && (
+                      <div>
+                        <div className="px-4 py-2 bg-blue-50 text-xs font-bold text-blue-700 flex items-center gap-1.5">
+                          <ShoppingCart size={12} /> Pedidos Parados
+                        </div>
+                        {notifications.filter((n) => n.type === 'pedido_parado').map((n, i) => (
+                          <Link
+                            key={`ped-${i}`}
+                            href={n.href}
+                            onClick={() => setNotifOpen(false)}
+                            className="flex items-start gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors"
+                          >
+                            <ShoppingCart size={14} className="text-blue-400 mt-0.5 shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-sm text-slate-700 truncate">{n.label}</p>
+                              <p className="text-xs text-slate-400">{n.sublabel}</p>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </header>
     </>

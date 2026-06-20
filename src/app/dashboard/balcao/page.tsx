@@ -192,18 +192,20 @@ export default function BalcaoPage() {
 
   async function setCliente(clienteId: string) {
     if (!comanda) return;
-    await supabase.from('comandas').update({ cliente_id: clienteId || null }).eq('id', comanda.id);
+    const { error } = await supabase.from('comandas').update({ cliente_id: clienteId || null }).eq('id', comanda.id);
+    if (error) { toast.error('Erro ao vincular cliente: ' + error.message); return; }
     setComanda({ ...comanda, cliente_id: clienteId || null });
   }
 
   async function addProduto(p: ProdBusca, keepOpen = false) {
     if (!comanda) return;
     const eid = await getEmpresaId();
-    await supabase.from('comanda_itens').insert({
+    const { error } = await supabase.from('comanda_itens').insert({
       empresa_id: eid, comanda_id: comanda.id, produto_id: p.id,
       descricao: p.nome, quantidade: 1, preco_unitario: Number(p.preco), desconto: 0, total: Number(p.preco),
     });
-    toast.success(`✓ ${p.nome} adicionada`);
+    if (error) { toast.error('Erro ao adicionar item: ' + error.message); return; }
+    toast.success(`${p.nome} adicionada`);
     if (!keepOpen) setShowBusca(false);
     await carregarItens(comanda.id);
   }
@@ -212,12 +214,14 @@ export default function BalcaoPage() {
     const qtd = campos.quantidade ?? it.quantidade;
     const desc = campos.desconto ?? it.desconto;
     const total = Math.max(0, Number(qtd) * Number(it.preco_unitario) - Number(desc));
-    await supabase.from('comanda_itens').update({ quantidade: qtd, desconto: desc, total }).eq('id', it.id);
+    const { error } = await supabase.from('comanda_itens').update({ quantidade: qtd, desconto: desc, total }).eq('id', it.id);
+    if (error) { toast.error('Erro ao atualizar item: ' + error.message); return; }
     if (comanda) carregarItens(comanda.id);
   }
 
   async function removerItem(id: string) {
-    await supabase.from('comanda_itens').delete().eq('id', id);
+    const { error } = await supabase.from('comanda_itens').delete().eq('id', id);
+    if (error) { toast.error('Erro ao remover item: ' + error.message); return; }
     if (comanda) carregarItens(comanda.id);
   }
 

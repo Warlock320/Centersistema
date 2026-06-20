@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import {
   DollarSign, ShoppingCart, TrendingUp, Users, Search, Printer, ArrowDownCircle,
-  ArrowUpCircle, Scale, CreditCard, AlertTriangle, UserPlus, PackageX, Wallet,
+  ArrowUpCircle, Scale, CreditCard, AlertTriangle, UserPlus, PackageX, Wallet, FileSpreadsheet,
 } from 'lucide-react';
 
 function brl(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
@@ -176,6 +176,50 @@ export default function RelatoriosPage() {
     else { setDataInicio(f(new Date(y, 0, 1))); setDataFim(f(t)); }
   }
 
+  function exportarExcel() {
+    const sep = ';';
+    const linhas: string[] = [];
+    linhas.push(`Relatório - ${dataInicio} a ${dataFim}`);
+    linhas.push('');
+
+    // KPIs
+    linhas.push('INDICADOR' + sep + 'VALOR');
+    kpiCards.forEach((k) => linhas.push(k.label + sep + k.value.replace('R$', '').trim()));
+    linhas.push('');
+
+    // Top Clientes
+    linhas.push('TOP CLIENTES');
+    linhas.push('Cliente' + sep + 'Total');
+    clientesRank.forEach((c) => linhas.push(c.nome + sep + c.total.toFixed(2)));
+    linhas.push('');
+
+    // Top Produtos
+    linhas.push('TOP PRODUTOS');
+    linhas.push('Produto' + sep + 'Qtd' + sep + 'Total');
+    produtosRank.forEach((p) => linhas.push(p.descricao + sep + p.quantidade + sep + p.total.toFixed(2)));
+    linhas.push('');
+
+    // Vendedores
+    linhas.push('VENDEDORES');
+    linhas.push('Vendedor' + sep + 'Vendas' + sep + 'Total');
+    vendedoresRank.forEach((v) => linhas.push(v.nome + sep + v.qtd + sep + v.total.toFixed(2)));
+    linhas.push('');
+
+    // Pedidos
+    linhas.push('PEDIDOS FATURADOS');
+    linhas.push('#' + sep + 'Cliente' + sep + 'Total' + sep + 'Data');
+    pedidos.forEach((p) => linhas.push(p.numero + sep + (p.clientes?.nome || '') + sep + Number(p.total).toFixed(2) + sep + new Date(p.created_at).toLocaleDateString('pt-BR')));
+
+    const bom = '﻿';
+    const blob = new Blob([bom + linhas.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `relatorio_${dataInicio}_${dataFim}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const totalFormas = formas.reduce((s, f) => s + f.total, 0);
   const maxSerie = Math.max(1, ...serie.map((s) => Math.max(s.receita, s.despesa)));
   const maxCli = clientesRank[0]?.total || 1;
@@ -209,7 +253,10 @@ export default function RelatoriosPage() {
           <h1 className="text-2xl font-bold text-slate-900">Relatórios &amp; BI</h1>
           <p className="text-slate-500 text-sm">Período: {new Date(dataInicio + 'T00:00:00').toLocaleDateString('pt-BR')} a {new Date(dataFim + 'T00:00:00').toLocaleDateString('pt-BR')}</p>
         </div>
-        <Button variant="secondary" onClick={() => window.print()} className="print:hidden"><Printer size={16} /> Exportar PDF</Button>
+        <div className="flex gap-2 print:hidden">
+          <Button variant="secondary" onClick={exportarExcel} disabled={!carregou}><FileSpreadsheet size={16} /> Excel</Button>
+          <Button variant="secondary" onClick={() => window.print()}><Printer size={16} /> PDF</Button>
+        </div>
       </div>
 
       {/* Filtros */}

@@ -6,7 +6,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Confirm } from '@/components/ui/Confirm';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { ChevronRight, XCircle, FileText, Download, CheckCircle, AlertCircle, Loader2, FileDown } from 'lucide-react';
+import { ChevronRight, XCircle, FileText, Download, CheckCircle, AlertCircle, FileDown } from 'lucide-react';
 import type { Pedido, PedidoStatus, NfeEmitida } from '@/types/database.types';
 import { usePermissions } from '@/components/PermissionsProvider';
 import { parseNfeXml } from '@/lib/nfe/parser';
@@ -18,14 +18,6 @@ const STEPS: { status: PedidoStatus; label: string }[] = [
   { status: 'faturado', label: 'Faturado' },
 ];
 
-const NEXT_STATUS: Partial<Record<PedidoStatus, PedidoStatus>> = {
-  aberto: 'em_andamento',
-  em_andamento: 'faturado',
-};
-const NEXT_LABEL: Partial<Record<PedidoStatus, string>> = {
-  aberto: 'Iniciar Separação',
-  em_andamento: 'Faturar Pedido (baixar estoque)',
-};
 
 export default function PedidosPage() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
@@ -75,22 +67,14 @@ export default function PedidosPage() {
     setActing(true);
     setErro('');
 
-    if (newStatus === 'faturado') {
-      // RPC cria movimentações de estoque (saída) e conta a receber atomicamente.
-      // Pode falhar se a loja não permite estoque negativo e faltar saldo.
-      const { error } = await supabase.rpc('faturar_pedido', { p_pedido_id: selected.id });
-      if (error) {
-        setErro(error.message || 'Não foi possível faturar o pedido.');
-        setActing(false);
-        setConfirmFaturar(false);
-        return;
-      }
-    } else {
-      await supabase.from('pedidos').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', selected.id);
+    const { error } = await supabase.from('pedidos').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', selected.id);
+    if (error) {
+      setErro('Erro ao alterar status: ' + error.message);
+      setActing(false);
+      return;
     }
 
     setActing(false);
-    setConfirmFaturar(false);
     setSelected(null);
     fetchData();
   }
@@ -101,7 +85,10 @@ export default function PedidosPage() {
     setErro('');
     const { error } = await supabase.rpc('cancelar_pedido', { p_pedido_id: selected.id });
     if (error) {
-      await supabase.from('pedidos').update({ status: 'cancelado', updated_at: new Date().toISOString() }).eq('id', selected.id);
+      setErro('Erro ao cancelar pedido: ' + error.message);
+      setActing(false);
+      setConfirmCancelar(false);
+      return;
     }
     setActing(false);
     setConfirmCancelar(false);

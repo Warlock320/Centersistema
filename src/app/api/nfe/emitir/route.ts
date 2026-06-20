@@ -133,16 +133,20 @@ export async function POST(request: Request) {
       }).select('id').single();
       if (nfeInsErr) return NextResponse.json({ error: 'Erro ao registrar NF-e: ' + nfeInsErr.message }, { status: 500 });
 
-      // Faturar pedido (estoque + conta a receber + status)
+      // Faturar pedido (estoque + conta a receber + status) e vincular NF-e
       const { error: fatErr } = await admin.rpc('faturar_pedido', { p_pedido_id: pedido_id });
       if (fatErr) {
         await admin.from('nfe_emitidas').delete().eq('id', nfeRecord!.id);
         return NextResponse.json({ error: 'NF-e gerada mas erro ao faturar: ' + fatErr.message }, { status: 500 });
       }
 
-      await admin.from('pedidos').update({ nfe_id: nfeRecord!.id }).eq('id', pedido_id);
+      const { error: linkErr } = await admin.from('pedidos').update({ nfe_id: nfeRecord!.id }).eq('id', pedido_id);
+      if (linkErr) {
+        // Pedido já faturado, mas sem vínculo — tenta novamente
+        await admin.from('pedidos').update({ nfe_id: nfeRecord!.id }).eq('id', pedido_id);
+      }
 
-      // Registrar na aba de saída
+      // Registrar na aba de saída (não bloqueia se falhar)
       await admin.from('notas_saida').insert({
         empresa_id: empresaId,
         chave_acesso: chaveAcesso,
@@ -233,11 +237,21 @@ export async function POST(request: Request) {
         updated_at: new Date().toISOString(),
       }).eq('id', nfeId);
 
-      // Faturar pedido (estoque + conta a receber + status)
-      await admin.rpc('faturar_pedido', { p_pedido_id: pedido_id });
-      await admin.from('pedidos').update({ nfe_id: nfeId }).eq('id', pedido_id);
+      // Faturar pedido (estoque + conta a receber + status) e vincular NF-e
+      const { error: fatErr } = await admin.rpc('faturar_pedido', { p_pedido_id: pedido_id });
+      if (fatErr) {
+        return NextResponse.json({
+          ok: false, nfe_id: nfeId, status: 'autorizada',
+          error: 'NF-e autorizada mas erro ao faturar pedido: ' + fatErr.message,
+        }, { status: 500 });
+      }
 
-      // Registrar na aba de saída
+      const { error: linkErr } = await admin.from('pedidos').update({ nfe_id: nfeId }).eq('id', pedido_id);
+      if (linkErr) {
+        await admin.from('pedidos').update({ nfe_id: nfeId }).eq('id', pedido_id);
+      }
+
+      // Registrar na aba de saída (não bloqueia se falhar)
       await admin.from('notas_saida').insert({
         empresa_id: empresaId,
         chave_acesso: chaveAcesso,

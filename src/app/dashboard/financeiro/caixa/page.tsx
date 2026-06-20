@@ -380,8 +380,8 @@ export default function CaixaPage() {
   }
 
   async function selecionarPendente(c: Comanda) {
-    // Trava como "em atendimento no caixa"
-    await supabase.rpc('abrir_atendimento_caixa', { p_comanda_id: c.id });
+    const { error: rpcErr } = await supabase.rpc('abrir_atendimento_caixa', { p_comanda_id: c.id });
+    if (rpcErr) { toast.error('Erro ao abrir atendimento: ' + rpcErr.message); return; }
     const { data: its } = await supabase.from('comanda_itens').select('*').eq('comanda_id', c.id).order('created_at');
     setPvComanda(c); setPvItens((its as ComandaItem[]) || []);
     await carregarPagamentos(c.id);
@@ -475,8 +475,10 @@ export default function CaixaPage() {
   }
 
   async function fecharPreVenda() {
-    // Ao fechar sem faturar, devolve a pré-venda para a fila
-    if (pvComanda) await supabase.rpc('voltar_fila_caixa', { p_comanda_id: pvComanda.id });
+    if (pvComanda) {
+      const { error: rpcErr } = await supabase.rpc('voltar_fila_caixa', { p_comanda_id: pvComanda.id });
+      if (rpcErr) toast.error('Erro ao devolver pré-venda: ' + rpcErr.message);
+    }
     setShowPreVenda(false); setPvComanda(null); setPvItens([]); setPvPagamentos([]); setPvNumero('');
     fetchAll();
   }

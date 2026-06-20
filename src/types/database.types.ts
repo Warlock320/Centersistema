@@ -683,3 +683,65 @@ export interface KpisFinanceiros {
   vencidos_pag: number;
   saldo_total: number;
 }
+
+// ── Módulo Comissão ──────────────────────────────────────────────────────────
+
+export interface ComissaoConfig {
+  id: string;
+  empresa_id: string;
+  usuario_id: string;
+  percentual: number;
+  ativo: boolean;
+  created_at: string;
+  usuarios?: { nome: string };
+}
+
+// ── Módulo Garantia ──────────────────────────────────────────────────────────
+
+export type GarantiaStatus = 'ativa' | 'expirada' | 'acionada' | 'cancelada';
+
+export interface Garantia {
+  id: string;
+  empresa_id: string;
+  pedido_id: string;
+  pedido_item_id: string | null;
+  cliente_id: string;
+  produto_descricao: string;
+  data_venda: string;
+  data_expiracao: string;
+  status: GarantiaStatus;
+  motivo_acionamento: string | null;
+  created_at: string;
+  clientes?: { nome: string };
+  pedidos?: { numero: number };
+}
+
+// ── Módulo Devoluções ────────────────────────────────────────────────────────
+
+export type DevolucaoTipo = 'devolucao' | 'troca';
+export type DevolucaoStatus = 'pendente' | 'aprovada' | 'concluida' | 'cancelada';
+
+export interface Devolucao {
+  id: string;
+  empresa_id: string;
+  pedido_id: string;
+  cliente_id: string;
+  tipo: DevolucaoTipo;
+  motivo: string;
+  valor_total: number;
+  status: DevolucaoStatus;
+  aprovado_por: string | null;
+  created_at: string;
+  clientes?: { nome: string };
+  pedidos?: { numero: number };
+}
+
+export interface DevolucaoItem {
+  id: string;
+  devolucao_id: string;
+  produto_id: string | null;
+  descricao: string;
+  quantidade: number;
+  valor_unitario: number;
+  total: number;
+}

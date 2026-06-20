@@ -8,7 +8,7 @@ import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { usePermissions } from '@/components/PermissionsProvider';
 import {
-  Plus, Building2, Users, ShieldCheck, Check,
+  Plus, Building2, Users, ShieldCheck, Check, FileKey, Receipt,
   ChevronDown, UserPlus, KeyRound, RotateCcw, Search, Loader2, Trash2, AlertTriangle,
 } from 'lucide-react';
 import type { Empresa, Usuario } from '@/types/database.types';
@@ -105,6 +105,8 @@ export default function ConfiguracoesPage() {
   const [senhaTarget, setSenhaTarget] = useState<Usuario | null>(null);
   const [novaSenhaUser, setNovaSenhaUser] = useState('');
   const [savingSenha, setSavingSenha] = useState(false);
+
+  const [aba, setAba] = useState<'empresa' | 'certificado' | 'fiscal' | 'equipe'>('empresa');
 
   const supabase = createClient();
   const toast = useToast();
@@ -314,11 +316,18 @@ export default function ConfiguracoesPage() {
 
   if (loading) return <div className="py-16 text-center text-slate-400">Carregando...</div>;
 
+  const TABS = [
+    { key: 'empresa' as const, label: 'Empresa', icon: <Building2 size={15} /> },
+    { key: 'certificado' as const, label: 'Certificado Digital', icon: <FileKey size={15} /> },
+    { key: 'fiscal' as const, label: 'Dados Fiscais (NF-e)', icon: <Receipt size={15} /> },
+    { key: 'equipe' as const, label: 'Equipe e Permissões', icon: <Users size={15} /> },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Configurações</h1>
-        <p className="text-slate-500 text-sm">Dados da empresa, equipe e papéis de acesso</p>
+        <p className="text-slate-500 text-sm">Dados da empresa, certificado, fiscal e equipe</p>
       </div>
 
       {!isAdmin && (
@@ -327,69 +336,92 @@ export default function ConfiguracoesPage() {
         </div>
       )}
 
-      {/* Dados da Empresa */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-100">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
-          <Building2 size={18} className="text-blue-500" />
-          <h2 className="font-semibold text-slate-900">Dados da Empresa</h2>
-        </div>
-        <form onSubmit={handleSaveEmpresa} className="px-6 py-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-slate-700 block mb-1">CNPJ</label>
-              <div className="flex gap-2">
-                <input value={formatCpfCnpj(empresa.cnpj || '')} disabled={!isAdmin}
-                  onChange={(e) => setEmpresa((p) => ({ ...p, cnpj: formatCpfCnpj(e.target.value) }))}
-                  placeholder="00.000.000/0001-00"
-                  className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-slate-50" />
-                {isAdmin && (
-                  <Button type="button" variant="secondary" size="sm" onClick={handleBuscarCNPJ}
-                    disabled={buscandoCNPJ || !isCNPJ(empresa.cnpj || '')} title="Buscar dados na Receita">
-                    {buscandoCNPJ ? <Loader2 size={14} className="animate-spin" /> : <><Search size={14} /> Buscar</>}
-                  </Button>
-                )}
-              </div>
-              {cnpjMsg && <p className={`text-xs mt-1 ${cnpjMsg.includes('Erro') || cnpjMsg.includes('Informe') || cnpjMsg.includes('não') ? 'text-red-500' : 'text-green-600'}`}>{cnpjMsg}</p>}
-            </div>
-            <Input label="Nome Fantasia" value={empresa.nome || ''} onChange={set('nome')} disabled={!isAdmin} />
-            <Input label="Razão Social" value={empresa.razao_social || ''} onChange={set('razao_social')} disabled={!isAdmin} />
-            <Input label="E-mail" type="email" value={empresa.email || ''} onChange={set('email')} disabled={!isAdmin} />
-            <Input label="Telefone" value={empresa.telefone || ''} onChange={set('telefone')} disabled={!isAdmin} />
-            <Input label="CEP" value={empresa.cep || ''} onChange={set('cep')} disabled={!isAdmin} />
-            <Input label="Endereço" value={empresa.endereco || ''} onChange={set('endereco')} disabled={!isAdmin} />
-            <Input label="Cidade" value={empresa.cidade || ''} onChange={set('cidade')} disabled={!isAdmin} />
-            <Input label="Estado (UF)" value={empresa.estado || ''} onChange={set('estado')} maxLength={2} disabled={!isAdmin} />
-          </div>
-
-          {/* Preferência de estoque */}
-          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
-            <div>
-              <p className="text-sm font-medium text-slate-700">Permitir estoque negativo</p>
-              <p className="text-xs text-slate-400">
-                Ativado: a venda conclui mesmo sem saldo (estoque pode ficar negativo). Desativado: o faturamento é bloqueado se faltar estoque.
-              </p>
-            </div>
-            <button
-              type="button"
-              disabled={!isAdmin}
-              onClick={() => setEmpresa((p) => ({ ...p, permite_estoque_negativo: !p.permite_estoque_negativo }))}
-              className={`w-12 h-6 rounded-full relative transition-colors shrink-0 ${empresa.permite_estoque_negativo ? 'bg-blue-600' : 'bg-slate-300'} ${!isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all ${empresa.permite_estoque_negativo ? 'left-[26px]' : 'left-0.5'}`} />
-            </button>
-          </div>
-
-          {savedMsg && <p className="text-green-600 text-sm">{savedMsg}</p>}
-          {isAdmin && <Button type="submit" loading={saving}>Salvar Dados</Button>}
-        </form>
+      {/* Abas */}
+      <div className="flex gap-1 border-b border-slate-200 overflow-x-auto">
+        {TABS.map((tab) => (
+          <button key={tab.key} onClick={() => setAba(tab.key)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
+              aba === tab.key ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}>
+            {tab.icon} {tab.label}
+          </button>
+        ))}
       </div>
 
-      {/* Certificado Digital (NF-e) — só admin */}
-      {isAdmin && <CertificadoSection />}
+      {/* ── Aba: Empresa ─────────────────────────────────────────── */}
+      {aba === 'empresa' && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-100">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+            <Building2 size={18} className="text-blue-500" />
+            <h2 className="font-semibold text-slate-900">Dados da Empresa</h2>
+          </div>
+          <form onSubmit={handleSaveEmpresa} className="px-6 py-6 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-slate-700 block mb-1">CNPJ</label>
+                <div className="flex gap-2">
+                  <input value={formatCpfCnpj(empresa.cnpj || '')} disabled={!isAdmin}
+                    onChange={(e) => setEmpresa((p) => ({ ...p, cnpj: formatCpfCnpj(e.target.value) }))}
+                    placeholder="00.000.000/0001-00"
+                    className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-slate-50" />
+                  {isAdmin && (
+                    <Button type="button" variant="secondary" size="sm" onClick={handleBuscarCNPJ}
+                      disabled={buscandoCNPJ || !isCNPJ(empresa.cnpj || '')} title="Buscar dados na Receita">
+                      {buscandoCNPJ ? <Loader2 size={14} className="animate-spin" /> : <><Search size={14} /> Buscar</>}
+                    </Button>
+                  )}
+                </div>
+                {cnpjMsg && <p className={`text-xs mt-1 ${cnpjMsg.includes('Erro') || cnpjMsg.includes('Informe') || cnpjMsg.includes('não') ? 'text-red-500' : 'text-green-600'}`}>{cnpjMsg}</p>}
+              </div>
+              <Input label="Nome Fantasia" value={empresa.nome || ''} onChange={set('nome')} disabled={!isAdmin} />
+              <Input label="Razão Social" value={empresa.razao_social || ''} onChange={set('razao_social')} disabled={!isAdmin} />
+              <Input label="E-mail" type="email" value={empresa.email || ''} onChange={set('email')} disabled={!isAdmin} />
+              <Input label="Telefone" value={empresa.telefone || ''} onChange={set('telefone')} disabled={!isAdmin} />
+              <Input label="CEP" value={empresa.cep || ''} onChange={set('cep')} disabled={!isAdmin} />
+              <Input label="Endereço" value={empresa.endereco || ''} onChange={set('endereco')} disabled={!isAdmin} />
+              <Input label="Cidade" value={empresa.cidade || ''} onChange={set('cidade')} disabled={!isAdmin} />
+              <Input label="Estado (UF)" value={empresa.estado || ''} onChange={set('estado')} maxLength={2} disabled={!isAdmin} />
+            </div>
 
-      {/* Dados Fiscais (NF-e) — só admin */}
-      {isAdmin && <FiscalSection />}
+            {/* Preferência de estoque */}
+            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+              <div>
+                <p className="text-sm font-medium text-slate-700">Permitir estoque negativo</p>
+                <p className="text-xs text-slate-400">
+                  Ativado: a venda conclui mesmo sem saldo (estoque pode ficar negativo). Desativado: o faturamento é bloqueado se faltar estoque.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={!isAdmin}
+                onClick={() => setEmpresa((p) => ({ ...p, permite_estoque_negativo: !p.permite_estoque_negativo }))}
+                className={`w-12 h-6 rounded-full relative transition-colors shrink-0 ${empresa.permite_estoque_negativo ? 'bg-blue-600' : 'bg-slate-300'} ${!isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all ${empresa.permite_estoque_negativo ? 'left-[26px]' : 'left-0.5'}`} />
+              </button>
+            </div>
 
+            {savedMsg && <p className="text-green-600 text-sm">{savedMsg}</p>}
+            {isAdmin && <Button type="submit" loading={saving}>Salvar Dados</Button>}
+          </form>
+        </div>
+      )}
+
+      {/* ── Aba: Certificado Digital ─────────────────────────────── */}
+      {aba === 'certificado' && isAdmin && <CertificadoSection />}
+      {aba === 'certificado' && !isAdmin && (
+        <div className="p-8 text-center text-slate-400">Apenas administradores podem gerenciar o certificado digital.</div>
+      )}
+
+      {/* ── Aba: Dados Fiscais ───────────────────────────────────── */}
+      {aba === 'fiscal' && isAdmin && <FiscalSection />}
+      {aba === 'fiscal' && !isAdmin && (
+        <div className="p-8 text-center text-slate-400">Apenas administradores podem gerenciar os dados fiscais.</div>
+      )}
+
+      {/* ── Aba: Equipe e Permissões ─────────────────────────────── */}
+      {aba === 'equipe' && (
+      <>
       {/* Equipe */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-100">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -540,6 +572,8 @@ export default function ConfiguracoesPage() {
           </p>
         )}
       </div>
+      </>
+      )}
 
       {/* Cadastro de Usuário Modal */}
       <Modal open={showCadastro} onClose={() => setShowCadastro(false)} title="Cadastrar Usuário" size="md">
