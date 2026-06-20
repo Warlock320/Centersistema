@@ -65,6 +65,12 @@ export default function BuscaVeiculoPage() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
+  // Catálogo externo
+  interface PecaCatalogo { codigo: string; descricao: string; marca: string; imagem: string | null; sistema: string | null }
+  const [catalogoPecas, setCatalogoPecas] = useState<PecaCatalogo[]>([]);
+  const [catalogoLoading, setCatalogoLoading] = useState(false);
+  const [catalogoBuscou, setCatalogoBuscou] = useState(false);
+
   useEffect(() => {
     setLoadingFipe(true);
     fetch(`${FIPE_BASE}/${tipoVeiculo}/marcas`)
@@ -111,9 +117,28 @@ export default function BuscaVeiculoPage() {
     setLoading(false);
   }
 
+  async function buscarCatalogoExterno(marca: string, modelo: string, ano: string) {
+    setCatalogoLoading(true);
+    setCatalogoBuscou(true);
+    try {
+      const params = new URLSearchParams({ marca, modelo, ano });
+      const res = await fetch(`/api/catalogo?${params}`);
+      const json = await res.json();
+      setCatalogoPecas(json.pecas || []);
+    } catch {
+      setCatalogoPecas([]);
+    } finally {
+      setCatalogoLoading(false);
+    }
+  }
+
   function buscarPorFipe() {
     const termos = [marcaNome, modeloNome, anoNome].filter(Boolean).join(' ');
-    if (termos.trim()) { setQueryTexto(termos); buscarPecas(termos); }
+    if (termos.trim()) {
+      setQueryTexto(termos);
+      buscarPecas(termos);
+      buscarCatalogoExterno(marcaNome, modeloNome, anoNome.replace(/\D/g, ''));
+    }
   }
 
   function buscarPorTexto() {
@@ -249,22 +274,73 @@ export default function BuscaVeiculoPage() {
         {loadingFipe && <p className="text-xs text-slate-400">Carregando dados FIPE...</p>}
       </div>
 
-      {/* Catálogos Externos */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <h2 className="text-sm font-semibold text-slate-700 mb-1">Catálogos de Peças (externos)</h2>
-        <p className="text-xs text-slate-400 mb-3">
-          {veiculoTexto
-            ? `Consultar peças para "${veiculoTexto}" com códigos originais, imagens e referências`
-            : 'Selecione um veículo acima para buscar nos catálogos com o modelo preenchido'}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {catalogos.map((cat) => (
-            <a key={cat.nome} href={cat.url} target="_blank" rel="noopener noreferrer"
-              className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity ${cat.cor}`}>
-              <ExternalLink size={14} /> {cat.nome}
-            </a>
-          ))}
+      {/* Catálogo de Peças (resultados diretos + links externos) */}
+      <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-700">Catálogo de Peças</h2>
+            <p className="text-xs text-slate-400">
+              {veiculoTexto
+                ? `Peças para "${veiculoTexto}" — dados de catálogos online`
+                : 'Selecione um veículo acima para consultar o catálogo'}
+            </p>
+          </div>
+          {veiculoTexto && (
+            <div className="flex gap-1">
+              {catalogos.slice(0, 3).map((cat) => (
+                <a key={cat.nome} href={cat.url} target="_blank" rel="noopener noreferrer"
+                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white rounded-lg hover:opacity-90 ${cat.cor}`}>
+                  <ExternalLink size={11} /> {cat.nome}
+                </a>
+              ))}
+            </div>
+          )}
         </div>
+
+        {catalogoLoading && (
+          <div className="py-8 text-center text-slate-400 text-sm">Buscando no catálogo online...</div>
+        )}
+
+        {!catalogoLoading && catalogoBuscou && catalogoPecas.length === 0 && (
+          <div className="py-6 text-center">
+            <Package size={32} className="mx-auto text-slate-300 mb-2" />
+            <p className="text-sm text-slate-500">Catálogo online indisponível ou veículo não encontrado</p>
+            <p className="text-xs text-slate-400 mt-1">Tente consultar diretamente nos catálogos externos:</p>
+            <div className="flex flex-wrap gap-2 justify-center mt-3">
+              {catalogos.map((cat) => (
+                <a key={cat.nome} href={cat.url} target="_blank" rel="noopener noreferrer"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg hover:opacity-90 ${cat.cor}`}>
+                  <ExternalLink size={12} /> {cat.nome}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!catalogoLoading && catalogoPecas.length > 0 && (
+          <div>
+            <p className="text-xs text-slate-500 mb-3">{catalogoPecas.length} peça(s) encontrada(s)</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {catalogoPecas.map((p, i) => (
+                <div key={i} className="border border-slate-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                  <div className="h-32 bg-slate-50 flex items-center justify-center">
+                    {p.imagem ? (
+                      <img src={p.imagem} alt={p.descricao} className="h-full w-full object-contain p-2" />
+                    ) : (
+                      <ImageOff size={32} className="text-slate-300" />
+                    )}
+                  </div>
+                  <div className="p-3">
+                    {p.marca && <p className="text-[10px] font-bold text-blue-600 uppercase">{p.marca}</p>}
+                    <p className="text-xs font-mono text-slate-500">{p.codigo || '—'}</p>
+                    <p className="text-sm font-medium text-slate-800 mt-0.5 line-clamp-2">{p.descricao}</p>
+                    {p.sistema && <span className="inline-block mt-1 px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[10px] rounded">{p.sistema}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Texto livre */}
