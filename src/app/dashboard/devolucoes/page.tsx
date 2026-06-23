@@ -186,48 +186,34 @@ export default function DevolucoesPage() {
   }
 
   async function handleAprovar(dev: Devolucao) {
-    if (!confirm(`Confirma a aprovação desta ${tipoLabels[dev.tipo].toLowerCase()}? O estoque dos itens será estornado.`)) return;
+    if (!confirm(
+      `Confirma a aprovação desta ${tipoLabels[dev.tipo].toLowerCase()}?\n\n` +
+      `Valor: R$ ${Number(dev.valor_total).toFixed(2)}\n\n` +
+      `Isso irá:\n` +
+      `• Estornar o estoque dos itens devolvidos\n` +
+      `• Gerar um crédito de R$ ${Number(dev.valor_total).toFixed(2)} para o cliente\n` +
+      `• Marcar a devolução como concluída`
+    )) return;
+
     setActing(true);
     try {
-      const { data: me } = await supabase.from('usuarios').select('id, empresa_id').limit(1).single();
-      if (!me) throw new Error('Usuário não encontrado');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Não autenticado');
 
-      const { data: itens } = await supabase.from('devolucao_itens').select('*').eq('devolucao_id', dev.id);
+      const { data: result, error } = await supabase.rpc('aprovar_devolucao', {
+        p_devolucao_id: dev.id,
+        p_aprovado_por: user.id,
+      });
 
-      // Estorno atômico via RPC
-      const itensEstorno = (itens || [])
-        .filter((it: DevolucaoItem) => it.produto_id)
-        .map((it: DevolucaoItem) => ({
-          produto_id: it.produto_id,
-          quantidade: it.quantidade,
-          descricao: it.descricao,
-        }));
+      if (error) throw new Error(error.message);
 
-      if (itensEstorno.length > 0) {
-        const { error: estErr } = await supabase.rpc('estornar_estoque_devolucao', {
-          p_empresa_id: me.empresa_id,
-          p_itens: itensEstorno,
-        });
-        if (estErr) {
-          // Fallback: inserir movimentações uma a uma
-          for (const it of itensEstorno) {
-            await supabase.from('movimentacoes_estoque').insert({
-              empresa_id: me.empresa_id,
-              produto_id: it.produto_id,
-              tipo: 'entrada',
-              quantidade: it.quantidade,
-              custo_unitario: 0,
-              referencia_tipo: 'devolucao',
-              referencia_id: dev.id,
-              observacao: `Estorno — ${it.descricao}`,
-            });
-          }
-        }
-      }
-
-      const { error: upErr } = await supabase.from('devolucoes')
-        .update({ status: 'concluida', aprovado_por: me.id }).eq('id', dev.id);
-      if (upErr) throw upErr;
+      const res = result as { ok: boolean; credito_gerado: number };
+      const credito = Number(res?.credito_gerado || 0);
+      alert(
+        `${tipoLabels[dev.tipo]} aprovada com sucesso!\n\n` +
+        `✓ Estoque estornado\n` +
+        `✓ Crédito de R$ ${credito.toFixed(2)} gerado para o cliente`
+      );
     } catch (err) {
       alert('Erro ao aprovar: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
