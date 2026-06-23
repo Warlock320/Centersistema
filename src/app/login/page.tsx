@@ -43,8 +43,38 @@ export default function LoginPage() {
     const supabase = createClient();
 
     try {
+      // Pré-validação: verifica bloqueio, horário e conta ativa
+      const preCheck = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login: email, password: '***' }),
+      });
+      const preResult = await preCheck.json();
+      if (!preCheck.ok || !preResult.canLogin) {
+        setError(preResult.error || 'Não foi possível fazer login.');
+        setLoading(false);
+        return;
+      }
+
+      // Login real
       const { error } = await supabase.auth.signInWithPassword({ email: loginToEmail(email), password });
-      if (error) throw error;
+      if (error) {
+        // Registrar tentativa falha
+        await fetch('/api/auth/login-result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ login: email, success: false }),
+        }).catch(() => {});
+        throw error;
+      }
+
+      // Registrar login bem-sucedido
+      await fetch('/api/auth/login-result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login: email, success: true }),
+      }).catch(() => {});
+
       router.push('/dashboard');
       router.refresh();
     } catch (err: unknown) {

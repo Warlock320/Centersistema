@@ -4,6 +4,27 @@ import { createClient as createServerClient } from '@/lib/supabase/server';
 import { resolveRoles, can, ALL_ROLES, type UserRole } from '@/lib/permissions';
 import { loginToEmail } from '@/lib/login';
 
+function service() {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) throw new Error('SUPABASE_SERVICE_ROLE_KEY não configurada.');
+  return createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+async function validarSenhaComPolitica(senha: string, empresaId: string): Promise<string | null> {
+  const admin = service();
+  const { data: pol } = await admin.from('politicas_seguranca')
+    .select('senha_min_caracteres, senha_exigir_numero, senha_exigir_especial')
+    .eq('empresa_id', empresaId).maybeSingle();
+
+  const minChars = pol?.senha_min_caracteres || 6;
+  if (senha.length < minChars) return `A senha deve ter ao menos ${minChars} caracteres.`;
+  if (pol?.senha_exigir_numero && !/\d/.test(senha)) return 'A senha deve conter ao menos um número.';
+  if (pol?.senha_exigir_especial && !/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(senha)) return 'A senha deve conter ao menos um caractere especial.';
+  return null;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -15,9 +36,6 @@ export async function POST(request: Request) {
     // Validação básica
     if (!nome || !loginInput || !password || !Array.isArray(roles) || roles.length === 0) {
       return NextResponse.json({ error: 'Dados incompletos.' }, { status: 400 });
-    }
-    if (String(password).length < 6) {
-      return NextResponse.json({ error: 'A senha deve ter ao menos 6 caracteres.' }, { status: 400 });
     }
     const validRoles = (roles as string[]).filter((r): r is UserRole => ALL_ROLES.includes(r as UserRole));
     if (validRoles.length === 0) {
@@ -38,6 +56,10 @@ export async function POST(request: Request) {
     if (!requester || !can(resolveRoles(requester), 'manage_config')) {
       return NextResponse.json({ error: 'Sem permissão para cadastrar usuários.' }, { status: 403 });
     }
+
+    // Valida senha conforme políticas da empresa
+    const senhaErr = await validarSenhaComPolitica(password, (requester as { empresa_id: string }).empresa_id);
+    if (senhaErr) return NextResponse.json({ error: senhaErr }, { status: 400 });
 
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!serviceKey) {
@@ -92,9 +114,6 @@ export async function PATCH(request: Request) {
   try {
     const { userId, password } = await request.json();
     if (!userId || !password) return NextResponse.json({ error: 'Dados incompletos.' }, { status: 400 });
-    if (String(password).length < 6) {
-      return NextResponse.json({ error: 'A senha deve ter ao menos 6 caracteres.' }, { status: 400 });
-    }
 
     const supabase = await createServerClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -106,12 +125,11 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Sem permissão para alterar senhas.' }, { status: 403 });
     }
 
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!serviceKey) return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY não configurada.' }, { status: 500 });
+    // Valida senha conforme políticas da empresa
+    const senhaErr = await validarSenhaComPolitica(password, (requester as { empresa_id: string }).empresa_id);
+    if (senhaErr) return NextResponse.json({ error: senhaErr }, { status: 400 });
 
-    const admin = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    const admin = service();
 
     // Garante que o alvo é da MESMA empresa do admin (isolamento)
     const { data: alvo } = await admin.from('usuarios').select('empresa_id').eq('id', userId).single();
