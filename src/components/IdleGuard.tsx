@@ -91,7 +91,9 @@ export default function IdleGuard({ timeoutSeconds }: IdleGuardProps) {
         <p className="text-sm text-slate-500 mb-4">
           Você será deslogado por inatividade em
         </p>
-        <div className="text-4xl font-bold text-red-600 mb-4">{countdown}s</div>
+        <div className="text-4xl font-bold text-red-600 mb-4 font-mono tracking-wider">
+          00:{String(Math.floor(countdown / 60)).padStart(2, '0')}:{String(countdown % 60).padStart(2, '0')}
+        </div>
         <button onClick={resetActivity}
           className="w-full px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors">
           Continuar usando
