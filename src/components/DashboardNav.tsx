@@ -17,6 +17,7 @@ import type { Usuario } from '@/types/database.types';
 import { DEMO_MODE, DEMO_COOKIE } from '@/lib/demo';
 import { resolveRoles, ROLE_LABELS, type Permission } from '@/lib/permissions';
 import { usePermissions } from '@/components/PermissionsProvider';
+import { useInstallPWA } from '@/components/ServiceWorkerRegister';
 
 interface NavItem {
   href: string;
@@ -130,6 +131,7 @@ export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario 
   const router = useRouter();
   const supabase = createClient();
   const userRoles = resolveRoles(usuario || {});
+  const { canInstall, install } = useInstallPWA();
 
   // Item ativo = rota mais específica (href mais longo) que casa com o pathname.
   // Evita que /dashboard/financeiro fique ativo nas sub-rotas /dashboard/financeiro/*.
@@ -468,6 +470,13 @@ export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario 
             <span className="text-xs font-bold px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full border border-amber-200">
               DEMO
             </span>
+          )}
+          {canInstall && (
+            <button onClick={install}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              title="Instalar como aplicativo">
+              Instalar App
+            </button>
           )}
           <div ref={notifRef} className="relative">
             <button
