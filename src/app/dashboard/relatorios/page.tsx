@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import {
   DollarSign, ShoppingCart, TrendingUp, Users, Search, Printer, ArrowDownCircle,
   ArrowUpCircle, Scale, CreditCard, AlertTriangle, UserPlus, PackageX, Wallet, FileSpreadsheet,
+  Package, Boxes, BarChart3,
 } from 'lucide-react';
 
 function brl(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
@@ -38,6 +39,11 @@ export default function RelatoriosPage() {
   const [dataFim, setDataFim] = useState(todayStr);
   const [loading, setLoading] = useState(false);
   const [carregou, setCarregou] = useState(false);
+  const [aba, setAba] = useState<'financeiro' | 'vendas' | 'estoque'>('financeiro');
+
+  // Dados de estoque
+  const [estoqueProdutos, setEstoqueProdutos] = useState<{ nome: string; codigo: string | null; estoque: number; estoque_minimo: number; custo: number; preco: number; categoria_nome: string | null }[]>([]);
+  const [estoqueKpis, setEstoqueKpis] = useState({ total: 0, abaixoMinimo: 0, zerados: 0, valorCusto: 0, valorVenda: 0 });
 
   // Resultados
   const [kpis, setKpis] = useState({
@@ -161,6 +167,26 @@ export default function RelatoriosPage() {
     setCredito({ concedido, utilizado, vencido, inadimplentes, scoreMedio, clientes: comCredito.length });
     setAging(agingMap);
     setPedidos(peds);
+
+    // Estoque
+    const { data: prods } = await supabase.from('produtos')
+      .select('nome, codigo, estoque, estoque_minimo, custo, preco, categorias(nome)')
+      .eq('ativo', true).order('estoque', { ascending: true });
+    type ProdRow = { nome: string; codigo: string | null; estoque: number; estoque_minimo: number; custo: number; preco: number; categorias?: { nome: string } | null };
+    const prodList = (prods as ProdRow[] || []).map((p) => ({
+      ...p, categoria_nome: p.categorias?.nome || null,
+    }));
+    setEstoqueProdutos(prodList);
+    const abaixo = prodList.filter((p) => p.estoque_minimo > 0 && p.estoque < p.estoque_minimo);
+    const zerados = prodList.filter((p) => p.estoque <= 0);
+    setEstoqueKpis({
+      total: prodList.length,
+      abaixoMinimo: abaixo.length,
+      zerados: zerados.length,
+      valorCusto: prodList.reduce((s, p) => s + Number(p.estoque) * Number(p.custo || 0), 0),
+      valorVenda: prodList.reduce((s, p) => s + Number(p.estoque) * Number(p.preco), 0),
+    });
+
     setLoading(false);
     setCarregou(true);
   }, [dataInicio, dataFim]);
@@ -282,13 +308,32 @@ export default function RelatoriosPage() {
         <Button onClick={fetchRelatorio} loading={loading}><Search size={16} /> Gerar</Button>
       </div>
 
+      {/* Abas */}
+      <div className="flex gap-1 border-b border-slate-200 print:hidden">
+        {([
+          { key: 'financeiro' as const, label: 'Financeiro', icon: Wallet },
+          { key: 'vendas' as const, label: 'Vendas', icon: ShoppingCart },
+          { key: 'estoque' as const, label: 'Estoque', icon: Boxes },
+        ]).map((tab) => (
+          <button key={tab.key} onClick={() => setAba(tab.key)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              aba === tab.key ? 'border-blue-500 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}>
+            <tab.icon size={15} /> {tab.label}
+          </button>
+        ))}
+      </div>
+
       {loading && !carregou ? (
         <div className="py-20 text-center text-slate-400">Carregando...</div>
       ) : (
         <>
-          {/* KPIs */}
+          {/* ══════════════════ ABA FINANCEIRO ══════════════════ */}
+          {aba === 'financeiro' && (
+          <>
+          {/* KPIs financeiros */}
           <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
-            {kpiCards.map((k) => (
+            {kpiCards.slice(0, 5).map((k) => (
               <div key={k.label} className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs text-slate-500">{k.label}</p>
@@ -378,6 +423,25 @@ export default function RelatoriosPage() {
             </div>
           </div>
 
+          </>
+          )}
+
+          {/* ══════════════════ ABA VENDAS ══════════════════ */}
+          {aba === 'vendas' && (
+          <>
+          {/* KPIs de vendas */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            {kpiCards.slice(5).map((k) => (
+              <div key={k.label} className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs text-slate-500">{k.label}</p>
+                  <div className={`w-8 h-8 rounded-lg ${k.color} flex items-center justify-center`}><k.icon size={15} className="text-white" /></div>
+                </div>
+                <p className="text-lg font-bold text-slate-900">{k.value}</p>
+              </div>
+            ))}
+          </div>
+
           {/* Rankings */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <div className="bg-white rounded-xl shadow-sm border border-slate-100">
@@ -453,6 +517,149 @@ export default function RelatoriosPage() {
                 </table>
               </div>
             </div>
+          )}
+          </>
+          )}
+
+          {/* ══════════════════ ABA ESTOQUE ══════════════════ */}
+          {aba === 'estoque' && (
+          <>
+          {/* KPIs de estoque */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-slate-500">Total de produtos</p>
+                <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center"><Package size={15} className="text-white" /></div>
+              </div>
+              <p className="text-lg font-bold text-slate-900">{estoqueKpis.total}</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-slate-500">Abaixo do mínimo</p>
+                <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center"><AlertTriangle size={15} className="text-white" /></div>
+              </div>
+              <p className="text-lg font-bold text-amber-600">{estoqueKpis.abaixoMinimo}</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-slate-500">Zerados</p>
+                <div className="w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center"><PackageX size={15} className="text-white" /></div>
+              </div>
+              <p className="text-lg font-bold text-red-600">{estoqueKpis.zerados}</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-slate-500">Valor em estoque (custo)</p>
+                <div className="w-8 h-8 rounded-lg bg-slate-500 flex items-center justify-center"><DollarSign size={15} className="text-white" /></div>
+              </div>
+              <p className="text-lg font-bold text-slate-900">{brl(estoqueKpis.valorCusto)}</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-slate-500">Valor em estoque (venda)</p>
+                <div className="w-8 h-8 rounded-lg bg-green-500 flex items-center justify-center"><TrendingUp size={15} className="text-white" /></div>
+              </div>
+              <p className="text-lg font-bold text-green-600">{brl(estoqueKpis.valorVenda)}</p>
+            </div>
+          </div>
+
+          {/* Curva ABC de produtos (por valor vendido) */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5">
+            <h2 className="font-semibold text-slate-900 mb-1 flex items-center gap-2"><BarChart3 size={16} /> Curva ABC (produtos por faturamento)</h2>
+            <p className="text-xs text-slate-400 mb-4">Classe A (80% do faturamento) | Classe B (15%) | Classe C (5%)</p>
+            {produtosRank.length === 0 ? (
+              <p className="text-sm text-slate-400 py-4 text-center">Sem vendas no período</p>
+            ) : (() => {
+              const totalVendido = produtosRank.reduce((s, p) => s + p.total, 0);
+              let acum = 0;
+              const abc = produtosRank.map((p) => { acum += p.total; const pctAcum = totalVendido ? (acum / totalVendido) * 100 : 0; return { ...p, classe: pctAcum <= 80 ? 'A' : pctAcum <= 95 ? 'B' : 'C', pctAcum }; });
+              const classeCor = { A: 'bg-green-100 text-green-700', B: 'bg-amber-100 text-amber-700', C: 'bg-slate-100 text-slate-500' };
+              return (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b border-slate-100">{['#', 'Produto', 'Qtd', 'Faturamento', '% Acum', 'Classe'].map((h) => <th key={h} className="px-4 py-2 text-left text-xs font-semibold uppercase text-slate-400">{h}</th>)}</tr></thead>
+                    <tbody>
+                      {abc.map((p, i) => (
+                        <tr key={i} className="border-b border-slate-50">
+                          <td className="px-4 py-2 text-slate-400">{i + 1}</td>
+                          <td className="px-4 py-2 font-medium text-slate-800 truncate max-w-48">{p.descricao}</td>
+                          <td className="px-4 py-2 text-slate-500">{p.quantidade}</td>
+                          <td className="px-4 py-2 font-medium">{brl(p.total)}</td>
+                          <td className="px-4 py-2 text-slate-500">{pct(p.pctAcum)}</td>
+                          <td className="px-4 py-2"><span className={`px-2 py-0.5 rounded-full text-xs font-bold ${classeCor[p.classe as 'A'|'B'|'C']}`}>{p.classe}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Produtos com estoque mais crítico */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100">
+              <div className="px-6 py-4 border-b border-slate-100"><h2 className="font-semibold text-slate-900 text-red-600">Produtos Zerados</h2></div>
+              <div className="max-h-80 overflow-y-auto divide-y divide-slate-50">
+                {estoqueProdutos.filter((p) => p.estoque <= 0).length === 0 ? (
+                  <div className="px-6 py-8 text-center text-sm text-slate-400">Nenhum produto zerado</div>
+                ) : estoqueProdutos.filter((p) => p.estoque <= 0).map((p, i) => (
+                  <div key={i} className="px-6 py-3 flex items-center justify-between">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-800 truncate">{p.nome}</p>
+                      <p className="text-xs text-slate-400">{p.codigo || '—'}{p.categoria_nome ? ` · ${p.categoria_nome}` : ''}</p>
+                    </div>
+                    <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-lg">0 un</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100">
+              <div className="px-6 py-4 border-b border-slate-100"><h2 className="font-semibold text-slate-900 text-amber-600">Abaixo do Mínimo</h2></div>
+              <div className="max-h-80 overflow-y-auto divide-y divide-slate-50">
+                {estoqueProdutos.filter((p) => p.estoque_minimo > 0 && p.estoque < p.estoque_minimo && p.estoque > 0).length === 0 ? (
+                  <div className="px-6 py-8 text-center text-sm text-slate-400">Todos acima do mínimo</div>
+                ) : estoqueProdutos.filter((p) => p.estoque_minimo > 0 && p.estoque < p.estoque_minimo && p.estoque > 0).map((p, i) => (
+                  <div key={i} className="px-6 py-3 flex items-center justify-between">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-800 truncate">{p.nome}</p>
+                      <p className="text-xs text-slate-400">{p.codigo || '—'} · mín: {Number(p.estoque_minimo).toFixed(0)}</p>
+                    </div>
+                    <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg">{Number(p.estoque).toFixed(0)} un</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Lucratividade por produto (top 15) */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100">
+            <div className="px-6 py-4 border-b border-slate-100"><h2 className="font-semibold text-slate-900">Lucratividade por Produto (margem)</h2></div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="border-b border-slate-100">{['Produto', 'Custo', 'Preço', 'Margem R$', 'Margem %', 'Estoque'].map((h) => <th key={h} className="px-4 py-2 text-left text-xs font-semibold uppercase text-slate-400">{h}</th>)}</tr></thead>
+                <tbody>
+                  {estoqueProdutos
+                    .filter((p) => p.custo > 0 && p.preco > 0)
+                    .map((p) => ({ ...p, margem: p.preco - p.custo, margemPct: p.custo > 0 ? ((p.preco - p.custo) / p.custo) * 100 : 0 }))
+                    .sort((a, b) => b.margemPct - a.margemPct)
+                    .slice(0, 15)
+                    .map((p, i) => (
+                      <tr key={i} className="border-b border-slate-50">
+                        <td className="px-4 py-2 font-medium text-slate-800 truncate max-w-48">{p.nome}</td>
+                        <td className="px-4 py-2 text-slate-500">{brl(p.custo)}</td>
+                        <td className="px-4 py-2 text-slate-700">{brl(p.preco)}</td>
+                        <td className="px-4 py-2 font-medium text-green-600">{brl(p.margem)}</td>
+                        <td className="px-4 py-2"><span className={`px-2 py-0.5 rounded-full text-xs font-bold ${p.margemPct > 50 ? 'bg-green-100 text-green-700' : p.margemPct > 20 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{pct(p.margemPct)}</span></td>
+                        <td className="px-4 py-2 text-slate-500">{Number(p.estoque).toFixed(0)}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          </>
           )}
         </>
       )}
