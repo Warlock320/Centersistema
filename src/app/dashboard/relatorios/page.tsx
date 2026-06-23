@@ -172,10 +172,19 @@ export default function RelatoriosPage() {
     const { data: prods } = await supabase.from('produtos')
       .select('nome, codigo, estoque, estoque_minimo, custo, preco, categorias(nome)')
       .eq('ativo', true).order('estoque', { ascending: true });
-    type ProdRow = { nome: string; codigo: string | null; estoque: number; estoque_minimo: number; custo: number; preco: number; categorias?: { nome: string } | null };
-    const prodList = (prods as ProdRow[] || []).map((p) => ({
-      ...p, categoria_nome: p.categorias?.nome || null,
-    }));
+    const prodList = ((prods || []) as Record<string, unknown>[]).map((p) => {
+      const cat = p.categorias as Record<string, unknown> | Record<string, unknown>[] | null;
+      const catNome = cat ? (Array.isArray(cat) ? String(cat[0]?.nome || '') : String(cat.nome || '')) : null;
+      return {
+        nome: String(p.nome || ''),
+        codigo: p.codigo ? String(p.codigo) : null,
+        estoque: Number(p.estoque || 0),
+        estoque_minimo: Number(p.estoque_minimo || 0),
+        custo: Number(p.custo || 0),
+        preco: Number(p.preco || 0),
+        categoria_nome: catNome || null,
+      };
+    });
     setEstoqueProdutos(prodList);
     const abaixo = prodList.filter((p) => p.estoque_minimo > 0 && p.estoque < p.estoque_minimo);
     const zerados = prodList.filter((p) => p.estoque <= 0);
