@@ -6,7 +6,9 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { PermissionsProvider } from '@/components/PermissionsProvider';
 import { DashboardNav } from '@/components/DashboardNav';
 import { RouteGuard } from '@/components/RouteGuard';
+import IdleGuard from '@/components/IdleGuard';
 import { resolveRoles } from '@/lib/permissions';
+import { createClient } from '@/lib/supabase/client';
 import type { Usuario } from '@/types/database.types';
 
 // Telas em "modo operação" — o menu lateral recolhe sozinho para dar tela cheia
@@ -15,16 +17,29 @@ const ROTAS_FOCO = ['/dashboard/financeiro/caixa'];
 export function DashboardShell({ usuario, children }: { usuario: Usuario; children: React.ReactNode }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [idleTimeout, setIdleTimeout] = useState(0);
 
-  // Recolhe automaticamente ao abrir o Caixa (e mostra de novo ao sair, se o usuário não tiver fixado)
   useEffect(() => {
     if (ROTAS_FOCO.includes(pathname)) setCollapsed(true);
     else setCollapsed(false);
   }, [pathname]);
 
+  // Carrega política de timeout da empresa
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.from('politicas_seguranca')
+      .select('timeout_inatividade')
+      .eq('empresa_id', usuario.empresa_id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.timeout_inatividade) setIdleTimeout(data.timeout_inatividade);
+      });
+  }, [usuario.empresa_id]);
+
   return (
     <PermissionsProvider roles={resolveRoles(usuario)} empresaId={usuario.empresa_id || null}>
       <RouteGuard />
+      {idleTimeout > 0 && <IdleGuard timeoutSeconds={idleTimeout} />}
       <div className="flex min-h-screen bg-slate-50">
         <DashboardNav usuario={usuario} collapsed={collapsed} />
 

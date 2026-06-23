@@ -8,7 +8,7 @@ import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { usePermissions } from '@/components/PermissionsProvider';
 import {
-  Plus, Building2, Users, ShieldCheck, Check, FileKey, Receipt,
+  Plus, Building2, Users, ShieldCheck, Check, FileKey, Receipt, Shield,
   ChevronDown, UserPlus, KeyRound, RotateCcw, Search, Loader2, Trash2, AlertTriangle,
 } from 'lucide-react';
 import type { Empresa, Usuario } from '@/types/database.types';
@@ -21,6 +21,7 @@ import {
 import { DEMO_MODE } from '@/lib/demo';
 import CertificadoSection from './CertificadoSection';
 import FiscalSection from './FiscalSection';
+import SegurancaSection from './SegurancaSection';
 
 // ── Seletor de papéis (checkboxes) ─────────────────────────────────────────────
 function RoleSelector({ value, onChange }: { value: UserRole[]; onChange: (roles: UserRole[]) => void }) {
@@ -106,7 +107,7 @@ export default function ConfiguracoesPage() {
   const [novaSenhaUser, setNovaSenhaUser] = useState('');
   const [savingSenha, setSavingSenha] = useState(false);
 
-  const [aba, setAba] = useState<'empresa' | 'certificado' | 'fiscal' | 'equipe'>('empresa');
+  const [aba, setAba] = useState<'empresa' | 'certificado' | 'fiscal' | 'seguranca' | 'equipe'>('empresa');
 
   const supabase = createClient();
   const toast = useToast();
@@ -320,6 +321,7 @@ export default function ConfiguracoesPage() {
     { key: 'empresa' as const, label: 'Empresa', icon: <Building2 size={15} /> },
     { key: 'certificado' as const, label: 'Certificado Digital', icon: <FileKey size={15} /> },
     { key: 'fiscal' as const, label: 'Dados Fiscais (NF-e)', icon: <Receipt size={15} /> },
+    { key: 'seguranca' as const, label: 'Segurança', icon: <Shield size={15} /> },
     { key: 'equipe' as const, label: 'Equipe e Permissões', icon: <Users size={15} /> },
   ];
 
@@ -417,6 +419,12 @@ export default function ConfiguracoesPage() {
       {aba === 'fiscal' && isAdmin && <FiscalSection />}
       {aba === 'fiscal' && !isAdmin && (
         <div className="p-8 text-center text-slate-400">Apenas administradores podem gerenciar os dados fiscais.</div>
+      )}
+
+      {/* ── Aba: Segurança ──────────────────────────────────────── */}
+      {aba === 'seguranca' && isAdmin && <SegurancaSection />}
+      {aba === 'seguranca' && !isAdmin && (
+        <div className="p-8 text-center text-slate-400">Apenas administradores podem gerenciar as políticas de segurança.</div>
       )}
 
       {/* ── Aba: Equipe e Permissões ─────────────────────────────── */}

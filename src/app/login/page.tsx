@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Logo } from '@/components/ui/Logo';
+import { Eye, EyeOff } from 'lucide-react';
 import { DEMO_MODE, DEMO_COOKIE } from '@/lib/demo';
 import { loginToEmail } from '@/lib/login';
 
@@ -18,6 +19,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -98,15 +100,22 @@ export default function LoginPage() {
               required
               autoComplete="username"
             />
-            <Input
-              label="Senha"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              autoComplete="current-password"
-            />
+            <div className="relative">
+              <Input
+                label="Senha"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                autoComplete="current-password"
+              />
+              <button type="button" onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-[34px] text-slate-400 hover:text-slate-600 transition-colors"
+                tabIndex={-1}>
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
             <Button type="submit" loading={loading} className="w-full">Entrar</Button>
           </form>
 
