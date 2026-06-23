@@ -1,20 +1,14 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
-interface IdleGuardProps {
-  timeoutSeconds: number;
-}
-
-export default function IdleGuard({ timeoutSeconds }: IdleGuardProps) {
+export default function IdleGuard({ timeoutSeconds }: { timeoutSeconds: number }) {
   const router = useRouter();
   const supabase = createClient();
-  const [showWarning, setShowWarning] = useState(false);
-  const [countdown, setCountdown] = useState(0);
+  const [countdown, setCountdown] = useState(-1);
   const lastActivity = useRef(Date.now());
-  const warningTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const loggedOut = useRef(false);
 
   const warningSeconds = Math.min(10, Math.floor(timeoutSeconds / 3));
@@ -22,64 +16,50 @@ export default function IdleGuard({ timeoutSeconds }: IdleGuardProps) {
 
   const resetActivity = useCallback(() => {
     lastActivity.current = Date.now();
-    if (showWarning) {
-      setShowWarning(false);
-      setCountdown(0);
-      if (warningTimer.current) { clearInterval(warningTimer.current); warningTimer.current = null; }
-    }
-  }, [showWarning]);
+    setCountdown(-1);
+  }, []);
 
-  const doLogout = useCallback(async () => {
-    if (loggedOut.current) return;
-    loggedOut.current = true;
-    if (warningTimer.current) { clearInterval(warningTimer.current); warningTimer.current = null; }
-    await supabase.auth.signOut();
-    router.push('/login?reason=idle');
-    router.refresh();
-  }, [supabase, router]);
-
-  // Ouvir atividade do usuário
+  // Ouvir atividade
   useEffect(() => {
     if (disabled) return;
     const events = ['mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
-    const handler = () => { lastActivity.current = Date.now(); };
-    events.forEach((e) => window.addEventListener(e, handler, { passive: true }));
-    return () => events.forEach((e) => window.removeEventListener(e, handler));
-  }, [disabled]);
+    events.forEach((e) => window.addEventListener(e, resetActivity, { passive: true }));
+    return () => events.forEach((e) => window.removeEventListener(e, resetActivity));
+  }, [disabled, resetActivity]);
 
-  // Checar inatividade
+  // Timer único que checa a cada segundo
   useEffect(() => {
     if (disabled) return;
 
-    const check = setInterval(() => {
+    const tick = setInterval(() => {
       if (loggedOut.current) return;
-      const idle = (Date.now() - lastActivity.current) / 1000;
-      const warningAt = timeoutSeconds - warningSeconds;
+      const idle = Math.floor((Date.now() - lastActivity.current) / 1000);
+      const remaining = timeoutSeconds - idle;
 
-      if (idle >= timeoutSeconds) {
-        doLogout();
-      } else if (idle >= warningAt && !showWarning) {
-        setShowWarning(true);
-        const remaining = Math.ceil(timeoutSeconds - idle);
+      if (remaining <= 0) {
+        loggedOut.current = true;
+        clearInterval(tick);
+        supabase.auth.signOut().then(() => {
+          router.push('/login?reason=idle');
+          router.refresh();
+        });
+        return;
+      }
+
+      if (remaining <= warningSeconds) {
         setCountdown(remaining);
-
-        if (warningTimer.current) clearInterval(warningTimer.current);
-        warningTimer.current = setInterval(() => {
-          setCountdown((prev) => {
-            if (prev <= 1) { doLogout(); return 0; }
-            return prev - 1;
-          });
-        }, 1000);
+      } else {
+        setCountdown(-1);
       }
     }, 1000);
 
-    return () => {
-      clearInterval(check);
-      if (warningTimer.current) { clearInterval(warningTimer.current); warningTimer.current = null; }
-    };
-  }, [disabled, timeoutSeconds, warningSeconds, showWarning, doLogout]);
+    return () => clearInterval(tick);
+  }, [disabled, timeoutSeconds, warningSeconds, supabase, router]);
 
-  if (disabled || !showWarning) return null;
+  if (disabled || countdown < 0) return null;
+
+  const mm = String(Math.floor(countdown / 60)).padStart(2, '0');
+  const ss = String(countdown % 60).padStart(2, '0');
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
@@ -92,7 +72,7 @@ export default function IdleGuard({ timeoutSeconds }: IdleGuardProps) {
           Você será deslogado por inatividade em
         </p>
         <div className="text-4xl font-bold text-red-600 mb-4 font-mono tracking-wider">
-          00:{String(Math.floor(countdown / 60)).padStart(2, '0')}:{String(countdown % 60).padStart(2, '0')}
+          00:{mm}:{ss}
         </div>
         <button onClick={resetActivity}
           className="w-full px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors">
