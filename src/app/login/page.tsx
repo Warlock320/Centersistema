@@ -20,6 +20,8 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [loadingScreen, setLoadingScreen] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState('');
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -57,9 +59,9 @@ export default function LoginPage() {
       }
 
       // Login real
+      setLoadingMsg('Verificando credenciais...');
       const { error } = await supabase.auth.signInWithPassword({ email: loginToEmail(email), password });
       if (error) {
-        // Registrar tentativa falha
         await fetch('/api/auth/login-result', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -68,22 +70,50 @@ export default function LoginPage() {
         throw error;
       }
 
-      // Registrar login bem-sucedido
+      // Login OK — mostrar tela de carregamento
+      setLoadingScreen(true);
+      setLoadingMsg('Registrando acesso...');
       await fetch('/api/auth/login-result', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ login: email, success: true }),
       }).catch(() => {});
 
+      setLoadingMsg('Carregando o sistema...');
+      await new Promise((r) => setTimeout(r, 500));
+      setLoadingMsg('Preparando seu ambiente...');
       router.push('/dashboard');
       router.refresh();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao autenticar';
       setError(msg.includes('Invalid login credentials') ? 'E-mail ou senha incorretos' : msg);
+      setLoadingScreen(false);
     } finally {
-      setLoading(false);
+      if (!loadingScreen) setLoading(false);
     }
   };
+
+  if (loadingScreen) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 flex items-center justify-center p-4">
+        <div className="flex flex-col items-center">
+          <Logo size={120} className="shadow-xl ring-4 ring-white/10 mb-6 animate-pulse" />
+          <div className="flex items-center gap-3 mb-4">
+            <svg className="w-5 h-5 animate-spin text-blue-400" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+            <p className="text-blue-300 text-sm font-medium">{loadingMsg}</p>
+          </div>
+          <div className="w-48 h-1 bg-slate-700 rounded-full overflow-hidden">
+            <div className="h-full bg-blue-500 rounded-full animate-[loading_2s_ease-in-out_infinite]"
+              style={{ width: '60%', animation: 'loading 1.5s ease-in-out infinite' }} />
+          </div>
+          <style>{`@keyframes loading { 0% { width: 0%; margin-left: 0; } 50% { width: 60%; margin-left: 20%; } 100% { width: 0%; margin-left: 100%; } }`}</style>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 flex items-center justify-center p-4">
