@@ -22,9 +22,10 @@ import { DEMO_MODE } from '@/lib/demo';
 import CertificadoSection from './CertificadoSection';
 import FiscalSection from './FiscalSection';
 import SegurancaSection from './SegurancaSection';
+import PapeisCustomSection from './PapeisCustomSection';
 
 // ── Seletor de papéis (checkboxes) ─────────────────────────────────────────────
-function RoleSelector({ value, onChange }: { value: UserRole[]; onChange: (roles: UserRole[]) => void }) {
+function RoleSelector({ value, onChange }: { value: string[]; onChange: (roles: string[]) => void }) {
   const toggle = (role: UserRole) =>
     onChange(value.includes(role) ? value.filter((r) => r !== role) : [...value, role]);
   return (
@@ -52,12 +53,12 @@ function RoleSelector({ value, onChange }: { value: UserRole[]; onChange: (roles
   );
 }
 
-function RoleBadges({ roles }: { roles: UserRole[] }) {
+function RoleBadges({ roles }: { roles: string[] }) {
   if (roles.length === 0) return <span className="text-xs text-slate-300">—</span>;
   return (
     <div className="flex flex-wrap gap-1 justify-end">
       {roles.map((r) => (
-        <span key={r} className={`text-xs font-medium px-2 py-0.5 rounded-full ${ROLE_COLORS[r]}`}>{ROLE_LABELS[r]}</span>
+        <span key={r} className={`text-xs font-medium px-2 py-0.5 rounded-full ${(ROLE_COLORS as Record<string, string>)[r] || 'bg-slate-100 text-slate-700'}`}>{(ROLE_LABELS as Record<string, string>)[r] || r}</span>
       ))}
     </div>
   );
@@ -82,14 +83,14 @@ export default function ConfiguracoesPage() {
   const [novoNome, setNovoNome] = useState('');
   const [novoEmail, setNovoEmail] = useState('');
   const [novaSenha, setNovaSenha] = useState('');
-  const [novoRoles, setNovoRoles] = useState<UserRole[]>(['vendedor']);
+  const [novoRoles, setNovoRoles] = useState<string[]>(['vendedor']);
   const [cadastroErro, setCadastroErro] = useState('');
   const [cadastroMsg, setCadastroMsg] = useState('');
 
   // Editar papéis
   const [showRoles, setShowRoles] = useState(false);
   const [editTarget, setEditTarget] = useState<Usuario | null>(null);
-  const [editRoles, setEditRoles] = useState<UserRole[]>([]);
+  const [editRoles, setEditRoles] = useState<string[]>([]);
 
   // Cards de permissões expansíveis
   const [openRole, setOpenRole] = useState<UserRole | null>(null);
@@ -243,7 +244,7 @@ export default function ConfiguracoesPage() {
     setSaving(true);
 
     if (DEMO_MODE) {
-      setCadastroMsg(`(Demo) Usuário ${novoEmail} criado com papéis: ${novoRoles.map((r) => ROLE_LABELS[r]).join(', ')}.`);
+      setCadastroMsg(`(Demo) Usuário ${novoEmail} criado com papéis: ${novoRoles.map((r) => (ROLE_LABELS as Record<string, string>)[r] || r).join(', ')}.`);
       setSaving(false);
       setNovoNome(''); setNovoEmail(''); setNovaSenha(''); setNovoRoles(['vendedor']);
       return;
@@ -430,6 +431,9 @@ export default function ConfiguracoesPage() {
       {/* ── Aba: Equipe e Permissões ─────────────────────────────── */}
       {aba === 'equipe' && (
       <>
+      {/* Papéis Customizados */}
+      {isAdmin && <PapeisCustomSection />}
+
       {/* Equipe */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-100">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">

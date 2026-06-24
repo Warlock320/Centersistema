@@ -141,41 +141,66 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
 };
 
 /** Mapa de permissões usado pelos helpers standalone. Pode ser customizado por empresa. */
-export type RolePermissionMap = Record<UserRole, Permission[]>;
+export type RolePermissionMap = Record<string, Permission[]>;
 
-/** Verdadeiro se ALGUM dos papéis concede a permissão (usa o mapa default). */
-export function can(roles: UserRole[] | null | undefined, perm: Permission): boolean {
+export interface PapelCustom {
+  id: string;
+  nome: string;
+  descricao: string | null;
+  cor: string;
+  permissoes: string[];
+  ativo: boolean;
+}
+
+/** Verdadeiro se ALGUM dos papéis concede a permissão (usa o mapa default — só papéis fixos). */
+export function can(roles: string[] | null | undefined, perm: Permission): boolean {
   return canWith(DEFAULT_ROLE_PERMISSIONS, roles, perm);
 }
 
 /** Igual a can(), mas com um mapa de permissões específico (ex: customizado por empresa). */
-export function canWith(map: RolePermissionMap, roles: UserRole[] | null | undefined, perm: Permission): boolean {
+export function canWith(map: RolePermissionMap, roles: string[] | null | undefined, perm: Permission): boolean {
   if (!roles || roles.length === 0) return false;
   return roles.some((r) => map[r]?.includes(perm));
 }
 
 /** Verdadeiro se concede QUALQUER uma das permissões. */
-export function canAny(roles: UserRole[] | null | undefined, perms: Permission[]): boolean {
-  return perms.some((p) => can(roles, p));
+export function canAny(roles: string[] | null | undefined, perms: Permission[]): boolean {
+  return perms.some((p) => can(fixedRolesOnly(roles || []), p));
 }
 
 /** Conjunto unificado de permissões dos papéis. */
-export function permissionsOf(roles: UserRole[] | null | undefined): Set<Permission> {
+export function permissionsOf(roles: string[] | null | undefined): Set<Permission> {
   const set = new Set<Permission>();
-  (roles || []).forEach((r) => DEFAULT_ROLE_PERMISSIONS[r]?.forEach((p) => set.add(p)));
+  (roles || []).forEach((r) => {
+    const perms = DEFAULT_ROLE_PERMISSIONS[r as UserRole];
+    if (perms) perms.forEach((p) => set.add(p));
+  });
   return set;
 }
 
-/** Normaliza dados legados: aceita roles[] ou role único (migra aprovador→gestor). */
-export function resolveRoles(input: { roles?: string[] | null; role?: string | null }): UserRole[] {
+/** Normaliza dados legados: aceita roles[] ou role único (migra aprovador→gestor). Inclui papéis custom (não-fixos). */
+export function resolveRoles(input: { roles?: string[] | null; role?: string | null }): string[] {
   if (input.roles && input.roles.length > 0) {
-    return input.roles.filter((r): r is UserRole => ALL_ROLES.includes(r as UserRole));
+    return input.roles.map((r) => {
+      if (r === 'aprovador') return 'gestor';
+      return r;
+    });
   }
   if (input.role) {
     const legacy = input.role === 'aprovador' ? 'gestor' : input.role;
-    if (ALL_ROLES.includes(legacy as UserRole)) return [legacy as UserRole];
+    return [legacy];
   }
   return ['vendedor'];
+}
+
+/** Extrai apenas os papéis fixos de uma lista (para UIs que precisam de UserRole[]). */
+export function fixedRolesOnly(roles: string[]): UserRole[] {
+  return roles.filter((r): r is UserRole => ALL_ROLES.includes(r as UserRole));
+}
+
+/** Extrai apenas os papéis custom (IDs/nomes que não são fixos). */
+export function customRolesOnly(roles: string[]): string[] {
+  return roles.filter((r) => !ALL_ROLES.includes(r as UserRole));
 }
 
 // Metadata dos módulos/permissões para a UI de configuração (cards expansíveis)
@@ -218,7 +243,7 @@ export const HOME_ROUTE_PRIORITY: { href: string; permission: Permission }[] = [
 ];
 
 /** Primeira rota acessível conforme as permissões do usuário (tela inicial). */
-export function resolveHomeRoute(map: RolePermissionMap, roles: UserRole[] | null | undefined): string {
+export function resolveHomeRoute(map: RolePermissionMap, roles: string[] | null | undefined): string {
   const hit = HOME_ROUTE_PRIORITY.find((r) => canWith(map, roles, r.permission));
   return hit?.href ?? '/dashboard';
 }
@@ -256,18 +281,27 @@ export const ROUTE_PERMISSIONS: { prefix: string; perm: Permission | Permission[
 ];
 
 /** Constrói um mapa a partir de linhas {papel, permissao} (vindas do banco). Default para papéis sem linhas. */
-export function buildPermissionMap(rows: { papel: string; permissao: string }[]): RolePermissionMap {
+export function buildPermissionMap(rows: { papel: string; permissao: string }[], customRoles?: PapelCustom[]): RolePermissionMap {
   const map: RolePermissionMap = { admin: [], gestor: [], financeiro: [], vendedor: [], caixa: [], balconista: [] };
-  const seen = new Set<UserRole>();
+  const seen = new Set<string>();
   rows.forEach(({ papel, permissao }) => {
     if (ALL_ROLES.includes(papel as UserRole)) {
-      seen.add(papel as UserRole);
-      map[papel as UserRole].push(permissao as Permission);
+      seen.add(papel);
+      if (!map[papel]) map[papel] = [];
+      map[papel].push(permissao as Permission);
     }
   });
-  // Papéis sem nenhuma linha caem no default
+  // Papéis fixos sem nenhuma linha caem no default
   ALL_ROLES.forEach((r) => { if (!seen.has(r)) map[r] = [...DEFAULT_ROLE_PERMISSIONS[r]]; });
   // Admin sempre tem tudo (proteção)
   map.admin = [...DEFAULT_ROLE_PERMISSIONS.admin];
+  // Papéis custom: carrega permissões da tabela papeis_custom
+  if (customRoles) {
+    customRoles.forEach((cr) => {
+      if (cr.ativo) {
+        map[cr.id] = cr.permissoes as Permission[];
+      }
+    });
+  }
   return map;
 }

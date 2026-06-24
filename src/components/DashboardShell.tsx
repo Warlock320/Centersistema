@@ -37,7 +37,7 @@ export function DashboardShell({ usuario, children }: { usuario: Usuario; childr
   }, [usuario.empresa_id]);
 
   return (
-    <PermissionsProvider roles={resolveRoles(usuario)} empresaId={usuario.empresa_id || null}>
+    <PermissionsProvider roles={resolveRoles(usuario) as string[]} empresaId={usuario.empresa_id || null}>
       <RouteGuard />
       {idleTimeout > 0 && <IdleGuard timeoutSeconds={idleTimeout} />}
       <div className="flex min-h-screen bg-slate-50">

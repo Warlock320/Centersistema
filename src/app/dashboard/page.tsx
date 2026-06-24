@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { DollarSign, ShoppingCart, Users, AlertTriangle, TrendingUp, Package, CreditCard, CalendarClock, BarChart3 } from 'lucide-react';
 import type { Produto, Pedido } from '@/types/database.types';
 import { DEMO_MODE } from '@/lib/demo';
-import { resolveRoles, buildPermissionMap, canWith, resolveHomeRoute, DEFAULT_ROLE_PERMISSIONS } from '@/lib/permissions';
+import { resolveRoles, buildPermissionMap, canWith, resolveHomeRoute, DEFAULT_ROLE_PERMISSIONS, type RolePermissionMap } from '@/lib/permissions';
 import Link from 'next/link';
 
 function KpiCard({ title, value, subtitle, icon: Icon, color, href }: {
@@ -288,7 +288,7 @@ export default async function DashboardPage() {
     .from('usuarios').select('roles, role, empresa_id').eq('id', user.id).single();
   const roles = resolveRoles(perfil || {});
   const empresaId = (perfil as { empresa_id?: string } | null)?.empresa_id;
-  let permMap = DEFAULT_ROLE_PERMISSIONS;
+  let permMap: RolePermissionMap = { ...DEFAULT_ROLE_PERMISSIONS };
   if (empresaId) {
     const { data: perms } = await supabase
       .from('permissoes_papel').select('papel, permissao').eq('empresa_id', empresaId);

@@ -396,7 +396,7 @@ export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario 
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white text-sm font-medium truncate">{usuario?.nome || 'Usuário'}</p>
-              <p className="text-slate-400 text-xs truncate">{userRoles.map((r) => ROLE_LABELS[r]).join(' · ')}</p>
+              <p className="text-slate-400 text-xs truncate">{userRoles.map((r) => ROLE_LABELS[r as keyof typeof ROLE_LABELS] || r).join(' · ')}</p>
             </div>
           </div>
           <button
