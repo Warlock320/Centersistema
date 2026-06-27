@@ -2,7 +2,9 @@ import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import initSqlJs, { type Database as SqlJsDb } from 'sql.js';
+// @ts-expect-error sql-asm.js não tem tipos
+import initSqlJs from 'sql.js/dist/sql-asm.js';
+type SqlJsDb = { run: (sql: string, params?: unknown[]) => void; exec: (sql: string) => unknown[]; prepare: (sql: string) => { bind: (p: unknown[]) => void; step: () => boolean; getAsObject: () => Record<string, unknown>; free: () => void; run: (p: unknown[]) => void }; export: () => Uint8Array; close: () => void };
 
 // ── Configuração ─────────────────────────────────────────────────────
 const CONFIG_DIR = path.join(os.homedir(), '.center-engine');
@@ -61,7 +63,7 @@ let db: SqlJsDb;
 
 async function initDB() {
   ensureDir();
-  const SQL = await initSqlJs();
+  const SQL = await (initSqlJs as () => Promise<{ Database: new (data?: ArrayLike<number>) => SqlJsDb }>)();
 
   if (fs.existsSync(DB_FILE)) {
     const buf = fs.readFileSync(DB_FILE);
