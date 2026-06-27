@@ -18,6 +18,7 @@ import { DEMO_MODE, DEMO_COOKIE } from '@/lib/demo';
 import { resolveRoles, ROLE_LABELS, type Permission } from '@/lib/permissions';
 import { usePermissions } from '@/components/PermissionsProvider';
 import { useInstallPWA } from '@/components/ServiceWorkerRegister';
+import EngineIndicator from '@/components/EngineIndicator';
 
 interface NavItem {
   href: string;
@@ -471,6 +472,7 @@ export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario 
               DEMO
             </span>
           )}
+          <EngineIndicator />
           {canInstall && (
             <button onClick={install}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors"
