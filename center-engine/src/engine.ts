@@ -189,6 +189,118 @@ async function syncAll(config: Config): Promise<number> {
   return total;
 }
 
+// ── Abrir navegador ──────────────────────────────────────────────────
+function openBrowser(url: string) {
+  const { exec } = require('child_process') as typeof import('child_process');
+  const cmd = process.platform === 'darwin' ? `open "${url}"` : process.platform === 'win32' ? `start "${url}"` : `xdg-open "${url}"`;
+  exec(cmd).unref?.();
+}
+
+// ── Página de configuração (HTML embutido) ───────────────────────────
+function configPage(config: Config): string {
+  const masked = config.supabaseAnonKey ? config.supabaseAnonKey.slice(0, 20) + '...' : '';
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CenterEngine — Configuração</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;display:flex;align-items:center;justify-content:center}
+.card{background:#1e293b;border-radius:16px;padding:32px;width:100%;max-width:500px;box-shadow:0 25px 50px rgba(0,0,0,.5)}
+h1{font-size:20px;margin-bottom:4px;color:#fff}
+.sub{color:#64748b;font-size:13px;margin-bottom:24px}
+.status{display:flex;align-items:center;gap:8px;padding:12px;border-radius:10px;margin-bottom:20px;font-size:13px}
+.status.ok{background:#064e3b;color:#6ee7b7}
+.status.warn{background:#78350f;color:#fbbf24}
+label{display:block;font-size:12px;color:#94a3b8;margin-bottom:4px;margin-top:16px}
+input,select{width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#e2e8f0;font-size:14px;outline:none}
+input:focus{border-color:#3b82f6}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;margin-top:20px;width:100%;transition:opacity .2s}
+.btn-blue{background:#3b82f6;color:#fff}.btn-blue:hover{opacity:.9}
+.btn-green{background:#059669;color:#fff}.btn-green:hover{opacity:.9}
+.btn-ghost{background:transparent;border:1px solid #334155;color:#94a3b8;margin-top:8px}.btn-ghost:hover{border-color:#3b82f6;color:#fff}
+.msg{padding:10px;border-radius:8px;font-size:13px;margin-top:12px;display:none}
+.msg.ok{display:block;background:#064e3b;color:#6ee7b7}
+.msg.err{display:block;background:#7f1d1d;color:#fca5a5}
+.footer{text-align:center;margin-top:16px;font-size:11px;color:#475569}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-green{background:#064e3b;color:#6ee7b7}
+.badge-amber{background:#78350f;color:#fbbf24}
+</style></head><body>
+<div class="card">
+<h1>⚙️ CenterEngine v1.0.0</h1>
+<p class="sub">Agente desktop local — Center Auto Peças</p>
+
+<div class="status ${config.supabaseUrl ? 'ok' : 'warn'}">
+${config.supabaseUrl
+  ? `<span class="badge badge-green">● Online</span> Conectado ao Supabase`
+  : `<span class="badge badge-amber">● Não configurado</span> Configure a URL e chave abaixo`}
+</div>
+
+<form id="form">
+<label>URL do Supabase *</label>
+<input id="url" type="url" placeholder="https://xxxx.supabase.co" value="${config.supabaseUrl}" required>
+
+<label>Anon Key (chave pública) *</label>
+<input id="key" type="text" placeholder="eyJhbGciOiJIUzI1NiIs..." value="${config.supabaseAnonKey}" required>
+<p style="font-size:11px;color:#475569;margin-top:4px">Encontre em: Supabase → Settings → API → anon public</p>
+
+<div class="row">
+<div><label>Intervalo de sync (seg)</label><input id="interval" type="number" min="30" max="3600" value="${config.syncIntervalSeconds}"></div>
+<div><label>Porta</label><input id="port" type="number" min="1024" max="65535" value="${config.port}"></div>
+</div>
+
+<button type="button" class="btn btn-green" onclick="testConn()">🔍 Testar Conexão</button>
+<button type="submit" class="btn btn-blue">💾 Salvar Configuração</button>
+<button type="button" class="btn btn-ghost" onclick="doSync()">🔄 Sincronizar Agora</button>
+
+<div id="msg" class="msg"></div>
+</form>
+
+<div class="footer">
+Cache: ${(getCacheSize() / 1024).toFixed(0)} KB · Última sync: ${getLastSync() ? new Date(getLastSync()!).toLocaleString('pt-BR') : 'nunca'}<br>
+Dados em: ~/.center-engine/
+</div>
+</div>
+
+<script>
+const msg=document.getElementById('msg');
+function showMsg(t,ok){msg.className='msg '+(ok?'ok':'err');msg.textContent=t;msg.style.display='block'}
+
+async function testConn(){
+  const url=document.getElementById('url').value.trim();
+  const key=document.getElementById('key').value.trim();
+  if(!url||!key){showMsg('Preencha URL e chave.',false);return}
+  showMsg('Testando...',true);
+  try{
+    const r=await fetch(url+'/rest/v1/?apikey='+key,{headers:{apikey:key}});
+    if(r.ok) showMsg('✅ Conexão OK! Supabase acessível.',true);
+    else showMsg('❌ Erro: HTTP '+r.status,false);
+  }catch(e){showMsg('❌ Não foi possível conectar: '+e.message,false)}
+}
+
+document.getElementById('form').onsubmit=async(e)=>{
+  e.preventDefault();
+  const cfg={supabaseUrl:document.getElementById('url').value.trim(),supabaseAnonKey:document.getElementById('key').value.trim(),syncIntervalSeconds:Number(document.getElementById('interval').value)||120,port:Number(document.getElementById('port').value)||9090,autoStart:true};
+  try{
+    const r=await fetch('/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
+    if(r.ok){showMsg('✅ Configuração salva! Reinicie o engine para aplicar.',true)}
+    else showMsg('Erro ao salvar.',false);
+  }catch(e){showMsg('Erro: '+e.message,false)}
+};
+
+async function doSync(){
+  showMsg('Sincronizando...',true);
+  try{
+    const r=await fetch('/sync',{method:'POST'});
+    const d=await r.json();
+    showMsg('✅ Sync completo: '+d.synced+' registros em '+d.duration+'ms',true);
+    setTimeout(()=>location.reload(),1500);
+  }catch(e){showMsg('Erro: '+e.message,false)}
+}
+</script>
+</body></html>`;
+}
+
 // ── Servidor HTTP ────────────────────────────────────────────────────
 const startTime = Date.now();
 
@@ -219,6 +331,13 @@ function createServer(config: Config) {
     if (req.method === 'OPTIONS') { cors(res); res.writeHead(204); res.end(); return; }
 
     try {
+      // Página de configuração
+      if (p === '/' && req.method === 'GET') {
+        cors(res);
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(configPage(config));
+        return;
+      }
       if (p === '/ping') return json(res, { ok: true, version: '1.0.0', lastSync: getLastSync(), cacheSize: getCacheSize(), uptime: Math.floor((Date.now() - startTime) / 1000) });
       if (p === '/api/produtos') return json(res, parseRows(queryAll('SELECT * FROM produtos ORDER BY nome')));
       if (p === '/api/clientes') return json(res, queryAll('SELECT * FROM clientes ORDER BY nome'));
@@ -277,9 +396,12 @@ async function main() {
     console.log(`  → Logs:   ${LOG_FILE}\n`);
   } catch (err) { log('error', String(err)); process.exit(1); }
 
-  if (config.supabaseUrl) { await syncAll(config); } else {
-    console.log('  ⚠️  Supabase não configurado.');
-    console.log(`  Edite: ${CONFIG_FILE}\n`);
+  if (config.supabaseUrl) {
+    await syncAll(config);
+  } else {
+    console.log(`  ⚠️  Supabase não configurado.`);
+    console.log(`  Abrindo configuração no navegador...\n`);
+    openBrowser(`http://127.0.0.1:${port}`);
   }
 
   setInterval(() => { if (config.supabaseUrl) syncAll(config); }, config.syncIntervalSeconds * 1000);
