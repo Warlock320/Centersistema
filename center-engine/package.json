@@ -5,7 +5,7 @@
   "main": "dist/engine.cjs",
   "bin": "dist/engine.cjs",
   "scripts": {
-    "build": "esbuild src/engine.ts --bundle --platform=node --target=node20 --outfile=dist/engine.cjs --format=cjs --external:better-sqlite3",
+    "build": "esbuild src/engine.ts --bundle --platform=node --target=node20 --outfile=dist/engine.cjs --format=cjs",
     "start": "node dist/engine.cjs",
     "dev": "npx tsx src/engine.ts",
     "pkg:win": "npx pkg dist/engine.cjs --target node20-win-x64 --output build/windows/CenterEngine.exe",
@@ -15,17 +15,19 @@
   },
   "pkg": {
     "assets": [],
-    "targets": ["node20-win-x64", "node20-macos-arm64"]
-  },
-  "dependencies": {
-    "better-sqlite3": "^11.0.0"
+    "targets": [
+      "node20-win-x64",
+      "node20-macos-arm64"
+    ]
   },
   "devDependencies": {
-    "esbuild": "^0.21.0",
-    "@yao-pkg/pkg": "^6.0.0",
-    "tsx": "^4.0.0",
-    "@types/better-sqlite3": "^7.6.0",
     "@types/node": "^22.0.0",
+    "@yao-pkg/pkg": "^6.0.0",
+    "esbuild": "^0.21.0",
+    "tsx": "^4.0.0",
     "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "sql.js": "^1.14.1"
   }
 }
