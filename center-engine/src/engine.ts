@@ -270,12 +270,13 @@ async function testConn(){
   const url=document.getElementById('url').value.trim();
   const key=document.getElementById('key').value.trim();
   if(!url||!key){showMsg('Preencha URL e chave.',false);return}
-  showMsg('Testando...',true);
+  showMsg('Testando conexão...',true);
   try{
-    const r=await fetch(url+'/rest/v1/?apikey='+key,{headers:{apikey:key}});
-    if(r.ok) showMsg('✅ Conexão OK! Supabase acessível.',true);
+    const r=await fetch(url+'/rest/v1/empresas?select=id&limit=1',{headers:{apikey:key,Authorization:'Bearer '+key}});
+    if(r.ok){const d=await r.json();showMsg('✅ Conexão OK! '+d.length+' empresa(s) encontrada(s).',true)}
+    else if(r.status===401) showMsg('❌ Chave inválida. Verifique a Anon Key.',false);
     else showMsg('❌ Erro: HTTP '+r.status,false);
-  }catch(e){showMsg('❌ Não foi possível conectar: '+e.message,false)}
+  }catch(e){showMsg('❌ Não foi possível conectar. Verifique a URL.',false)}
 }
 
 document.getElementById('form').onsubmit=async(e)=>{
@@ -283,7 +284,7 @@ document.getElementById('form').onsubmit=async(e)=>{
   const cfg={supabaseUrl:document.getElementById('url').value.trim(),supabaseAnonKey:document.getElementById('key').value.trim(),syncIntervalSeconds:Number(document.getElementById('interval').value)||120,port:Number(document.getElementById('port').value)||9090,autoStart:true};
   try{
     const r=await fetch('/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
-    if(r.ok){showMsg('✅ Configuração salva! Reinicie o engine para aplicar.',true)}
+    if(r.ok){showMsg('✅ Configuração salva! Recarregando...',true);setTimeout(()=>location.reload(),1500)}
     else showMsg('Erro ao salvar.',false);
   }catch(e){showMsg('Erro: '+e.message,false)}
 };
@@ -331,11 +332,11 @@ function createServer(config: Config) {
     if (req.method === 'OPTIONS') { cors(res); res.writeHead(204); res.end(); return; }
 
     try {
-      // Página de configuração
+      // Página de configuração (relê config do disco para refletir alterações)
       if (p === '/' && req.method === 'GET') {
         cors(res);
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(configPage(config));
+        res.end(configPage(loadConfig()));
         return;
       }
       if (p === '/ping') return json(res, { ok: true, version: '1.0.0', lastSync: getLastSync(), cacheSize: getCacheSize(), uptime: Math.floor((Date.now() - startTime) / 1000) });
