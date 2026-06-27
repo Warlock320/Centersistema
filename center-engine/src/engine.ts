@@ -189,11 +189,57 @@ async function syncAll(config: Config): Promise<number> {
   return total;
 }
 
-// ── Abrir navegador ──────────────────────────────────────────────────
+// ── Utilitários de sistema ────────────────────────────────────────────
+const { execSync, exec: execAsync } = require('child_process') as typeof import('child_process');
+
 function openBrowser(url: string) {
-  const { exec } = require('child_process') as typeof import('child_process');
-  const cmd = process.platform === 'darwin' ? `open "${url}"` : process.platform === 'win32' ? `start "${url}"` : `xdg-open "${url}"`;
-  exec(cmd).unref?.();
+  const cmd = process.platform === 'darwin' ? `open "${url}"` : process.platform === 'win32' ? `start "" "${url}"` : `xdg-open "${url}"`;
+  execAsync(cmd).unref?.();
+}
+
+function autoInstall() {
+  const isFirstRun = !fs.existsSync(CONFIG_FILE);
+  if (!isFirstRun) return;
+
+  log('info', 'Primeira execução — instalando...');
+  const exe = process.execPath;
+
+  if (process.platform === 'darwin') {
+    // Mac: criar LaunchAgent para auto-start
+    try {
+      const agentDir = path.join(os.homedir(), 'Library', 'LaunchAgents');
+      const agentFile = path.join(agentDir, 'com.center.engine.plist');
+      if (!fs.existsSync(agentDir)) fs.mkdirSync(agentDir, { recursive: true });
+      if (!fs.existsSync(agentFile)) {
+        fs.writeFileSync(agentFile, `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>com.center.engine</string>
+<key>ProgramArguments</key><array><string>${exe}</string></array>
+<key>RunAtLoad</key><true/>
+<key>KeepAlive</key><true/>
+<key>StandardOutPath</key><string>${path.join(CONFIG_DIR, 'stdout.log')}</string>
+<key>StandardErrorPath</key><string>${path.join(CONFIG_DIR, 'stderr.log')}</string>
+</dict></plist>`);
+        try { execSync(`launchctl load "${agentFile}"`); } catch {}
+        log('info', 'Auto-start configurado (LaunchAgent)');
+      }
+    } catch (e) { log('warn', 'Não foi possível configurar auto-start: ' + String(e)); }
+  }
+
+  if (process.platform === 'win32') {
+    // Windows: criar atalho na Desktop e Startup
+    try {
+      const desktop = path.join(os.homedir(), 'Desktop', 'CenterEngine.lnk');
+      const startup = path.join(os.homedir(), 'AppData', 'Roaming', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'CenterEngine.lnk');
+      const createShortcut = (target: string) =>
+        `powershell -Command "$ws=New-Object -ComObject WScript.Shell;$s=$ws.CreateShortcut('${target}');$s.TargetPath='${exe}';$s.Description='CenterEngine';$s.Save()"`;
+      try { execSync(createShortcut(desktop)); log('info', 'Atalho criado na área de trabalho'); } catch {}
+      try { execSync(createShortcut(startup)); log('info', 'Auto-start configurado (Startup)'); } catch {}
+    } catch (e) { log('warn', 'Não foi possível criar atalhos: ' + String(e)); }
+  }
+
+  log('info', 'Instalação concluída');
 }
 
 // ── Página de configuração (HTML embutido) ───────────────────────────
@@ -375,6 +421,7 @@ async function main() {
   ╚══════════════════════════════════════╝
   `);
 
+  autoInstall();
   const config = loadConfig();
   await initDB();
   const server = createServer(config);
