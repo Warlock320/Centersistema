@@ -1,0 +1,31 @@
+{
+  "name": "center-engine",
+  "version": "1.0.0",
+  "description": "CenterEngine — Agente desktop local para Center Auto Peças",
+  "main": "dist/engine.cjs",
+  "bin": "dist/engine.cjs",
+  "scripts": {
+    "build": "esbuild src/engine.ts --bundle --platform=node --target=node20 --outfile=dist/engine.cjs --format=cjs --external:better-sqlite3",
+    "start": "node dist/engine.cjs",
+    "dev": "npx tsx src/engine.ts",
+    "pkg:win": "npx pkg dist/engine.cjs --target node20-win-x64 --output build/windows/CenterEngine.exe",
+    "pkg:mac": "npx pkg dist/engine.cjs --target node20-macos-arm64 --output build/mac/CenterEngine",
+    "pkg:all": "npm run build && npm run pkg:win && npm run pkg:mac",
+    "postinstall": "echo 'Run: npm run pkg:all para gerar os executáveis'"
+  },
+  "pkg": {
+    "assets": [],
+    "targets": ["node20-win-x64", "node20-macos-arm64"]
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.0",
+    "@yao-pkg/pkg": "^6.0.0",
+    "tsx": "^4.0.0",
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.0.0"
+  }
+}
