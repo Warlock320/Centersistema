@@ -1,6 +1,7 @@
 node_modules/
 dist/
 build/mac/CenterEngine
+build/mac/CenterEngine.app/Contents/MacOS/CenterEngine
 build/windows/CenterEngine.exe
 *.db
 *.log
