@@ -148,8 +148,10 @@ export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [alertas, setAlertas] = useState(0);          // produtos abaixo do mínimo (estoque)
-  const [aprovPend, setAprovPend] = useState(0);      // orçamentos aguardando aprovação
+  const [alertas, setAlertas] = useState(0);
+  const [aprovPend, setAprovPend] = useState(0);
+  const [empresaNome, setEmpresaNome] = useState('');
+  const [empresaLogoUrl, setEmpresaLogoUrl] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false); // drawer no mobile
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -169,6 +171,11 @@ export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario 
 
   useEffect(() => {
     const loadAlertas = async () => {
+      // Dados da empresa (nome + logo)
+      if (usuario?.empresa_id) {
+        const { data: emp } = await supabase.from('empresas').select('nome, logo_url').eq('id', usuario.empresa_id).single();
+        if (emp) { setEmpresaNome((emp as { nome: string }).nome || ''); setEmpresaLogoUrl((emp as { logo_url: string | null }).logo_url); }
+      }
       // Contadores para badges na sidebar
       const [{ count: estoque }, { count: aprov }] = await Promise.all([
         supabase.from('v_produtos_abaixo_minimo').select('id', { count: 'exact', head: true }),
@@ -329,10 +336,10 @@ export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario 
         {/* Brand */}
         <div className="px-6 py-5 border-b border-slate-700/50">
           <div className="flex items-center gap-3">
-            <Logo size={40} className="ring-2 ring-white/10" />
+            <Logo size={40} className="ring-2 ring-white/10" src={empresaLogoUrl} />
             <div className="min-w-0">
-              <p className="text-white font-bold text-sm leading-tight">Center Auto</p>
-              <p className="text-slate-400 text-xs">Gestão de Peças</p>
+              <p className="text-white font-bold text-sm leading-tight truncate">{empresaNome || 'Sistema ERP'}</p>
+              <p className="text-slate-400 text-xs">Gestão Empresarial</p>
             </div>
             {/* Alternar modo claro/escuro */}
             <ThemeToggle className="ml-auto -mr-1" />

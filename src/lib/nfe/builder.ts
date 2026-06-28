@@ -242,7 +242,7 @@ export function buildNfeXml(input: NfeBuildInput): NfeBuildResult {
           indPres: 1,
           indIntermed: 0,
           procEmi: 0,
-          verProc: 'CenterSistema 1.0',
+          verProc: 'GestaoERP 1.0',
         },
         emit: {
           CNPJ: cnpj14,
@@ -303,7 +303,7 @@ export function buildNfeXml(input: NfeBuildInput): NfeBuildResult {
           },
         },
         infAdic: {
-          infCpl: `Pedido gerado pelo CenterSistema.`,
+          infCpl: `Documento gerado pelo sistema de gestao.`,
         },
       },
     },

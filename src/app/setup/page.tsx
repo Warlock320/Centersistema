@@ -95,8 +95,8 @@ export default function SetupPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input label="Nome Fantasia *" value={form.empresaNome} onChange={set('empresaNome')} placeholder="Center Auto Peças" required />
-              <Input label="Razão Social *" value={form.empresaRazao} onChange={set('empresaRazao')} placeholder="Center Auto Peças LTDA" required />
+              <Input label="Nome Fantasia *" value={form.empresaNome} onChange={set('empresaNome')} placeholder="Sua Empresa" required />
+              <Input label="Razão Social *" value={form.empresaRazao} onChange={set('empresaRazao')} placeholder="Sua Empresa LTDA" required />
               <Input label="CNPJ *" value={form.empresaCnpj} onChange={set('empresaCnpj')} placeholder="00.000.000/0001-00" required maxLength={18} />
               <Input label="E-mail da Empresa" type="email" value={form.empresaEmail} onChange={set('empresaEmail')} placeholder={userEmail} />
               <Input label="Telefone" value={form.empresaTelefone} onChange={set('empresaTelefone')} placeholder="(11) 99999-9999" />

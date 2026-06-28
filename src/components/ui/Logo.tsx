@@ -7,15 +7,13 @@ interface Props {
   size?: number;
   rounded?: boolean;
   className?: string;
+  src?: string | null;
 }
 
-/**
- * Logo da empresa. Usa /public/logo.png.
- * Se o arquivo não existir, mostra um fallback (ícone) para não quebrar o layout.
- */
-export function Logo({ size = 40, rounded = true, className = '' }: Props) {
+export function Logo({ size = 40, rounded = true, className = '', src }: Props) {
   const [err, setErr] = useState(false);
   const shape = rounded ? 'rounded-full' : 'rounded-lg';
+  const imgSrc = src || '/logo.png';
 
   if (err) {
     return (
@@ -31,8 +29,8 @@ export function Logo({ size = 40, rounded = true, className = '' }: Props) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src="/logo.png"
-      alt="Center Auto Peças"
+      src={imgSrc}
+      alt="Logo"
       width={size}
       height={size}
       onError={() => setErr(true)}

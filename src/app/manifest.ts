@@ -2,9 +2,9 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Center Auto Peças Gestão',
-    short_name: 'Center Auto',
-    description: 'Sistema de gestão da loja — vendas, caixa, crediário e financeiro.',
+    name: 'Sistema de Gestão ERP',
+    short_name: 'Gestão ERP',
+    description: 'Sistema ERP completo — vendas, caixa, estoque, NF-e e financeiro.',
     start_url: '/dashboard',
     scope: '/',
     display: 'standalone',

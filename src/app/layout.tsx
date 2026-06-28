@@ -4,10 +4,9 @@ import { ToastProvider } from '@/components/ui/Toast';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 
 export const metadata: Metadata = {
-  title: 'Center Auto Peças Gestão',
-  description: 'Sistema ERP para gestão de auto peças',
-  // favicon e apple-touch-icon vêm de src/app/icon.png e src/app/apple-icon.png (convenção do Next)
-  appleWebApp: { capable: true, title: 'Center Auto', statusBarStyle: 'black-translucent' },
+  title: 'Sistema de Gestão ERP',
+  description: 'Sistema ERP completo para gestão empresarial',
+  appleWebApp: { capable: true, title: 'Gestão ERP', statusBarStyle: 'black-translucent' },
 };
 
 export const viewport: Viewport = {

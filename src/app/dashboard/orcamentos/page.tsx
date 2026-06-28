@@ -628,7 +628,7 @@ export default function OrcamentosPage() {
                 </Button>
               )}
               {/* PDF */}
-              <OrcamentoPDFButton orcamento={selected} empresaNome={usuario?.empresa_id ? undefined : 'Center Auto Peças'} />
+              <OrcamentoPDFButton orcamento={selected} empresaNome={usuario?.empresa_id ? undefined : undefined} />
               {/* Compartilhar no WhatsApp */}
               <Button variant="success" onClick={handleCompartilharWhatsapp}>
                 <Share2 size={14} /> WhatsApp

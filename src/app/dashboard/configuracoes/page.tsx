@@ -101,6 +101,7 @@ export default function ConfiguracoesPage() {
 
   const [buscandoCNPJ, setBuscandoCNPJ] = useState(false);
   const [cnpjMsg, setCnpjMsg] = useState('');
+  const [logoFile, setLogoFile] = useState<File | null>(null);
 
   // Trocar senha de usuário
   const [showSenha, setShowSenha] = useState(false);
@@ -224,11 +225,26 @@ export default function ConfiguracoesPage() {
     setSaving(true);
     const { error } = await supabase.from('empresas').update({
       nome: empresa.nome, razao_social: empresa.razao_social,
-      cnpj: somenteDigitos(empresa.cnpj || ''),  // coluna é VARCHAR(14) NOT NULL — sem formatação
+      cnpj: somenteDigitos(empresa.cnpj || ''),
       email: empresa.email, telefone: empresa.telefone, endereco: empresa.endereco,
       cidade: empresa.cidade, estado: (empresa.estado || '').slice(0, 2).toUpperCase() || null, cep: empresa.cep,
       permite_estoque_negativo: empresa.permite_estoque_negativo,
+      logo_url: empresa.logo_url,
     }).eq('id', empresa.id);
+
+    // Upload do logo
+    if (logoFile && empresa.id) {
+      const ext = logoFile.name.split('.').pop() || 'png';
+      const path = `${empresa.id}/logo.${ext}`;
+      await supabase.storage.from('empresa-logos').upload(path, logoFile, { upsert: true });
+      const { data: urlData } = supabase.storage.from('empresa-logos').getPublicUrl(path);
+      if (urlData?.publicUrl) {
+        const logoUrl = urlData.publicUrl + '?t=' + Date.now();
+        await supabase.from('empresas').update({ logo_url: logoUrl }).eq('id', empresa.id);
+      }
+      setLogoFile(null);
+    }
+
     setSaving(false);
     if (error) { toast.error('Erro ao salvar: ' + error.message); return; }
     toast.success('Dados da empresa salvos!');
@@ -359,6 +375,29 @@ export default function ConfiguracoesPage() {
             <h2 className="font-semibold text-slate-900">Dados da Empresa</h2>
           </div>
           <form onSubmit={handleSaveEmpresa} className="px-6 py-6 space-y-4">
+            {/* Logo */}
+            <div className="flex items-center gap-6 pb-4 border-b border-slate-100">
+              <label className="cursor-pointer group shrink-0">
+                <div className="w-24 h-24 rounded-xl border-2 border-dashed border-slate-200 group-hover:border-blue-400 overflow-hidden flex items-center justify-center bg-slate-50 transition-colors">
+                  {(logoFile || empresa.logo_url) ? (
+                    <img src={logoFile ? URL.createObjectURL(logoFile) : (empresa.logo_url || '')} alt="Logo" className="w-full h-full object-contain p-1" />
+                  ) : (
+                    <div className="text-center"><Building2 size={24} className="text-slate-300 mx-auto mb-1" /><span className="text-[10px] text-slate-400">Logo</span></div>
+                  )}
+                </div>
+                <input type="file" accept="image/*" className="hidden" disabled={!isAdmin}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) setLogoFile(f); }} />
+              </label>
+              <div>
+                <p className="text-sm font-medium text-slate-700">Logo da empresa</p>
+                <p className="text-xs text-slate-400 mt-1">Aparece no login, menu, orçamentos, NF-e e relatórios.</p>
+                {(logoFile || empresa.logo_url) && isAdmin && (
+                  <button type="button" onClick={() => { setLogoFile(null); setEmpresa((p) => ({ ...p, logo_url: null })); }}
+                    className="text-xs text-red-500 mt-1 hover:underline">Remover logo</button>
+                )}
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-slate-700 block mb-1">CNPJ</label>

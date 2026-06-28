@@ -37,6 +37,7 @@ export interface Empresa {
   nfe_serie: number;
   nfe_ambiente: number;
   nfe_proximo_numero: number;
+  logo_url: string | null;
   created_at: string;
 }
 

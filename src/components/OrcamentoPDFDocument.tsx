@@ -40,7 +40,7 @@ function OrcamentoDoc({ orcamento, empresaNome }: Props) {
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.title}>{empresaNome || 'Center Auto Peças'}</Text>
+          <Text style={styles.title}>{empresaNome || 'Empresa'}</Text>
           <Text style={styles.subtitle}>Orçamento #{orcamento.numero}</Text>
         </View>
 
@@ -103,7 +103,7 @@ function OrcamentoDoc({ orcamento, empresaNome }: Props) {
           </View>
         )}
 
-        <Text style={styles.footer}>Documento gerado pelo sistema Center Auto Peças Gestão</Text>
+        <Text style={styles.footer}>Documento gerado pelo sistema Empresa Gestão</Text>
       </Page>
     </Document>
   );

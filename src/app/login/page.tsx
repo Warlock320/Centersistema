@@ -185,7 +185,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-slate-500 text-xs mt-6">
-          Center Auto Peças Gestão &copy; {new Date().getFullYear()}
+          Sistema de Gestão ERP &copy; {new Date().getFullYear()}
         </p>
       </div>
     </div>
