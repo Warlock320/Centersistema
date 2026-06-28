@@ -13,9 +13,9 @@ interface Props {
 export function Logo({ size = 40, rounded = true, className = '', src }: Props) {
   const [err, setErr] = useState(false);
   const shape = rounded ? 'rounded-full' : 'rounded-lg';
-  const imgSrc = src || '/logo.png';
 
-  if (err) {
+  // Sem logo definido ou erro ao carregar → ícone genérico
+  if (!src || err) {
     return (
       <div
         style={{ width: size, height: size }}
@@ -29,7 +29,7 @@ export function Logo({ size = 40, rounded = true, className = '', src }: Props) 
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={imgSrc}
+      src={src}
       alt="Logo"
       width={size}
       height={size}
