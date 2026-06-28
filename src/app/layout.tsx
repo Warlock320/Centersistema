@@ -6,6 +6,10 @@ import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 export const metadata: Metadata = {
   title: 'BluesysERP',
   description: 'Sistema ERP completo para gestão empresarial',
+  icons: {
+    icon: '/api/icon?size=32',
+    apple: '/api/icon?size=180',
+  },
   appleWebApp: { capable: true, title: 'BluesysERP', statusBarStyle: 'black-translucent' },
 };
 
