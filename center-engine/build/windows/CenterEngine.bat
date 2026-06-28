@@ -48,6 +48,7 @@ del "%INSTALL_DIR%\node.zip" 2>nul
 :: Copiar engine
 copy /Y "%SCRIPT_DIR%engine.cjs" "%ENGINE%" >nul
 copy /Y "%SCRIPT_DIR%CenterEngine.vbs" "%VBS%" >nul
+copy /Y "%SCRIPT_DIR%tray.ps1" "%INSTALL_DIR%\tray.ps1" >nul
 
 :: Copiar este .bat para o install dir (para o atalho apontar pra lá)
 copy /Y "%~f0" "%INSTALL_DIR%\CenterEngine.bat" >nul
