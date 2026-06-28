@@ -3,76 +3,90 @@ chcp 65001 >nul
 title CenterEngine - Instalador
 
 echo.
-echo   ╔══════════════════════════════════════╗
-echo   ║   Instalador CenterEngine v1.0.0     ║
-echo   ║   Center Auto Pecas                  ║
-echo   ╚══════════════════════════════════════╝
+echo   ======================================
+echo     Instalador CenterEngine v1.0.0
+echo     Center Auto Pecas
+echo   ======================================
 echo.
 
-set INSTALL_DIR=%LOCALAPPDATA%\CenterEngine
-set NODE_DIR=%INSTALL_DIR%\node
-set ENGINE_FILE=%INSTALL_DIR%\engine.cjs
-set STARTER=%INSTALL_DIR%\CenterEngine.bat
-set STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\CenterEngine.lnk
-set DESKTOP=%USERPROFILE%\Desktop\CenterEngine.lnk
+set "INSTALL_DIR=%LOCALAPPDATA%\CenterEngine"
+set "NODE_DIR=%INSTALL_DIR%\node"
+set "ENGINE_FILE=%INSTALL_DIR%\engine.cjs"
+set "VBS_FILE=%INSTALL_DIR%\CenterEngine.vbs"
+set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\CenterEngine.lnk"
+set "DESKTOP=%USERPROFILE%\Desktop\CenterEngine.lnk"
 
 :: Criar pasta
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
 
-:: Baixar Node.js portátil se não existe
+:: Baixar Node.js portátil
 if not exist "%NODE_DIR%\node.exe" (
     echo   [1/4] Baixando Node.js portatil...
-    powershell -Command "Invoke-WebRequest -Uri 'https://nodejs.org/dist/v20.18.1/node-v20.18.1-win-x64.zip' -OutFile '%INSTALL_DIR%\node.zip'" 2>nul
-    if errorlevel 1 (
-        echo   ❌ Erro ao baixar Node.js. Verifique sua internet.
+    echo         Isso pode levar alguns segundos...
+    powershell -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://nodejs.org/dist/v20.18.1/node-v20.18.1-win-x64.zip' -OutFile '%INSTALL_DIR%\node.zip'"
+    if not exist "%INSTALL_DIR%\node.zip" (
+        echo   ERRO: Falha ao baixar Node.js. Verifique sua internet.
         pause
         exit /b 1
     )
-    echo   [2/4] Extraindo...
-    powershell -Command "Expand-Archive -Path '%INSTALL_DIR%\node.zip' -DestinationPath '%INSTALL_DIR%\temp' -Force" 2>nul
-    mkdir "%NODE_DIR%" 2>nul
-    move "%INSTALL_DIR%\temp\node-v20.18.1-win-x64\node.exe" "%NODE_DIR%\node.exe" >nul
+    echo   [2/4] Extraindo Node.js...
+    powershell -Command "Expand-Archive -Path '%INSTALL_DIR%\node.zip' -DestinationPath '%INSTALL_DIR%\temp' -Force"
+    if not exist "%NODE_DIR%" mkdir "%NODE_DIR%"
+    copy /Y "%INSTALL_DIR%\temp\node-v20.18.1-win-x64\node.exe" "%NODE_DIR%\node.exe" >nul
     rmdir /s /q "%INSTALL_DIR%\temp" 2>nul
     del "%INSTALL_DIR%\node.zip" 2>nul
-    echo   ✓ Node.js instalado
+    echo   OK Node.js instalado
 ) else (
-    echo   [1/4] Node.js ja instalado ✓
+    echo   [1/4] Node.js ja instalado OK
 )
 
-:: Copiar engine.cjs
-echo   [3/4] Copiando engine...
+:: Copiar arquivos
+echo   [3/4] Copiando arquivos...
 copy /Y "%~dp0engine.cjs" "%ENGINE_FILE%" >nul
-echo   ✓ Engine instalado
+copy /Y "%~dp0CenterEngine.vbs" "%VBS_FILE%" >nul
+echo   OK Engine copiado
 
-:: Copiar launcher silencioso (roda sem CMD visível)
-copy /Y "%~dp0CenterEngine.vbs" "%INSTALL_DIR%\CenterEngine.vbs" >nul
-set SILENT_LAUNCHER=%INSTALL_DIR%\CenterEngine.vbs
-
-:: Criar atalhos (apontam para o .vbs silencioso)
+:: Criar atalhos
 echo   [4/4] Criando atalhos...
-powershell -Command "$ws=New-Object -ComObject WScript.Shell;$s=$ws.CreateShortcut('%DESKTOP%');$s.TargetPath='wscript.exe';$s.Arguments='""'+('%SILENT_LAUNCHER%')+'""';$s.WorkingDirectory='%INSTALL_DIR%';$s.Description='CenterEngine - Agente desktop local';$s.Save()" 2>nul
-echo   ✓ Atalho na area de trabalho
 
-powershell -Command "$ws=New-Object -ComObject WScript.Shell;$s=$ws.CreateShortcut('%STARTUP%');$s.TargetPath='wscript.exe';$s.Arguments='""'+('%SILENT_LAUNCHER%')+'""';$s.WorkingDirectory='%INSTALL_DIR%';$s.Description='CenterEngine';$s.Save()" 2>nul
-echo   ✓ Auto-start com Windows (roda em background)
+:: Atalho Desktop
+powershell -NoProfile -Command ^
+  "$ws = New-Object -ComObject WScript.Shell; ^
+   $lnk = $ws.CreateShortcut('%DESKTOP%'); ^
+   $lnk.TargetPath = '%VBS_FILE%'; ^
+   $lnk.WorkingDirectory = '%INSTALL_DIR%'; ^
+   $lnk.Description = 'CenterEngine - Agente desktop local'; ^
+   $lnk.Save()"
+echo   OK Atalho na area de trabalho
+
+:: Atalho Startup (auto-start)
+powershell -NoProfile -Command ^
+  "$ws = New-Object -ComObject WScript.Shell; ^
+   $lnk = $ws.CreateShortcut('%STARTUP%'); ^
+   $lnk.TargetPath = '%VBS_FILE%'; ^
+   $lnk.WorkingDirectory = '%INSTALL_DIR%'; ^
+   $lnk.Description = 'CenterEngine'; ^
+   $lnk.Save()"
+echo   OK Auto-start configurado
 
 echo.
-echo   ╔══════════════════════════════════════╗
-echo   ║   Instalacao concluida!               ║
-echo   ╠══════════════════════════════════════╣
-echo   ║   • Atalho criado na area de trabalho ║
-echo   ║   • Inicia automaticamente            ║
-echo   ║   • Config: http://127.0.0.1:9090    ║
-echo   ╚══════════════════════════════════════╝
+echo   ======================================
+echo     Instalacao concluida!
+echo   ======================================
+echo.
+echo   Atalho CenterEngine na area de trabalho
+echo   Inicia automaticamente com o Windows
+echo   Config: http://127.0.0.1:9090
 echo.
 
-:: Iniciar o engine (silencioso, sem CMD)
-echo   Iniciando CenterEngine em background...
-wscript.exe "%SILENT_LAUNCHER%"
+:: Iniciar engine
+echo   Iniciando CenterEngine...
+wscript "%VBS_FILE%"
 
+:: Aguardar engine subir e abrir config
 echo   Abrindo configuracao no navegador...
-timeout /t 3 /nobreak >nul
-start http://127.0.0.1:9090
+timeout /t 4 /nobreak >nul
+start "" "http://127.0.0.1:9090"
 
 echo.
 echo   Pronto! Pode fechar esta janela.
