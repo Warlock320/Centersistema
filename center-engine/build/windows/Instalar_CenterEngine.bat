@@ -44,18 +44,17 @@ echo   [3/4] Copiando engine...
 copy /Y "%~dp0engine.cjs" "%ENGINE_FILE%" >nul
 echo   ✓ Engine instalado
 
-:: Criar starter script
-echo @echo off > "%STARTER%"
-echo title CenterEngine >> "%STARTER%"
-echo "%NODE_DIR%\node.exe" "%ENGINE_FILE%" >> "%STARTER%"
+:: Copiar launcher silencioso (roda sem CMD visível)
+copy /Y "%~dp0CenterEngine.vbs" "%INSTALL_DIR%\CenterEngine.vbs" >nul
+set SILENT_LAUNCHER=%INSTALL_DIR%\CenterEngine.vbs
 
-:: Criar atalhos
+:: Criar atalhos (apontam para o .vbs silencioso)
 echo   [4/4] Criando atalhos...
-powershell -Command "$ws=New-Object -ComObject WScript.Shell;$s=$ws.CreateShortcut('%DESKTOP%');$s.TargetPath='%STARTER%';$s.WorkingDirectory='%INSTALL_DIR%';$s.IconLocation='%NODE_DIR%\node.exe';$s.Description='CenterEngine - Agente desktop local';$s.WindowStyle=7;$s.Save()" 2>nul
+powershell -Command "$ws=New-Object -ComObject WScript.Shell;$s=$ws.CreateShortcut('%DESKTOP%');$s.TargetPath='wscript.exe';$s.Arguments='""'+('%SILENT_LAUNCHER%')+'""';$s.WorkingDirectory='%INSTALL_DIR%';$s.Description='CenterEngine - Agente desktop local';$s.Save()" 2>nul
 echo   ✓ Atalho na area de trabalho
 
-powershell -Command "$ws=New-Object -ComObject WScript.Shell;$s=$ws.CreateShortcut('%STARTUP%');$s.TargetPath='%STARTER%';$s.WorkingDirectory='%INSTALL_DIR%';$s.WindowStyle=7;$s.Description='CenterEngine';$s.Save()" 2>nul
-echo   ✓ Auto-start com Windows
+powershell -Command "$ws=New-Object -ComObject WScript.Shell;$s=$ws.CreateShortcut('%STARTUP%');$s.TargetPath='wscript.exe';$s.Arguments='""'+('%SILENT_LAUNCHER%')+'""';$s.WorkingDirectory='%INSTALL_DIR%';$s.Description='CenterEngine';$s.Save()" 2>nul
+echo   ✓ Auto-start com Windows (roda em background)
 
 echo.
 echo   ╔══════════════════════════════════════╗
@@ -67,9 +66,9 @@ echo   ║   • Config: http://127.0.0.1:9090    ║
 echo   ╚══════════════════════════════════════╝
 echo.
 
-:: Iniciar o engine
-echo   Iniciando CenterEngine...
-start "" "%STARTER%"
+:: Iniciar o engine (silencioso, sem CMD)
+echo   Iniciando CenterEngine em background...
+wscript.exe "%SILENT_LAUNCHER%"
 
 echo   Abrindo configuracao no navegador...
 timeout /t 3 /nobreak >nul

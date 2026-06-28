@@ -15,6 +15,7 @@ const LOG_FILE = path.join(CONFIG_DIR, 'engine.log');
 interface Config {
   supabaseUrl: string;
   supabaseAnonKey: string;
+  systemUrl: string;
   syncIntervalSeconds: number;
   port: number;
   autoStart: boolean;
@@ -23,6 +24,7 @@ interface Config {
 const DEFAULT_CONFIG: Config = {
   supabaseUrl: '',
   supabaseAnonKey: '',
+  systemUrl: '',
   syncIntervalSeconds: 120,
   port: 9090,
   autoStart: true,
@@ -290,6 +292,10 @@ ${config.supabaseUrl
 <input id="key" type="text" placeholder="eyJhbGciOiJIUzI1NiIs..." value="${config.supabaseAnonKey}" required>
 <p style="font-size:11px;color:#475569;margin-top:4px">Encontre em: Supabase → Settings → API → anon public</p>
 
+<label>URL do Sistema (abre ao iniciar)</label>
+<input id="sysurl" type="url" placeholder="https://seu-sistema.onrender.com" value="${config.systemUrl || ''}">
+<p style="font-size:11px;color:#475569;margin-top:4px">O navegador abre nessa URL quando o engine inicia</p>
+
 <div class="row">
 <div><label>Intervalo de sync (seg)</label><input id="interval" type="number" min="30" max="3600" value="${config.syncIntervalSeconds}"></div>
 <div><label>Porta</label><input id="port" type="number" min="1024" max="65535" value="${config.port}"></div>
@@ -327,7 +333,7 @@ async function testConn(){
 
 document.getElementById('form').onsubmit=async(e)=>{
   e.preventDefault();
-  const cfg={supabaseUrl:document.getElementById('url').value.trim(),supabaseAnonKey:document.getElementById('key').value.trim(),syncIntervalSeconds:Number(document.getElementById('interval').value)||120,port:Number(document.getElementById('port').value)||9090,autoStart:true};
+  const cfg={supabaseUrl:document.getElementById('url').value.trim(),supabaseAnonKey:document.getElementById('key').value.trim(),systemUrl:document.getElementById('sysurl').value.trim(),syncIntervalSeconds:Number(document.getElementById('interval').value)||120,port:Number(document.getElementById('port').value)||9090,autoStart:true};
   try{
     const r=await fetch('/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
     if(r.ok){showMsg('✅ Configuração salva! Recarregando...',true);setTimeout(()=>location.reload(),1500)}
@@ -446,6 +452,11 @@ async function main() {
 
   if (config.supabaseUrl) {
     await syncAll(config);
+    // Abre o sistema da loja no navegador
+    if (config.systemUrl) {
+      log('info', 'Abrindo sistema: ' + config.systemUrl);
+      openBrowser(config.systemUrl);
+    }
   } else {
     console.log(`  ⚠️  Supabase não configurado.`);
     console.log(`  Abrindo configuração no navegador...\n`);
