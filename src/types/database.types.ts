@@ -96,6 +96,36 @@ export interface Usuario {
   /** @deprecated mantido para compatibilidade com dados legados */
   role?: UserRole | null;
   ativo: boolean;
+  tentativas_login: number;
+  bloqueado_ate: string | null;
+  created_at: string;
+}
+
+export interface PoliticaSeguranca {
+  id: string;
+  empresa_id: string;
+  timeout_inatividade: number;
+  senha_min_caracteres: number;
+  senha_exigir_numero: boolean;
+  senha_exigir_especial: boolean;
+  max_tentativas_login: number;
+  tempo_bloqueio_min: number;
+  sessao_unica: boolean;
+  horario_inicio: string | null;
+  horario_fim: string | null;
+  updated_at: string;
+  created_at: string;
+}
+
+export interface LogAcesso {
+  id: string;
+  empresa_id: string | null;
+  usuario_id: string | null;
+  usuario_nome: string | null;
+  tipo: 'login' | 'logout' | 'bloqueio' | 'tentativa_falha';
+  ip: string | null;
+  user_agent: string | null;
+  detalhes: string | null;
   created_at: string;
 }
 

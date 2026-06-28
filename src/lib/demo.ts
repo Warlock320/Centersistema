@@ -10,6 +10,8 @@ export const DEMO_USER: Usuario = {
   email: 'admin@demo.com',
   roles: ['admin'],
   ativo: true,
+  tentativas_login: 0,
+  bloqueado_ate: null,
   created_at: new Date().toISOString(),
 };
 
