@@ -4,9 +4,9 @@ import { ToastProvider } from '@/components/ui/Toast';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 
 export const metadata: Metadata = {
-  title: 'Sistema de Gestão ERP',
+  title: 'BluesysERP',
   description: 'Sistema ERP completo para gestão empresarial',
-  appleWebApp: { capable: true, title: 'Gestão ERP', statusBarStyle: 'black-translucent' },
+  appleWebApp: { capable: true, title: 'BluesysERP', statusBarStyle: 'black-translucent' },
 };
 
 export const viewport: Viewport = {

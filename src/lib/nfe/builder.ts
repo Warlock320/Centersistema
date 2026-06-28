@@ -242,7 +242,7 @@ export function buildNfeXml(input: NfeBuildInput): NfeBuildResult {
           indPres: 1,
           indIntermed: 0,
           procEmi: 0,
-          verProc: 'GestaoERP 1.0',
+          verProc: 'BluesysERP 1.0',
         },
         emit: {
           CNPJ: cnpj14,

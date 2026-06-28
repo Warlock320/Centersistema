@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
@@ -9,6 +9,7 @@ import { Logo } from '@/components/ui/Logo';
 import { Eye, EyeOff } from 'lucide-react';
 import { DEMO_MODE, DEMO_COOKIE } from '@/lib/demo';
 import { loginToEmail } from '@/lib/login';
+import { APP_NAME, APP_VERSION, APP_STUDIO } from '@/lib/version';
 
 const DEMO_EMAIL = 'admin@demo.com';
 const DEMO_PASSWORD = 'admin123';
@@ -22,6 +23,15 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loadingScreen, setLoadingScreen] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState('');
+  const [brandNome, setBrandNome] = useState('');
+  const [brandLogo, setBrandLogo] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/branding').then((r) => r.json()).then((d) => {
+      if (d.nome) setBrandNome(d.nome);
+      if (d.logo_url) setBrandLogo(d.logo_url);
+    }).catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -97,7 +107,7 @@ export default function LoginPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 flex items-center justify-center p-4">
         <div className="flex flex-col items-center">
-          <Logo size={120} className="shadow-xl ring-4 ring-white/10 mb-6 animate-pulse" />
+          <Logo size={120} className="shadow-xl ring-4 ring-white/10 mb-6 animate-pulse" src={brandLogo} />
           <div className="flex items-center gap-3 mb-4">
             <svg className="w-5 h-5 animate-spin text-blue-400" viewBox="0 0 24 24" fill="none">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -120,8 +130,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="flex flex-col items-center justify-center mb-8">
-          <Logo size={110} className="shadow-xl ring-4 ring-white/10 mb-3" />
-          <p className="text-slate-400 text-sm">Sistema de Gestão ERP</p>
+          <Logo size={110} className="shadow-xl ring-4 ring-white/10 mb-3" src={brandLogo} />
+          <p className="text-slate-400 text-sm">{brandNome}</p>
         </div>
 
         {/* Card */}
@@ -184,9 +194,10 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <p className="text-center text-slate-500 text-xs mt-6">
-          Sistema de Gestão ERP &copy; {new Date().getFullYear()}
-        </p>
+        <div className="text-center mt-6 space-y-1">
+          <p className="text-slate-500 text-xs">{brandNome ? `${brandNome} · ` : ''}{APP_NAME} v{APP_VERSION}</p>
+          <p className="text-slate-600 text-[10px]">By {APP_STUDIO}</p>
+        </div>
       </div>
     </div>
   );

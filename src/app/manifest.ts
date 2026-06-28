@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Sistema de Gestão ERP',
-    short_name: 'Gestão ERP',
+    name: 'BluesysERP',
+    short_name: 'BluesysERP',
     description: 'Sistema ERP completo — vendas, caixa, estoque, NF-e e financeiro.',
     start_url: '/dashboard',
     scope: '/',
