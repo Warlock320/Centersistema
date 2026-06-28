@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
-import { Shield, Save, Clock, Key, Lock, Users, CalendarClock, FileText } from 'lucide-react';
+import { Shield, Save, Clock, Key, Lock, Users, CalendarClock, FileText, Plus, X } from 'lucide-react';
+import type { Usuario } from '@/types/database.types';
 
 interface Politica {
   timeout_inatividade: number;
@@ -16,6 +17,7 @@ interface Politica {
   sessao_unica: boolean;
   horario_inicio: string;
   horario_fim: string;
+  usuarios_horario_restrito: string[];
 }
 
 const DEFAULTS: Politica = {
@@ -28,6 +30,7 @@ const DEFAULTS: Politica = {
   sessao_unica: false,
   horario_inicio: '',
   horario_fim: '',
+  usuarios_horario_restrito: [],
 };
 
 const TIMEOUT_OPTIONS = [
@@ -58,6 +61,7 @@ export default function SegurancaSection() {
   const [form, setForm] = useState<Politica>(DEFAULTS);
   const [empresaId, setEmpresaId] = useState('');
   const [logs, setLogs] = useState<{ tipo: string; usuario_nome: string; ip: string; created_at: string }[]>([]);
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -80,8 +84,12 @@ export default function SegurancaSection() {
           sessao_unica: pol.sessao_unica ?? false,
           horario_inicio: pol.horario_inicio || '',
           horario_fim: pol.horario_fim || '',
+          usuarios_horario_restrito: pol.usuarios_horario_restrito || [],
         });
       }
+
+      const { data: usrList } = await supabase.from('usuarios').select('id, nome, email, ativo').eq('ativo', true).order('nome');
+      setUsuarios((usrList || []) as Usuario[]);
 
       const { data: logData } = await supabase.from('log_acesso')
         .select('tipo, usuario_nome, ip, created_at')
@@ -222,6 +230,54 @@ export default function SegurancaSection() {
               </label>
             </div>
           </div>
+
+          {/* Usuários restritos por horário */}
+          {(form.horario_inicio && form.horario_fim) && (
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
+            <div className="flex items-center gap-3">
+              <Users size={20} className="text-amber-500" />
+              <div>
+                <p className="text-sm font-medium text-slate-700">Usuários restritos pelo horário</p>
+                <p className="text-xs text-slate-400">
+                  Apenas usuários marcados são impedidos de acessar fora do horário ({form.horario_inicio} - {form.horario_fim}).
+                  Quem não estiver marcado acessa a qualquer hora.
+                </p>
+              </div>
+            </div>
+            <div className="pl-8 space-y-1 max-h-60 overflow-y-auto">
+              {usuarios.map((u) => {
+                const restrito = form.usuarios_horario_restrito.includes(u.id);
+                return (
+                  <div key={u.id} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-white">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-7 h-7 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xs shrink-0">
+                        {u.nome.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-700 truncate">{u.nome}</p>
+                        <p className="text-[10px] text-slate-400 truncate">{u.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-[10px] font-medium ${restrito ? 'text-amber-600' : 'text-slate-400'}`}>
+                        {restrito ? 'Restrito' : 'Livre'}
+                      </span>
+                      <Toggle checked={restrito} onChange={(v) => {
+                        setForm((p) => ({
+                          ...p,
+                          usuarios_horario_restrito: v
+                            ? [...p.usuarios_horario_restrito, u.id]
+                            : p.usuarios_horario_restrito.filter((id) => id !== u.id),
+                        }));
+                      }} />
+                    </div>
+                  </div>
+                );
+              })}
+              {usuarios.length === 0 && <p className="text-sm text-slate-400 py-4 text-center">Nenhum usuário ativo</p>}
+            </div>
+          </div>
+          )}
 
           <Button onClick={handleSave} loading={saving}>
             <Save size={15} /> Salvar políticas de segurança

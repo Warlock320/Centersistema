@@ -51,21 +51,26 @@ export async function POST(request: Request) {
       }
     }
 
-    // 4. Verificar horário de acesso
+    // 4. Verificar horário de acesso (só para usuários na lista restrita)
     if (pol?.horario_inicio && pol?.horario_fim) {
-      const agora = new Date();
-      const horaAtual = agora.getHours() * 60 + agora.getMinutes();
-      const [hi, mi] = pol.horario_inicio.split(':').map(Number);
-      const [hf, mf] = pol.horario_fim.split(':').map(Number);
-      const inicio = hi * 60 + mi;
-      const fim = hf * 60 + mf;
+      const restritos: string[] = pol.usuarios_horario_restrito || [];
+      const usuarioRestrito = restritos.length === 0 || restritos.includes(usuario.id);
 
-      if (horaAtual < inicio || horaAtual > fim) {
-        await logAcesso(admin, usuario, 'tentativa_falha', ip, userAgent, `Fora do horário permitido (${pol.horario_inicio}-${pol.horario_fim})`);
-        return NextResponse.json({
-          error: `Acesso permitido apenas entre ${pol.horario_inicio} e ${pol.horario_fim}.`,
-          canLogin: false,
-        }, { status: 403 });
+      if (usuarioRestrito) {
+        const agora = new Date();
+        const horaAtual = agora.getHours() * 60 + agora.getMinutes();
+        const [hi, mi] = pol.horario_inicio.split(':').map(Number);
+        const [hf, mf] = pol.horario_fim.split(':').map(Number);
+        const inicio = hi * 60 + mi;
+        const fim = hf * 60 + mf;
+
+        if (horaAtual < inicio || horaAtual > fim) {
+          await logAcesso(admin, usuario, 'tentativa_falha', ip, userAgent, `Fora do horário permitido (${pol.horario_inicio}-${pol.horario_fim})`);
+          return NextResponse.json({
+            error: `Seu acesso é permitido apenas entre ${pol.horario_inicio} e ${pol.horario_fim}.`,
+            canLogin: false,
+          }, { status: 403 });
+        }
       }
     }
 
