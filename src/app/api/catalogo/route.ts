@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createClient as createServerClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
 
@@ -103,6 +104,11 @@ async function buscarCatalogos(marca: string, modelo: string, ano: string): Prom
 }
 
 export async function GET(request: Request) {
+  // Auth check
+  const supabase = await createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+
   const { searchParams } = new URL(request.url);
   const marca = searchParams.get('marca') || '';
   const modelo = searchParams.get('modelo') || '';

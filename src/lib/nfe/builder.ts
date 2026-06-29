@@ -1,5 +1,6 @@
 import { XMLBuilder } from 'fast-xml-parser';
 import { getCodigoUF } from './constants';
+import { APP_NAME, APP_VERSION } from '@/lib/version';
 import type { Empresa, Cliente, PedidoItem } from '@/types/database.types';
 
 export interface NfeBuildInput {
@@ -242,7 +243,7 @@ export function buildNfeXml(input: NfeBuildInput): NfeBuildResult {
           indPres: 1,
           indIntermed: 0,
           procEmi: 0,
-          verProc: 'BluesysERP 1.0',
+          verProc: `${APP_NAME} ${APP_VERSION}`,
         },
         emit: {
           CNPJ: cnpj14,
