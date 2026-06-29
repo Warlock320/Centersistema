@@ -8,6 +8,7 @@ import { DashboardNav } from '@/components/DashboardNav';
 import { RouteGuard } from '@/components/RouteGuard';
 import IdleGuard from '@/components/IdleGuard';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ModulesProvider } from '@/components/ModulesProvider';
 import { resolveRoles } from '@/lib/permissions';
 import { createClient } from '@/lib/supabase/client';
 import type { Usuario } from '@/types/database.types';
@@ -38,6 +39,7 @@ export function DashboardShell({ usuario, children }: { usuario: Usuario; childr
   }, [usuario.empresa_id]);
 
   return (
+    <ModulesProvider empresaId={usuario.empresa_id || null}>
     <PermissionsProvider roles={resolveRoles(usuario) as string[]} empresaId={usuario.empresa_id || null}>
       <RouteGuard />
       {idleTimeout > 0 && <IdleGuard timeoutSeconds={idleTimeout} />}
@@ -60,5 +62,6 @@ export function DashboardShell({ usuario, children }: { usuario: Usuario; childr
         </main>
       </div>
     </PermissionsProvider>
+    </ModulesProvider>
   );
 }

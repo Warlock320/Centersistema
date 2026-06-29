@@ -19,6 +19,7 @@ import { resolveRoles, ROLE_LABELS, type Permission } from '@/lib/permissions';
 import { usePermissions } from '@/components/PermissionsProvider';
 import { useInstallPWA } from '@/components/ServiceWorkerRegister';
 import EngineIndicator from '@/components/EngineIndicator';
+import { useModules } from '@/components/ModulesProvider';
 
 interface NavItem {
   href: string;
@@ -133,6 +134,7 @@ export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario 
   const supabase = createClient();
   const userRoles = resolveRoles(usuario || {});
   const { canInstall, install } = useInstallPWA();
+  const { isRouteAllowed } = useModules();
 
   // Item ativo = rota mais específica (href mais longo) que casa com o pathname.
   // Evita que /dashboard/financeiro fique ativo nas sub-rotas /dashboard/financeiro/*.
@@ -350,7 +352,7 @@ export function DashboardNav({ usuario, collapsed = false }: { usuario: Usuario 
         <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-4 no-scrollbar">
           {navSections.map((section) => {
             const sectionItems = section.items.filter((item) =>
-              Array.isArray(item.permission) ? item.permission.some((p) => can(p)) : can(item.permission)
+              isRouteAllowed(item.href) && (Array.isArray(item.permission) ? item.permission.some((p) => can(p)) : can(item.permission))
             );
             if (sectionItems.length === 0) return null;
             const aberta = openSections.has(section.label);
