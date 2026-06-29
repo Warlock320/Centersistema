@@ -11,6 +11,7 @@ import type { Pedido, PedidoStatus, NfeEmitida } from '@/types/database.types';
 import { usePermissions } from '@/components/PermissionsProvider';
 import { parseNfeXml } from '@/lib/nfe/parser';
 import { baixarDanfe } from '@/components/DanfePDF';
+import { Pagination, usePagination } from '@/components/ui/Pagination';
 
 const STEPS: { status: PedidoStatus; label: string }[] = [
   { status: 'aberto', label: 'Aberto' },
@@ -34,6 +35,7 @@ export default function PedidosPage() {
   const [erro, setErro] = useState('');
   const [emitindoNfe, setEmitindoNfe] = useState(false);
   const [nfeMsg, setNfeMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [page, setPage] = useState(1);
 
   const supabase = createClient();
   const { can } = usePermissions();
@@ -204,7 +206,7 @@ export default function PedidosPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p) => (
+              {filtered.slice((page - 1) * 20, page * 20).map((p) => (
                 <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={() => openDetail(p)}>
                   <td className="px-6 py-3 font-mono text-slate-500">#{p.numero}</td>
                   <td className="px-6 py-3 font-medium text-slate-900">{p.clientes?.nome}</td>
@@ -221,6 +223,7 @@ export default function PedidosPage() {
             </tbody>
           </table>
         )}
+        <Pagination page={page} totalPages={Math.max(1, Math.ceil(filtered.length / 20))} totalItems={filtered.length} pageSize={20} onPageChange={setPage} />
       </div>
 
       {/* Detail Modal */}

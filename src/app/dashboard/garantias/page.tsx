@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/Input';
 import { usePermissions } from '@/components/PermissionsProvider';
 import { Search, AlertTriangle, CheckCircle, XCircle, Clock } from 'lucide-react';
 import type { Garantia, GarantiaStatus } from '@/types/database.types';
+import { Pagination } from '@/components/ui/Pagination';
 
 const statusColors: Record<GarantiaStatus, string> = {
   ativa: 'bg-green-100 text-green-700',
@@ -44,6 +45,7 @@ export default function GarantiasPage() {
   const [selectedGarantia, setSelectedGarantia] = useState<Garantia | null>(null);
   const [motivo, setMotivo] = useState('');
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(1);
 
   const fetchGarantias = useCallback(async () => {
     setLoading(true);
@@ -211,7 +213,7 @@ export default function GarantiasPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((g) => {
+                {filtered.slice((page - 1) * 20, page * 20).map((g) => {
                   const dias = diasRestantes(g.data_expiracao);
                   const Icon = statusIcons[g.status];
                   return (
@@ -258,6 +260,7 @@ export default function GarantiasPage() {
                 })}
               </tbody>
             </table>
+            <Pagination page={page} totalPages={Math.max(1, Math.ceil(filtered.length / 20))} totalItems={filtered.length} pageSize={20} onPageChange={setPage} />
           </div>
         )}
       </div>

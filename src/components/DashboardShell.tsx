@@ -7,6 +7,7 @@ import { PermissionsProvider } from '@/components/PermissionsProvider';
 import { DashboardNav } from '@/components/DashboardNav';
 import { RouteGuard } from '@/components/RouteGuard';
 import IdleGuard from '@/components/IdleGuard';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { resolveRoles } from '@/lib/permissions';
 import { createClient } from '@/lib/supabase/client';
 import type { Usuario } from '@/types/database.types';
@@ -55,7 +56,7 @@ export function DashboardShell({ usuario, children }: { usuario: Usuario; childr
         </button>
 
         <main className={`flex-1 pt-20 px-4 md:px-6 pb-8 min-h-screen w-full min-w-0 transition-all duration-200 ml-0 ${collapsed ? 'md:ml-0' : 'md:ml-64'}`}>
-          {children}
+          <ErrorBoundary>{children}</ErrorBoundary>
         </main>
       </div>
     </PermissionsProvider>

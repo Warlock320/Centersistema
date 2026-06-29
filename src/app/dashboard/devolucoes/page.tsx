@@ -13,6 +13,7 @@ import type {
   Devolucao, DevolucaoItem, DevolucaoStatus, DevolucaoTipo,
   Pedido, PedidoItem,
 } from '@/types/database.types';
+import { Pagination } from '@/components/ui/Pagination';
 
 const statusColors: Record<DevolucaoStatus, string> = {
   pendente: 'bg-amber-100 text-amber-700',
@@ -52,6 +53,7 @@ export default function DevolucoesPage() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [acting, setActing] = useState(false);
+  const [page, setPage] = useState(1);
 
   // Modal nova devolução
   const [novaModal, setNovaModal] = useState(false);
@@ -342,7 +344,7 @@ export default function DevolucoesPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((d) => (
+                {filtered.slice((page - 1) * 20, page * 20).map((d) => (
                   <tr key={d.id} className="border-b border-slate-50 hover:bg-slate-50/50">
                     <td className="px-6 py-3">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -394,6 +396,7 @@ export default function DevolucoesPage() {
                 ))}
               </tbody>
             </table>
+            <Pagination page={page} totalPages={Math.max(1, Math.ceil(filtered.length / 20))} totalItems={filtered.length} pageSize={20} onPageChange={setPage} />
           </div>
         )}
       </div>
