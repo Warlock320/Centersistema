@@ -223,27 +223,27 @@ export default function ConfiguracoesPage() {
     e.preventDefault();
     if (!empresa.id) { toast.error('Empresa não carregada. Recarregue a página.'); return; }
     setSaving(true);
+    // Upload do logo ANTES de salvar (para ter a URL pronta)
+    let logoUrl = empresa.logo_url;
+    if (logoFile && empresa.id) {
+      const ext = logoFile.name.split('.').pop() || 'png';
+      const path = `${empresa.id}/logo.${ext}`;
+      const { error: upErr } = await supabase.storage.from('empresa-logos').upload(path, logoFile, { upsert: true });
+      if (!upErr) {
+        const { data: urlData } = supabase.storage.from('empresa-logos').getPublicUrl(path);
+        if (urlData?.publicUrl) logoUrl = urlData.publicUrl + '?t=' + Date.now();
+      }
+      setLogoFile(null);
+    }
+
     const { error } = await supabase.from('empresas').update({
       nome: empresa.nome, razao_social: empresa.razao_social,
       cnpj: somenteDigitos(empresa.cnpj || ''),
       email: empresa.email, telefone: empresa.telefone, endereco: empresa.endereco,
       cidade: empresa.cidade, estado: (empresa.estado || '').slice(0, 2).toUpperCase() || null, cep: empresa.cep,
       permite_estoque_negativo: empresa.permite_estoque_negativo,
-      logo_url: empresa.logo_url,
+      logo_url: logoUrl,
     }).eq('id', empresa.id);
-
-    // Upload do logo
-    if (logoFile && empresa.id) {
-      const ext = logoFile.name.split('.').pop() || 'png';
-      const path = `${empresa.id}/logo.${ext}`;
-      await supabase.storage.from('empresa-logos').upload(path, logoFile, { upsert: true });
-      const { data: urlData } = supabase.storage.from('empresa-logos').getPublicUrl(path);
-      if (urlData?.publicUrl) {
-        const logoUrl = urlData.publicUrl + '?t=' + Date.now();
-        await supabase.from('empresas').update({ logo_url: logoUrl }).eq('id', empresa.id);
-      }
-      setLogoFile(null);
-    }
 
     setSaving(false);
     if (error) { toast.error('Erro ao salvar: ' + error.message); return; }
