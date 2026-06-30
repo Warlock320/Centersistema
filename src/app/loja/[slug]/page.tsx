@@ -44,15 +44,17 @@ async function getData(slug: string) {
   return { empresa: emp, produtos: (produtos || []) as ProdutoPublico[] };
 }
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const d = await getData(params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const d = await getData(slug);
   if (!d) return { title: 'Catálogo' };
   const titulo = (d.empresa as { catalogo_titulo: string | null }).catalogo_titulo || (d.empresa as { nome: string }).nome;
   return { title: titulo, description: (d.empresa as { catalogo_descricao: string | null }).catalogo_descricao || '' };
 }
 
-export default async function CatalogoPage({ params }: { params: { slug: string } }) {
-  const d = await getData(params.slug);
+export default async function CatalogoPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const d = await getData(slug);
   if (!d) return notFound();
 
   const emp = d.empresa;
