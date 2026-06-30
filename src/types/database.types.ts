@@ -174,6 +174,7 @@ export interface Produto {
   aliquota_pis: number;
   aliquota_cofins: number;
   imagem_url: string | null;
+  visivel_catalogo: boolean;
   created_at: string;
   updated_at: string;
   fornecedores?: { nome: string };

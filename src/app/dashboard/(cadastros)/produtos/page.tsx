@@ -18,7 +18,7 @@ import { buscarCNPJ, isCNPJ, formatCpfCnpj } from '@/lib/brasilapi';
 
 const EMPTY: Partial<Produto> = {
   codigo: '', ref: '', nome: '', categoria: null, fornecedor_id: null,
-  localizacao: '', aplicacoes: [], codigos_auxiliares: [], preco: 0, custo: 0, estoque: 0, estoque_minimo: 0,
+  localizacao: '', aplicacoes: [], codigos_auxiliares: [], preco: 0, custo: 0, estoque: 0, estoque_minimo: 0, visivel_catalogo: true,
 };
 
 export default function ProdutosPage() {
@@ -185,6 +185,7 @@ export default function ProdutosPage() {
       custo: Number(form.custo),
       estoque: Number(String(form.estoque ?? '').replace(',', '.')) || 0,
       estoque_minimo: Number(String(form.estoque_minimo ?? '').replace(',', '.')) || 0,
+      visivel_catalogo: form.visivel_catalogo ?? true,
     };
 
     let produtoId = selected?.id;
@@ -493,6 +494,19 @@ export default function ProdutosPage() {
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Vitrine pública */}
+          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+            <div>
+              <p className="text-sm font-medium text-slate-700">Visível no catálogo público</p>
+              <p className="text-xs text-slate-400">Exibe este produto na vitrine pública da empresa</p>
+            </div>
+            <button type="button"
+              onClick={() => setForm((p) => ({ ...p, visivel_catalogo: !(p.visivel_catalogo ?? true) }))}
+              className={`w-11 h-6 rounded-full relative transition-colors shrink-0 ${(form.visivel_catalogo ?? true) ? 'bg-blue-600' : 'bg-slate-300'}`}>
+              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all shadow-sm ${(form.visivel_catalogo ?? true) ? 'left-[22px]' : 'left-0.5'}`} />
+            </button>
           </div>
 
           {/* Comercial */}
