@@ -9,6 +9,7 @@ import { RouteGuard } from '@/components/RouteGuard';
 import IdleGuard from '@/components/IdleGuard';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ModulesProvider } from '@/components/ModulesProvider';
+import { ThemeApplier } from '@/components/ThemeApplier';
 import { resolveRoles } from '@/lib/permissions';
 import { createClient } from '@/lib/supabase/client';
 import type { Usuario } from '@/types/database.types';
@@ -42,6 +43,7 @@ export function DashboardShell({ usuario, children }: { usuario: Usuario; childr
     <ModulesProvider empresaId={usuario.empresa_id || null}>
     <PermissionsProvider roles={resolveRoles(usuario) as string[]} empresaId={usuario.empresa_id || null}>
       <RouteGuard />
+      <ThemeApplier empresaId={usuario.empresa_id || null} />
       {idleTimeout > 0 && <IdleGuard timeoutSeconds={idleTimeout} />}
       <div className="flex min-h-screen bg-slate-50">
         <DashboardNav usuario={usuario} collapsed={collapsed} />

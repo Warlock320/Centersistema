@@ -31,6 +31,9 @@ const NEXT_STATUS: Partial<Record<OrcamentoStatus, OrcamentoStatus>> = {
 const NEXT_BTN: Partial<Record<OrcamentoStatus, string>> = {
   criado: 'Enviar Orçamento', orcamento_enviado: 'Solicitar Aprovação',
 };
+const NEXT_BTN_VENDA_DIRETA: Partial<Record<OrcamentoStatus, string>> = {
+  criado: 'Enviar Orçamento', orcamento_enviado: 'Criar Pedido (Venda Direta)',
+};
 
 export default function OrcamentosPage() {
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
@@ -64,6 +67,7 @@ export default function OrcamentosPage() {
   const [precosMap, setPrecosMap] = useState<Record<string, Record<string, number>>>({});
 
   const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const [pularAprovacao, setPularAprovacao] = useState(false);
   const supabase = createClient();
 
   useEffect(() => { fetchData(); }, []);
@@ -73,6 +77,10 @@ export default function OrcamentosPage() {
     if (user) {
       const { data: usr } = await supabase.from('usuarios').select('*').eq('id', user.id).single();
       setUsuario(usr as Usuario);
+      if ((usr as Usuario)?.empresa_id) {
+        const { data: emp } = await supabase.from('empresas').select('orcamento_pular_aprovacao').eq('id', (usr as Usuario).empresa_id).single();
+        setPularAprovacao(!!(emp as { orcamento_pular_aprovacao: boolean } | null)?.orcamento_pular_aprovacao);
+      }
     }
     setLoading(true);
     const [orcs, clis, prods, tabs, precos] = await Promise.all([
@@ -259,8 +267,10 @@ export default function OrcamentosPage() {
   async function handleStatusChange(newStatus: OrcamentoStatus) {
     if (!selected) return;
     setActing(true);
-    await supabase.from('orcamentos').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', selected.id);
-    if (newStatus === 'aprovado') {
+    // Venda direta: pula aprovação e vai direto para pedido
+    const statusReal = (newStatus === 'aguardando_aprovacao' && pularAprovacao) ? 'aprovado' : newStatus;
+    await supabase.from('orcamentos').update({ status: statusReal, updated_at: new Date().toISOString() }).eq('id', selected.id);
+    if (statusReal === 'aprovado') {
       await supabase.rpc('create_pedido_from_orcamento', { p_orcamento_id: selected.id });
     }
     setActing(false);
@@ -618,7 +628,7 @@ export default function OrcamentosPage() {
                   };
                   setConfirmStatus({ status: next, label: labels[next] || next, msg: msgs[next] || `Deseja alterar o status para "${labels[next] || next}"?` });
                 }} loading={acting}>
-                  <Send size={14} /> {NEXT_BTN[selected.status]}
+                  <Send size={14} /> {(pularAprovacao ? NEXT_BTN_VENDA_DIRETA : NEXT_BTN)[selected.status]}
                 </Button>
               )}
               {/* Editar — só em rascunho/enviado */}

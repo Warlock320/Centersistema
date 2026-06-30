@@ -38,6 +38,14 @@ export interface Empresa {
   nfe_ambiente: number;
   nfe_proximo_numero: number;
   logo_url: string | null;
+  tema_cor_primaria: string | null;
+  tema_cor_secundaria: string | null;
+  orcamento_pular_aprovacao: boolean;
+  catalogo_ativo: boolean;
+  catalogo_slug: string | null;
+  catalogo_titulo: string | null;
+  catalogo_descricao: string | null;
+  catalogo_whatsapp: string | null;
   created_at: string;
 }
 

@@ -25,6 +25,7 @@ import SegurancaSection from './SegurancaSection';
 import PapeisCustomSection from './PapeisCustomSection';
 import ModulosSection from './ModulosSection';
 import ImportExportSection from './ImportExportSection';
+import CatalogoPublicoSection from './CatalogoPublicoSection';
 
 // ── Seletor de papéis (checkboxes) ─────────────────────────────────────────────
 function RoleSelector({ value, onChange }: { value: string[]; onChange: (roles: string[]) => void }) {
@@ -245,6 +246,9 @@ export default function ConfiguracoesPage() {
       cidade: empresa.cidade, estado: (empresa.estado || '').slice(0, 2).toUpperCase() || null, cep: empresa.cep,
       permite_estoque_negativo: empresa.permite_estoque_negativo,
       logo_url: logoUrl,
+      tema_cor_primaria: empresa.tema_cor_primaria || null,
+      tema_cor_secundaria: empresa.tema_cor_secundaria || null,
+      orcamento_pular_aprovacao: empresa.orcamento_pular_aprovacao || false,
     }).eq('id', empresa.id);
 
     setSaving(false);
@@ -452,8 +456,53 @@ export default function ConfiguracoesPage() {
         </div>
       )}
 
-      {/* Import/Export na aba empresa */}
-      {aba === 'empresa' && isAdmin && <ImportExportSection />}
+      {/* Import/Export + Catálogo + Tema na aba empresa */}
+      {aba === 'empresa' && isAdmin && (
+        <div className="space-y-6">
+          <ImportExportSection />
+          <CatalogoPublicoSection />
+          {/* Tema de cores */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+            <h2 className="font-semibold text-slate-900 mb-4">Tema de Cores</h2>
+            <div className="flex gap-6 flex-wrap">
+              <label className="text-sm">
+                <span className="text-slate-500 text-xs block mb-1">Cor primária</span>
+                <div className="flex items-center gap-2">
+                  <input type="color" value={empresa.tema_cor_primaria || '#3b82f6'}
+                    onChange={(e) => setEmpresa((p) => ({ ...p, tema_cor_primaria: e.target.value }))}
+                    className="w-10 h-10 rounded-lg cursor-pointer border border-slate-200" />
+                  <span className="text-xs font-mono text-slate-500">{empresa.tema_cor_primaria || '#3b82f6'}</span>
+                </div>
+              </label>
+              <label className="text-sm">
+                <span className="text-slate-500 text-xs block mb-1">Cor secundária (sidebar)</span>
+                <div className="flex items-center gap-2">
+                  <input type="color" value={empresa.tema_cor_secundaria || '#0f172a'}
+                    onChange={(e) => setEmpresa((p) => ({ ...p, tema_cor_secundaria: e.target.value }))}
+                    className="w-10 h-10 rounded-lg cursor-pointer border border-slate-200" />
+                  <span className="text-xs font-mono text-slate-500">{empresa.tema_cor_secundaria || '#0f172a'}</span>
+                </div>
+              </label>
+            </div>
+            <p className="text-xs text-slate-400 mt-3">Clique em "Salvar Dados" acima para aplicar as cores.</p>
+          </div>
+          {/* Pular aprovação */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+            <h2 className="font-semibold text-slate-900 mb-3">Fluxo de Vendas</h2>
+            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+              <div>
+                <p className="text-sm font-medium text-slate-700">Venda direta (pular aprovação)</p>
+                <p className="text-xs text-slate-400">Orçamentos vão direto para Pedido sem passar pela fila de aprovação</p>
+              </div>
+              <button type="button" onClick={() => setEmpresa((p) => ({ ...p, orcamento_pular_aprovacao: !p.orcamento_pular_aprovacao }))}
+                className={`w-12 h-6 rounded-full relative transition-colors shrink-0 ${empresa.orcamento_pular_aprovacao ? 'bg-blue-600' : 'bg-slate-300'}`}>
+                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all ${empresa.orcamento_pular_aprovacao ? 'left-[26px]' : 'left-0.5'}`} />
+              </button>
+            </div>
+            <p className="text-xs text-slate-400 mt-2">Salve em "Salvar Dados" acima para aplicar.</p>
+          </div>
+        </div>
+      )}
 
       {/* ── Aba: Módulos ──────────────────────────────────────────── */}
       {aba === 'modulos' && isAdmin && <ModulosSection />}
