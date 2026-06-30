@@ -23,7 +23,7 @@ CREATE OR REPLACE VIEW public.v_catalogo_publico AS
     e.catalogo_whatsapp, e.tema_cor_primaria
   FROM public.produtos p
   JOIN public.empresas e ON e.id = p.empresa_id
-  LEFT JOIN public.categorias c ON c.id::text = p.categoria
+  LEFT JOIN public.categorias c ON c.id = p.categoria
   WHERE p.ativo = true
     AND p.visivel_catalogo = true
     AND e.catalogo_ativo = true;
